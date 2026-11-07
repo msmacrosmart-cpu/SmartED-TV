@@ -37,6 +37,8 @@ import com.smarted.tv.player.*
 import com.smarted.tv.ui.components.*
 import com.smarted.tv.ui.state.AppViewModel
 import com.smarted.tv.ui.theme.TvColors
+import com.smarted.tv.ui.theme.whiteFocus
+import com.smarted.tv.ui.theme.smokedGlass
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 

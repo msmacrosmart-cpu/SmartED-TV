@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import com.smarted.tv.core.model.Scope
 import com.smarted.tv.ui.components.TvAction
 import com.smarted.tv.ui.theme.LocalCompact
+import com.smarted.tv.ui.theme.whiteFocus
+import com.smarted.tv.ui.theme.smokedGlass
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale

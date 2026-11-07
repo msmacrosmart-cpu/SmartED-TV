@@ -7,7 +7,6 @@ import com.smarted.tv.core.model.Manifest
 import com.smarted.tv.core.model.Scope
 import com.smarted.tv.core.protocol.AddonUrls
 import com.smarted.tv.core.protocol.ManifestValidator
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
