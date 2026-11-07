@@ -34,10 +34,11 @@ Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelh
 | `tools/check-db-schema.py` | esquema do Room: versão x baseline, migração obrigatória por passo e **execução real do SQL** no SQLite |
 | `tools/verify-core.sh` | 161 asserções do núcleo puro (parsers, EPG, classificador, abas) |
 | `tools/verify-logic.sh` | typecheck dos 35 arquivos não-UI |
-| job **Emulador** (CI) | instala o APK num Android 11, abre o app, confere que a UI renderiza e que um banco v1 antigo migra para v2 sem crash |
+| job **Emulador** (CI) | instala o APK num Android 11, abre o app, confere que a UI renderiza e que um banco v1 antigo migra para v2 sem crash; publica o relatório como comentário de commit |
 
 ## Pendências
 
 - ⏳ Teste em emulador de **Android TV** (API 30, 1080p) além do celular.
+- ⏳ Teste de reprodução no emulador (abrir um canal, um filme e um trailer via `adb input keyevent`).
 - ⏳ Varredura visual de todas as telas no aparelho (foco branco, glassmorphism, overscan).
 - ⏳ Acervo de Filmes/Séries depende de repositório ou fonte do usuário: nenhuma M3U pública BR confiável de VOD foi encontrada.

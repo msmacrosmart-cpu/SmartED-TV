@@ -453,19 +453,22 @@ jobs:
             set -o pipefail
             bash tools/emulator-smoke.sh 2>&1 | tee smoke.log
 
-      # O log do emulador é grande e o log bruto do Actions é inacessível por
-      # API; o comentário de commit carrega o trecho útil da falha.
-      - name: Registrar a falha no commit
-        if: failure()
+      # O log bruto do Actions é inacessível por API (blob storage externo).
+      # O comentário de commit guarda o relatório do teste — no sucesso e na
+      # falha — para o resultado ficar auditável.
+      - name: Relatar o teste no commit
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTCOME: ${{ steps.emu.outcome }}
         run: |
           set -euo pipefail
           [[ -f smoke.log ]] || exit 0
-          trecho="$(grep -iE 'error|fail|fatal|crash|Exception|colunas de|OK:' smoke.log | tail -40 || true)"
+          trecho="$(grep -iE 'OK:|colunas de|user_version|^==|error|fatal|crash|Exception' smoke.log | tail -40 || true)"
           [[ -n "$trecho" ]] || trecho="$(tail -40 smoke.log)"
-          payload="$(printf '%s\n' "$trecho" | jq -Rs --arg sha "${GITHUB_SHA:0:7}" \
-            '{body: ("Teste no emulador falhou no build " + $sha + ":\n\n```\n" + . + "```")}')"
+          payload="$(printf '%s\n' "$trecho" | jq -Rs \
+            --arg sha "${GITHUB_SHA:0:7}" --arg outcome "${OUTCOME:-unknown}" \
+            '{body: ("## Teste no emulador — " + $outcome + " (build " + $sha + ")\n\n```\n" + . + "```")}')"
           printf '%s' "$payload" | gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
             --input - > /dev/null || true

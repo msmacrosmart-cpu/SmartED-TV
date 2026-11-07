@@ -89,10 +89,16 @@ adb pull "/data/data/$PKG/databases/smarted-tv.db" /tmp/after.db >/dev/null 2>&1
 
 python3 - <<'PY' || fail "migração 1→2 não foi aplicada (coluna kinds ausente)"
 import sqlite3
-columns = [row[1] for row in sqlite3.connect("/tmp/after.db").execute("PRAGMA table_info(repositories)")]
+
+con = sqlite3.connect("/tmp/after.db")
+columns = [row[1] for row in con.execute("PRAGMA table_info(repositories)")]
+version = con.execute("PRAGMA user_version").fetchone()[0]
 print("colunas de repositories:", ", ".join(columns))
+print("user_version depois da migração:", version)
 if "kinds" not in columns:
     raise SystemExit("coluna kinds ausente")
+if version != 2:
+    raise SystemExit(f"user_version={version}, esperado 2")
 PY
 
 echo "OK: banco v1 migrado para v2 e o app abriu sem crash"
