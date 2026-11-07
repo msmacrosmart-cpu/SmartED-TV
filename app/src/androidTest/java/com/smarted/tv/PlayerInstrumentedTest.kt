@@ -1,68 +1,75 @@
 package com.smarted.tv
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.smarted.tv.core.data.InMemoryState
-import com.smarted.tv.core.model.*
-import com.smarted.tv.core.protocol.StremioApi
-import com.smarted.tv.ui.screens.PlayRequest
-import com.smarted.tv.ui.screens.PlayerScreen
-import com.smarted.tv.ui.state.AppViewModel
-import com.smarted.tv.ui.theme.SmartEdTheme
-import java.io.File
-import okhttp3.mockwebserver.Dispatcher
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
-import okhttp3.mockwebserver.RecordedRequest
-import okio.Buffer
-import org.junit.Assert.*
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ApplicationProvider
+import com.smarted.tv.util.TestSeeds
+import com.smarted.tv.util.TestServer
+import org.junit.After
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
-@RunWith(AndroidJUnit4::class)
+/**
+ * Player real (media3) na TV: abre o "Assistir" de um canal cujo stream é o MP4
+ * servido localmente e exige superfície pronta sem erro de reprodução.
+ */
 class PlayerInstrumentedTest {
-    @get:Rule val compose = createComposeRule()
 
-    @Test fun realMedia3PlaysHttpFixtureAndPausesWithDpad() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val bytes = instrumentation.context.assets.open("fixture.mp4").use { it.readBytes() }
-        MockWebServer().use { server ->
-            server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse = MockResponse()
-                    .setHeader("Content-Type", "video/mp4").setBody(Buffer().write(bytes))
-            }
-            server.start()
-            val url = server.url("/manifest.json").toString()
-            val addon = InstalledAddon(url, Scope.MOVIES, Manifest("player-test", "Player test", "1", catalogs = listOf(CatalogSpec("movie", "top"))), 1)
-            val item = MediaItem(url, "fixture", "movie", Scope.MOVIES, "Vídeo de validação", streams = listOf(MediaStream(server.url("/video.mp4").toString(), name = "MP4 local de teste")))
-            val api = object : StremioApi {
-                override suspend fun manifest(url: String) = addon.manifest
-                override suspend fun catalog(addon: InstalledAddon, catalog: CatalogSpec, extra: Map<String, String>) = listOf(item)
-                override suspend fun meta(item: MediaItem) = item
-                override suspend fun streams(item: MediaItem, videoId: String) = item.streams
-            }
-            val graph = AppGraph(instrumentation.targetContext, InMemoryState(AppData(listOf(addon))), api)
-            kotlinx.coroutines.runBlocking { graph.repository.initialize() }
-            val vm = AppViewModel(graph)
-            compose.setContent { SmartEdTheme { Box(Modifier.fillMaxSize()) { PlayerScreen(PlayRequest(item, null), vm, onClose = {}) } } }
-            compose.waitUntil(20_000) { compose.onAllNodesWithText("Pausar").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Pausar").assertIsDisplayed().performKeyInput { pressKey(Key.Enter) }
-            compose.waitUntil(5_000) { compose.onAllNodesWithText("Reproduzir").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Reproduzir").assertIsDisplayed()
-            assertTrue(server.requestCount >= 1)
-            compose.runOnIdle {
-                val image = compose.onRoot().captureToImage().asAndroidBitmap()
-                File(instrumentation.targetContext.filesDir, "tv-player.png").outputStream().use { image.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, it) }
-            }
+    @get:Rule
+    val compose = createEmptyComposeRule()
+
+    private lateinit var scenario: ActivityScenario<MainActivity>
+
+    @Before
+    fun setUp() {
+        TestServer.start(ApplicationProvider.getApplicationContext())
+        TestSeeds.seedThroughStore(ApplicationProvider.getApplicationContext())
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+    }
+
+    @After
+    fun tearDown() {
+        runCatching { scenario.close() }
+        TestServer.stop()
+    }
+
+    private fun awaitNode(tag: String, timeoutMs: Long = 30_000) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (runCatching { compose.onNodeWithTag(tag).fetchSemanticsNode() }.isSuccess) return
+            Thread.sleep(250)
         }
+        assertTrue("espera por '$tag' expirou (${timeoutMs}ms)", false)
+    }
+
+    @Test
+    fun openLiveChannel_playerBecomesReadyWithoutError() {
+        awaitNode("clock")
+        compose.onNodeWithTag("nav-Canais").performClick()
+        awaitNode("channel-list")
+        awaitNode("channel-watch", timeoutMs = 20_000)
+
+        compose.onNodeWithTag("channel-watch").performClick()
+        awaitNode("fullscreen-player")
+        awaitNode("player-surface", timeoutMs = 45_000)
+        assertTrue(
+            "player deveria estar sem erro",
+            runCatching { compose.onNodeWithTag("player-error").fetchSemanticsNode() }.isFailure,
+        )
+        // Pausar/retomar com os controles do rodapé continua estável.
+        compose.onNodeWithTag("player-toggle").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("fullscreen-player").assertIsDisplayed()
+        // título do canal no overlay
+        assertTrue(
+            "título do canal deveria aparecer",
+            runCatching { compose.onNodeWithText("Canal Teste HD", substring = true).fetchSemanticsNode() }.isSuccess,
+        )
     }
 }

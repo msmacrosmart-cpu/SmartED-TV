@@ -1,124 +1,164 @@
 package com.smarted.tv.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.smarted.tv.core.model.Scope
+import com.smarted.tv.core.model.Tab
+import com.smarted.tv.core.model.VodEntry
+import com.smarted.tv.core.sources.StreamRules
+import com.smarted.tv.ui.components.ContinueCard
+import com.smarted.tv.ui.components.HomeRow
+import com.smarted.tv.ui.components.RemoteImage
 import com.smarted.tv.ui.components.TvAction
+import com.smarted.tv.ui.components.VodPosterCard
+import com.smarted.tv.ui.state.AppViewModel
 import com.smarted.tv.ui.theme.LocalCompact
 import com.smarted.tv.ui.theme.TvColors
 import com.smarted.tv.ui.theme.smokedGlass
 import com.smarted.tv.ui.theme.whiteFocus
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-import kotlinx.coroutines.delay
 
 /**
- * Tela inicial inspirada no desenho do Ultra TV: relógio no alto e navegação lateral.
- * Aqui os três destinos ficam em cartões de vidro fumê, centralizados verticalmente à esquerda;
- * Configurações fica perto da borda inferior, como pedido para o SmartED.
+ * Início: boas-vindas + atalhos quando não há fontes; com dados, linhas de
+ * favoritos ao vivo, continuar assistindo e últimas entradas do repositório local.
  */
 @Composable
-fun HomeScreen(onNavigate: (Scope) -> Unit, onSettings: () -> Unit) {
-    var now by remember { mutableStateOf(ZonedDateTime.now()) }
-    LaunchedEffect(Unit) { while (true) { now = ZonedDateTime.now(); delay(1000) } }
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { first.requestFocus() }
-    val compact = LocalCompact.current
-    val locale = Locale.forLanguageTag("pt-BR")
-    Box(Modifier.fillMaxSize().testTag("home")) {
-        Column(
-            Modifier.align(Alignment.TopEnd).testTag("home-clock"),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                now.format(DateTimeFormatter.ofPattern("HH:mm", locale)),
-                style = MaterialTheme.typography.headlineLarge,
-                color = Color.White,
-            )
-            Text(
-                now.format(DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", locale)),
-                style = MaterialTheme.typography.bodyMedium,
-                color = TvColors.Muted,
-            )
+fun HomeScreen(
+    app: AppViewModel,
+    onOpenChannels: () -> Unit,
+    onOpenVod: (Tab) -> Unit,
+    onOpenSettings: () -> Unit,
+    onPlay: (PlayRequest) -> Unit,
+) {
+    val ui by app.ui.collectAsState()
+    val hasSources = ui.sources.any { it.enabled }
+    val noContent = ui.counts.getOrDefault(Tab.CHANNELS, 0) == 0 &&
+        ui.counts.getOrDefault(Tab.MOVIES, 0) == 0 && ui.counts.getOrDefault(Tab.SERIES, 0) == 0
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        if (!hasSources || noContent) {
+            WelcomeCard(app, onOpenSettings, hasSources)
         }
-        Column(
-            Modifier.align(Alignment.CenterStart).width(if (compact) 220.dp else 270.dp).testTag("home-navigation"),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
-        ) {
-            NavigationCard("Canais", "Ao vivo, no seu ritmo", Icons.Default.LiveTv, { onNavigate(Scope.CHANNELS) }, first)
-            NavigationCard("Filmes", "Histórias para descobrir", Icons.Default.Movie, { onNavigate(Scope.MOVIES) })
-            NavigationCard("Séries", "Só mais um episódio", Icons.Default.VideoLibrary, { onNavigate(Scope.SERIES) })
+        if (ui.favoriteChannels.isNotEmpty()) {
+            HomeRow("Canais favoritos ao vivo", ui.counts[Tab.CHANNELS], Modifier.testTag("row-fav-channels")) {
+                items(ui.favoriteChannels, key { "fc-${it.id}" }) { channel ->
+                    FavoriteChannelCard(channel.name, channel.logoUrl, onOpenChannels) {
+                        onPlay(
+                            PlayRequest(
+                                target = com.smarted.tv.core.model.PlaybackTarget(channel.streamUrl, channel.name, channel.headers, true),
+                                title = channel.name, favKey = channel.favKey, kind = "channel",
+                            )
+                        )
+                    }
+                }
+            }
         }
-        Column(
-            Modifier.align(Alignment.Center).padding(start = if (compact) 240.dp else 300.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text("SmartED TV", style = MaterialTheme.typography.headlineLarge, color = Color.White, textAlign = TextAlign.Center)
-            Text("Seu próximo momento começa aqui.", style = MaterialTheme.typography.bodyLarge, color = TvColors.Muted, textAlign = TextAlign.Center)
-            Text("Canais, filmes e séries dos seus addons Stremio.", style = MaterialTheme.typography.bodyMedium, color = TvColors.Muted, textAlign = TextAlign.Center)
+        if (ui.continueWatching.isNotEmpty()) {
+            HomeRow("Continuar assistindo", null, Modifier.testTag("row-continue")) {
+                items(ui.continueWatching, key { "cw-${it.favKey}" }) { record ->
+                    ContinueCard(record.title, record.positionMs, record.durationMs, onClick = {
+                        onPlay(
+                            PlayRequest(
+                                target = com.smarted.tv.core.model.PlaybackTarget(record.url, record.title, isLive = false),
+                                title = record.title, favKey = record.favKey, kind = record.kind,
+                            )
+                        )
+                    })
+                }
+            }
         }
-        TvAction(
-            "Configurações",
-            onSettings,
-            icon = Icons.Default.Settings,
-            modifier = Modifier.align(Alignment.BottomStart).width(if (compact) 220.dp else 270.dp).testTag("settings"),
-        )
-        Text(
-            "Setas para navegar · OK para selecionar · Voltar para retornar",
-            color = TvColors.Muted,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.align(Alignment.BottomEnd),
-        )
+        if (ui.recentlyAddedMovies.isNotEmpty()) {
+            VodRow("Últimos adicionados · Filmes", ui.recentlyAddedMovies, "row-movies", onPlay = { onVodPlay(it, onPlay) }, onOpenTab = { onOpenVod(Tab.MOVIES) })
+        }
+        if (ui.recentlyAddedSeries.isNotEmpty()) {
+            VodRow("Últimos adicionados · Séries", ui.recentlyAddedSeries, "row-series", onPlay = { onVodPlay(it, onPlay) }, onOpenTab = { onOpenVod(Tab.SERIES) })
+        }
+        if (ui.topMovies.isNotEmpty() && ui.recentlyAddedMovies.isEmpty() && ui.recentlyAddedSeries.isEmpty()) {
+            VodRow("Mais votados · Filmes", ui.topMovies, "row-top", onPlay = { onVodPlay(it, onPlay) }, onOpenTab = { onOpenVod(Tab.MOVIES) })
+        }
+        Spacer(Modifier.height(if (LocalCompact.current) 20.dp else 42.dp))
+    }
+}
+
+private fun onVodPlay(entry: VodEntry, onPlay: (PlayRequest) -> Unit) {
+    if (entry.kind == Tab.SERIES) return // séries abrem pelo catálogo (seleção de episódio)
+    val target = entry.streamUrl.takeIf(StreamRules::isProbablyPlayable) ?: return
+    onPlay(PlayRequest(com.smarted.tv.core.model.PlaybackTarget(target, entry.name, isLive = false), entry.name, entry.favKey, "vod"))
+}
+
+@Composable
+private fun VodRow(title: String, entries: List<VodEntry>, tag: String, onPlay: (VodEntry) -> Unit, onOpenTab: () -> Unit) {
+    HomeRow(title, entries.size, Modifier.testTag(tag)) {
+        item {
+            TvAction("Abrir catálogo →", onOpenTab, compact = true)
+        }
+        items(entries, key { "v-${it.id}" }) { entry ->
+            Box(Modifier.width(if (LocalCompact.current) 168.dp else 196.dp)) {
+                VodPosterCard(entry, onClick = { if (entry.kind == Tab.SERIES) onOpenTab() else onPlay(entry) })
+            }
+        }
     }
 }
 
 @Composable
-private fun NavigationCard(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit, focus: FocusRequester? = null) {
+private fun WelcomeCard(app: AppViewModel, onOpenSettings: () -> Unit, hasSources: Boolean) {
     var focused by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(16.dp)
-    Row(
-        Modifier.fillMaxWidth().testTag("nav-$title")
-            .then(if (focus != null) Modifier.focusRequester(focus) else Modifier)
-            .onFocusChanged { focused = it.isFocused }
-            .whiteFocus(focused, radius = 19.dp)
-            .padding(3.dp)
-            .clip(shape)
-            .smokedGlass()
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = if (LocalCompact.current) 16.dp else 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    Column(
+        Modifier.fillMaxWidth().testTag("home-welcome")
+            .smokedGlass(22.dp).whiteFocus(focused, radius = 24.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onOpenSettings)
+            .padding(26.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(icon, null, Modifier.size(if (LocalCompact.current) 30.dp else 36.dp), tint = Color.White)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = Color.White, style = MaterialTheme.typography.titleLarge)
-            Text(subtitle, color = TvColors.Muted, style = MaterialTheme.typography.labelMedium)
+        Text(if (hasSources) "Sincronize suas listas" else "Bem-vindo ao SmartED TV", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        Text(
+            if (hasSources) "Suas fontes estão cadastradas mas sem catálogo local. Atualize cada lista em Configurações → Fontes para importar canais, VOD e EPG."
+            else "Conecte uma playlist M3U/M3U8, um painel Xtream Codes ou um repositório de fontes (estilo OnePlay) em Configurações → Fontes. Tudo fica no banco local do app, com auto-update e EPG sincronizado pelo nome real dos canais.",
+            style = MaterialTheme.typography.bodyMedium, color = TvColors.Muted,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            TvAction("Abrir Configurações", onOpenSettings, primary = true, modifier = Modifier.testTag("home-open-settings"))
+            val ui by app.ui.collectAsState()
+            if (ui.busy.isNotBlank()) Text(ui.busy, color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+    }
+}
+
+@Composable
+private fun FavoriteChannelCard(name: String, logoUrl: String?, onOpenChannels: () -> Unit, onPlay: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    Column(
+        Modifier.width(if (LocalCompact.current) 180.dp else 210.dp).testTag("fav-channel-${name.filter(Char::isLetterOrDigit).take(18)}")
+            .onFocusChanged { focused = it.isFocused }
+            .whiteFocus(focused, radius = 20.dp).padding(3.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onPlay),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color(0xFF17181B))) {
+            RemoteImage(logoUrl, name, Modifier.matchParentSize(), androidx.compose.ui.layout.ContentScale.Fit)
+            Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).background(Color(0xCC111214), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                Text("AO VIVO", color = Color.White, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        Text(name, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
     }
 }

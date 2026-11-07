@@ -3,73 +3,215 @@ package com.smarted.tv.ui.state
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smarted.tv.AppGraph
-import com.smarted.tv.core.model.Manifest
-import com.smarted.tv.core.model.Scope
-import com.smarted.tv.core.protocol.AddonUrls
-import com.smarted.tv.core.protocol.ManifestValidator
+import com.smarted.tv.core.model.ListSource
+import com.smarted.tv.core.model.SourceKind
+import com.smarted.tv.core.model.Tab
+import com.smarted.tv.core.model.UserPreferences
+import com.smarted.tv.data.db.IptvStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 
-data class SettingsUi(val busy: Boolean = false, val message: String = "", val error: String = "", val preview: Manifest? = null, val revision: Int = 0)
+data class AppUi(
+    val ready: Boolean = false,
+    val startupError: String = "",
+    val busy: String = "",
+    val message: String = "",
+    val error: String = "",
+    /** incrementa a cada escrita no repositório para as telas revalidarem. */
+    val revision: Int = 0,
+    val sources: List<ListSource> = emptyList(),
+    val counts: Map<Tab, Int> = emptyMap(),
+    val programCount: Int = 0,
+    val continueWatching: List<IptvStore.ProgressRecord> = emptyList(),
+    val recentlyAddedMovies: List<com.smarted.tv.core.model.VodEntry> = emptyList(),
+    val recentlyAddedSeries: List<com.smarted.tv.core.model.VodEntry> = emptyList(),
+    val topMovies: List<com.smarted.tv.core.model.VodEntry> = emptyList(),
+    val favoriteChannels: List<com.smarted.tv.core.model.LiveChannel> = emptyList(),
+)
 
 class AppViewModel(val graph: AppGraph) : ViewModel() {
-    private val _ready = MutableStateFlow(false)
-    val ready = _ready.asStateFlow()
-    private val _startupError = MutableStateFlow("")
-    val startupError = _startupError.asStateFlow()
-    private val _settings = MutableStateFlow(SettingsUi())
-    val settings = _settings.asStateFlow()
-    val data get() = graph.repository.data
-    init { initialize() }
+
+    private val _ui = MutableStateFlow(AppUi())
+    val ui = _ui.asStateFlow()
+    val preferences = graph.preferences
+    val elementum = graph.elementum
+
+    init {
+        viewModelScope.launch {
+            graph.sources.busy.collect { busy -> _ui.update { it.copy(busy = if (busy.isBusy) busy.message else "") } }
+        }
+        viewModelScope.launch {
+            graph.sources.revision.collect { _ui.update { it.copy(revision = it.revision + 1) } }
+        }
+        initialize()
+    }
+
     fun initialize() {
         viewModelScope.launch {
-            _startupError.value = ""
-            try { graph.repository.initialize(); _ready.value = true }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _startupError.value = e.message ?: "Não foi possível abrir os dados locais." }
+            _ui.update { it.copy(startupError = "") }
+            runCatching {
+                graph.store.readableDatabase.version // abre/cria o banco e roda onCreate
+                _ui.update { it.copy(ready = true) }
+                refreshData()
+            }.onFailure { error ->
+                _ui.update { it.copy(startupError = error.message ?: "Falha ao abrir os dados locais.") }
+            }
         }
     }
-    fun saveProgress(request: com.smarted.tv.ui.screens.PlayRequest, position: Long, duration: Long) {
+
+    fun refreshData() {
         viewModelScope.launch {
-            try { graph.repository.saveProgress(request.item, request.item.playbackId(request.video), position, duration) }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _settings.update { it.copy(error = "Não foi possível salvar o progresso: ${e.message ?: "armazenamento indisponível"}") } }
+            val sources = withContext2 { graph.store.listSources() }
+            val counts = withContext2 { graph.catalog.counts() }
+            val programs = withContext2 { graph.store.programmeCount() }
+            val progress = withContext2 { graph.catalog.continueWatching() }
+            val recentMovies = withContext2 { graph.catalog.recentlyAdded(Tab.MOVIES, 14) }
+            val recentSeries = withContext2 { graph.catalog.recentlyAdded(Tab.SERIES, 14) }
+            val topMovies = withContext2 { graph.catalog.topRated(Tab.MOVIES, 14) }
+            val favChannels = withContext2 { graph.catalog.favoriteChannels() }
+            _ui.update {
+                it.copy(
+                    sources = sources, counts = counts, programCount = programs,
+                    continueWatching = progress, recentlyAddedMovies = recentMovies, recentlyAddedSeries = recentSeries,
+                    topMovies = topMovies, favoriteChannels = favChannels,
+                )
+            }
         }
     }
-    fun clearMessages() { _settings.update { it.copy(message = "", error = "") } }
-    fun preview(url: String, scope: Scope) = operation {
-        val manifest = graph.api.manifest(AddonUrls.normalize(url))
-        ManifestValidator.validate(manifest, scope)
-        _settings.update { it.copy(preview = manifest) }
-        "Manifesto válido: ${manifest.name} · ${manifest.catalogsFor(scope).size} catálogo(s) neste escopo."
+
+    private suspend fun <T> withContext2(block: () -> T): T =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { block() }
+
+    // ------------------------------------------------------------ fontes
+
+    fun addM3u(name: String, url: String, epgUrl: String) = operation("Adicionando lista…") {
+        val source = graph.sources.addM3u(name, url, epgUrl)
+        val summary = graph.sources.refresh(source)
+        "Lista adicionada — $summary"
     }
-    fun install(url: String, scope: Scope) = operation {
-        val addon = graph.repository.install(url, scope)
-        _settings.update { it.copy(preview = null, revision = it.revision + 1) }
-        "${addon.manifest.name} adicionado. O conteúdo aparecerá somente no escopo escolhido."
+
+    fun addXtream(name: String, url: String, user: String, pass: String, epgUrl: String) = operation("Conectando ao painel…") {
+        val source = graph.sources.addXtream(name, url, user, pass, epgUrl)
+        val summary = graph.sources.refresh(source)
+        "Painel conectado — $summary"
     }
-    fun remove(url: String) = operation { graph.repository.remove(url); _settings.update { it.copy(revision = it.revision + 1) }; "Addon removido." }
-    fun refresh(url: String) = operation { graph.repository.refresh(url); _settings.update { it.copy(revision = it.revision + 1) }; "Manifesto atualizado." }
-    fun scope(url: String, scope: Scope) = operation { graph.repository.changeScope(url, scope); _settings.update { it.copy(revision = it.revision + 1) }; "Escopo atualizado." }
-    fun preferences(transform: (com.smarted.tv.core.model.UserPreferences) -> com.smarted.tv.core.model.UserPreferences) {
-        viewModelScope.launch {
-            try { graph.repository.updatePreferences(transform); _settings.update { it.copy(message = "Preferência salva.", error = "") } }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _settings.update { it.copy(error = e.message ?: "Não foi possível salvar a preferência.") } }
+
+    fun addRepository(name: String, url: String) = operation("Importando repositório…") {
+        val source = graph.sources.addRepository(name, url)
+        "Repositório \"${source.name}\" sincronizado."
+    }
+
+    fun refreshSource(sourceId: Long) = operation("Atualizando fonte…") {
+        val source = graph.store.sourceById(sourceId) ?: error("Fonte não encontrada.")
+        graph.sources.refresh(source)
+    }
+
+    fun refreshEpgOnly(sourceId: Long) = operation("Sincronizando EPG…") {
+        val source = graph.store.sourceById(sourceId) ?: error("Fonte não encontrada.")
+        graph.sources.refreshEpgOnly(source)
+    }
+
+    /** Só EPG em todas as fontes com URL configurada — reindexa o vínculo nome a nome. */
+    fun refreshEpgForAll() = operation("Reindexando EPG…") {
+        val targets = withContext2 { graph.store.listSources().filter { it.enabled && (it.epgUrl.isNotBlank() || it.kind == SourceKind.XTREAM) } }
+        if (targets.isEmpty()) error("Nenhuma fonte com EPG configurado.")
+        var done = 0
+        for (source in targets) {
+            runCatching { graph.sources.refreshEpgOnly(source) }.onSuccess { done++ }
         }
+        "EPG reindexado em $done de ${targets.size} fonte(s)."
     }
-    fun clearProgress() = operation { graph.repository.clearProgress(); "Histórico de reprodução apagado." }
-    fun resetPreferences() = preferences { com.smarted.tv.core.model.UserPreferences() }
-    private fun operation(block: suspend () -> String) {
-        if (_settings.value.busy) return
-        _settings.update { it.copy(busy = true, error = "", message = "") }
+
+    fun refreshAll() = operation("Atualizando todas as fontes…") {
+        graph.refreshAllNow { message -> _ui.update { it.copy(busy = message) } }
+        null
+    }
+
+    fun toggleSource(source: ListSource) = operation(if (source.enabled) "Desativando…" else "Ativando…") {
+        graph.sources.setEnabled(source, !source.enabled)
+        "${source.name}: ${if (source.enabled) "desativada" else "ativada"}. Abra a fonte para sincronizar de novo."
+    }
+
+    fun removeSource(source: ListSource) = operation("Removendo fonte…") {
+        graph.sources.remove(source.id)
+        "Fonte ${source.name} removida (listas, VOD e EPG dela)."
+    }
+
+    fun setSourceInterval(source: ListSource, minutes: Int) = operation("Salvando…") {
+        graph.sources.setInterval(source, minutes)
+        if (minutes == 0) "Auto-update desligado para ${source.name}." else "Auto-update de ${source.name}: a cada ${minutes} min."
+    }
+
+    fun setSourceEpgUrl(source: ListSource, epgUrl: String) = operation("Salvando…") {
+        graph.sources.update(source.copy(epgUrl = epgUrl.trim()))
+        "URL de EPG salva. Use \"Só EPG\" para sincronizar agora."
+    }
+
+    // ------------------------------------------------------------ sistema
+
+    fun clearCaches() = operation("Limpando índices…") {
+        graph.catalog.wipeCaches()
+        "Índes limpos. Atualize as fontes para reconstruir."
+    }
+
+    fun clearProgress() = operation("Limpando histórico…") {
+        withContext2 { graph.store.clearProgress() }
+        "Histórico de reprodução apagado."
+    }
+
+    fun resetPreferences() = operation("Restaurando…") {
+        graph.savePreferences { UserPreferences() }
+        "Preferências restauradas ao padrão."
+    }
+
+    fun preferences(transform: (UserPreferences) -> UserPreferences) {
+        graph.savePreferences(transform)
+    }
+
+    fun elementumTest() {
+        graph.checkElementum()
+    }
+
+    fun elementumUpdate() {
+        graph.triggerElementumUpdate()
+    }
+
+    fun saveProgress(favKey: String, title: String, position: Long, duration: Long, kind: String, url: String, isLive: Boolean) {
+        if (favKey.isBlank() || isLive || duration <= 0) return
+        viewModelScope.launch { withContext2 { graph.catalog.saveProgress(favKey, title, position, duration, kind, url, false) } }
+    }
+
+    suspend fun loadProgress(favKey: String): com.smarted.tv.core.model.PlaybackProgress? =
+        withContext2 { graph.catalog.progressFor(favKey) }
+
+    fun sourceKindOf(sourceId: Long): SourceKind? = runCatching { graph.store.sourceById(sourceId)?.kind }.getOrDefault(SourceKind.M3U)
+
+    private fun operation(label: String, block: suspend () -> String?) {
+        // operações breves de escrita; UI observa busy para feedback.
         viewModelScope.launch {
-            try { val message = block(); _settings.update { it.copy(busy = false, message = message) } }
-            catch (e: CancellationException) { _settings.update { it.copy(busy = false) }; throw e }
-            catch (e: Exception) { _settings.update { it.copy(busy = false, error = e.message ?: "Falha na operação.") } }
+            _ui.update { it.copy(busy = label, message = "", error = "") }
+            try {
+                val message = block()
+                _ui.update { it.copy(busy = "", message = message.orEmpty()) }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _ui.update { it.copy(busy = "", error = error.message ?: "Falha inesperada.") }
+            }
+            refreshData()
         }
     }
 }
+
+/** Configuração de uma fonte pela tela de configurações (sem recriar linha). */
+data class SourceDraft(
+    val kind: SourceKind,
+    val name: String = "",
+    val url: String = "",
+    val username: String = "",
+    val password: String = "",
+    val epgUrl: String = "",
+    val autoUpdateMinutes: Int = 720,
+)

@@ -14,8 +14,8 @@ android {
         applicationId = "com.smarted.tv"
         minSdk = 23
         targetSdk = 35
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 200
-        versionName = (project.findProperty("versionName") as String?) ?: "2.0.0"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 9013
+        versionName = (project.findProperty("versionName") as String?) ?: "3.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

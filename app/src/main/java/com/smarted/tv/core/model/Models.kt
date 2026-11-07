@@ -1,153 +1,138 @@
 package com.smarted.tv.core.model
 
-import kotlinx.serialization.Serializable
+/** Destinos de conteúdo do app. A aba decide o escopo; nada é inferido silenciosamente. */
+enum class Tab { CHANNELS, MOVIES, SERIES }
 
-/** The UI destination is chosen by the user, never inferred from a mixed playlist. */
-@Serializable
-enum class Scope(val wireTypes: Set<String>) {
-    CHANNELS(setOf("tv", "channel", "channels", "live")),
-    MOVIES(setOf("movie", "movies")),
-    SERIES(setOf("series"));
+/** Tipos de fonte suportados pelo repositório local (estilo OnePlay). */
+enum class SourceKind { M3U, XTREAM, REPOSITORY }
 
-    companion object {
-        fun fromWire(type: String): Scope? = entries.firstOrNull { type.lowercase() in it.wireTypes }
-    }
-}
-
-@Serializable
-data class ExtraSpec(
+/**
+ * Uma fonte de lista configurada pelo usuário.
+ * M3U: playlist http/asset com canais (e VOD opcional por grupos).
+ * XTREAM: painel Xtream Codes (live + vod + series + EPG nativos).
+ * REPOSITORY: índice JSON OnePlay-style que expande em fontes filhos.
+ */
+data class ListSource(
+    val id: Long,
     val name: String,
-    val required: Boolean = false,
-    val options: List<String> = emptyList(),
-    val optionsLimit: Int? = null,
-)
+    val kind: SourceKind,
+    val url: String,
+    val username: String = "",
+    val password: String = "",
+    val epgUrl: String = "",
+    val enabled: Boolean = true,
+    /** Minutos entre auto-atualizações; 0 desliga. */
+    val autoUpdateMinutes: Int = 720,
+    val lastRefreshMs: Long = 0,
+    val status: String = "",
+    val error: String = "",
+) {
+    val isAutoUpdateDue: Boolean
+        get() = enabled && autoUpdateMinutes > 0 &&
+            (System.currentTimeMillis() - lastRefreshMs) >= autoUpdateMinutes * 60_000L
+}
 
-@Serializable
-data class ResourceSpec(
+fun ListSource.autoUpdateDueAt(nowMs: Long): Boolean =
+    enabled && autoUpdateMinutes > 0 && (nowMs - lastRefreshMs) >= autoUpdateMinutes * 60_000L
+
+/** Canal ao vivo extraído de M3U/Xtream. */
+data class LiveChannel(
+    val id: Long,
+    val sourceId: Long,
+    /** Chave derivada e estável p/ favoritos/progresso (sobrevive a re-import). */
+    val favKey: String = "",
+    val number: Int?,
     val name: String,
-    val types: List<String> = emptyList(),
-    val idPrefixes: List<String>? = null,
-) {
-    fun supports(type: String, id: String = ""): Boolean =
-        (types.isEmpty() || type in types) && (idPrefixes == null || idPrefixes.any { id.startsWith(it) })
-}
-
-@Serializable
-data class CatalogSpec(
-    val type: String,
-    val id: String,
-    val name: String = "",
-    val extra: List<ExtraSpec> = emptyList(),
-    val genres: List<String> = emptyList(),
-    val pageSize: Int = 100,
-) {
-    val displayName: String get() = name.ifBlank { id }
-    fun extra(name: String): ExtraSpec? = extra.firstOrNull { it.name == name }
-    val paged: Boolean get() = extra("skip") != null
-    val searchable: Boolean get() = extra("search") != null
-    val searchOnly: Boolean get() = extra("search")?.required == true
-}
-
-@Serializable
-data class Manifest(
-    val id: String,
-    val name: String,
-    val version: String,
-    val description: String = "",
-    val logo: String? = null,
-    val background: String? = null,
-    val types: List<String> = emptyList(),
-    val resources: List<ResourceSpec> = emptyList(),
-    val catalogs: List<CatalogSpec> = emptyList(),
-    val configurationRequired: Boolean = false,
-    val configurationUrl: String? = null,
-    val epgProvider: Boolean = false,
-) {
-    fun catalogsFor(scope: Scope): List<CatalogSpec> = catalogs.filter { it.type in scope.wireTypes }
-    fun resource(name: String, type: String, id: String = ""): Boolean =
-        resources.any { it.name == name && it.supports(type, id) }
-}
-
-@Serializable
-data class Video(
-    val id: String,
-    val title: String = "",
-    val season: Int? = null,
-    val episode: Int? = null,
-    val released: String? = null,
-    val startTime: String? = null,
-    val endTime: String? = null,
-    val thumbnail: String? = null,
-    val description: String = "",
-    val streams: List<MediaStream> = emptyList(),
-)
-
-@Serializable
-data class MediaItem(
-    val addonUrl: String,
-    val id: String,
-    val type: String,
-    val scope: Scope,
-    val name: String,
-    val poster: String? = null,
-    val background: String? = null,
-    val logo: String? = null,
-    val description: String = "",
-    val releaseInfo: String = "",
-    val released: String? = null,
-    val rating: Double? = null,
-    val runtime: String = "",
-    val genres: List<String> = emptyList(),
-    val cast: List<String> = emptyList(),
-    val director: List<String> = emptyList(),
-    val language: String = "",
-    val country: String = "",
-    val videos: List<Video> = emptyList(),
-    val streams: List<MediaStream> = emptyList(),
-    val defaultVideoId: String? = null,
-    val scheduledVideos: Boolean = false,
-    val catalogName: String = "",
-    val catalogPosition: Long = 0,
-    val addedAt: Long? = null,
-) {
-    val key: String get() = "$addonUrl|$type|$id"
-    val imageUrl: String? get() = if (scope == Scope.CHANNELS) logo ?: poster else poster ?: background
-    val seasons: List<Int> get() = videos.mapNotNull { it.season }.distinct().sorted()
-    val year: Int? get() = Regex("\\d{4}").find(released ?: releaseInfo)?.value?.toIntOrNull()
-    fun playbackId(video: Video?): String = when {
-        scope == Scope.CHANNELS -> id // Native EPG: a programme is NOT a playback identity.
-        video != null -> video.id
-        scope == Scope.SERIES -> defaultVideoId ?: videos.firstOrNull()?.id ?: id
-        else -> defaultVideoId ?: id
-    }
-}
-
-@Serializable
-data class Subtitle(val id: String, val url: String, val language: String = "", val mime: String = "")
-
-@Serializable
-data class MediaStream(
-    val url: String? = null,
-    val externalUrl: String? = null,
-    val infoHash: String? = null,
-    val ytId: String? = null,
-    val name: String = "",
-    val description: String = "",
+    val groupName: String,
+    val logoUrl: String?,
+    val streamUrl: String,
+    val tvgId: String?,
     val headers: Map<String, String> = emptyMap(),
-    val subtitles: List<Subtitle> = emptyList(),
-) {
-    val label: String get() = listOf(name, description).filter(String::isNotBlank).joinToString(" · ").ifBlank { "Fonte disponível" }
-    val direct: Boolean get() = url?.lowercase()?.let { it.startsWith("https://") || it.startsWith("http://") } == true
-}
+    /** Chave usada para vincular ao EPG (tvg-id normalizado ou nome normalizado). */
+    val epgKey: String = "",
+)
 
-@Serializable
-data class InstalledAddon(val url: String, val scope: Scope, val manifest: Manifest, val installedAt: Long)
+/** Programa de EPG (XMLTV). */
+data class Programme(
+    val epgChannel: String,
+    val startMs: Long,
+    val stopMs: Long,
+    val title: String,
+    val description: String = "",
+    val category: String = "",
+)
 
-@Serializable
-data class PlaybackProgress(val positionMs: Long, val durationMs: Long, val updatedAt: Long)
+/** Canal do XMLTV: id → nomes exibidos (para matching). */
+data class EpgChannelRef(val id: String, val displayNames: List<String>, val logoUrl: String? = null)
 
-/** Preferências locais no modelo de organização do Stremio. Só expomos controles que o player nativo realmente aplica. */
-@Serializable
+/** Título VOD (filmes/séries) vindo de Xtream, grupos M3U ou catálogo local. */
+data class VodEntry(
+    val id: Long,
+    val sourceId: Long,
+    val favKey: String,
+    val kind: Tab,
+    val externalKey: String,
+    val name: String,
+    val category: String,
+    val year: Int?,
+    val rating: Double?,
+    val addedMs: Long,
+    val posterUrl: String?,
+    val backdropUrl: String?,
+    val plot: String,
+    val streamUrl: String,
+    val runtimeMinutes: Int?,
+    val cast: List<String> = emptyList(),
+    val genre: String = "",
+    val countryCode: String = "",
+    val language: String = "",
+    val imdbId: String = "",
+)
+
+/** Episódio de série (Xtream get_series_info ou M3U agrupado). */
+data class Episode(
+    val id: Long,
+    val vodId: Long,
+    val season: Int,
+    val episode: Int,
+    val title: String,
+    val plot: String = "",
+    val thumbUrl: String? = null,
+    val runtimeMinutes: Int? = null,
+    val streamUrl: String,
+    val containerExtension: String = "mp4",
+)
+
+/** Alvo de reprodução resolvido (URL direta + headers + legendas). */
+data class PlaybackTarget(
+    val url: String,
+    val title: String,
+    val headers: Map<String, String> = emptyMap(),
+    val isLive: Boolean = false,
+    val subtitles: List<SubtitleTrack> = emptyList(),
+)
+
+data class SubtitleTrack(val url: String, val language: String, val label: String = "")
+
+/** Par agora/próximo calculado para um canal (linha do tempo do canal). */
+data class NowNext(val now: Programme?, val next: Programme?, val progressPercent: Int)
+
+/** Resultado do pareamento EPG de uma fonte. */
+data class EpgMatchPlan(
+    val links: List<EpgLink>,
+    val unmatchedChannels: Int,
+    val totalProgrammes: Int,
+)
+
+data class EpgLink(
+    val channelKey: String,
+    val epgChannel: String,
+    /** 100 = tvg-id exato, 70-99 nome normalizado, 40-69 fuzzy, 0 sem vínculo. */
+    val confidence: Int,
+    val manual: Boolean = false,
+)
+
+/** Preferências do usuário (persistidas em DataStore). */
 data class UserPreferences(
     val audioLanguage: String = "pt",
     val subtitleLanguage: String = "pt",
@@ -157,30 +142,58 @@ data class UserPreferences(
     val autoplayNextEpisode: Boolean = true,
     val seekBackSeconds: Int = 10,
     val seekForwardSeconds: Int = 30,
+    /** Exibir player de pré-visualização na coluna 3 da aba Canais. */
+    val previewPlayerEnabled: Boolean = true,
+    /** Janela do EPG carregada (horas a partir de agora). */
+    val epgWindowHours: Int = 24,
+    /** Elementum daemon habilitado para VOD/torrents. */
+    val elementumEnabled: Boolean = false,
+    val elementumHost: String = "127.0.0.1",
+    val elementumPort: Int = 65064,
+    /** Intervalo global de auto-atualização quando a fonte não define (minutos). */
+    val autoUpdateMinutes: Int = 720,
 ) {
     init {
         require(subtitleSizePercent in 75..150) { "Tamanho de legenda inválido." }
         require(seekBackSeconds in 5..60 && seekForwardSeconds in 5..120) { "Intervalo de salto inválido." }
+        require(epgWindowHours in 3..72) { "Janela de EPG inválida." }
+        require(elementumPort in 1..65535) { "Porta do Elementum inválida." }
+        require(autoUpdateMinutes == 0 || autoUpdateMinutes in 15..10080) { "Intervalo de atualização inválido." }
+    }
+
+    val elementumBaseUrl: String get() = "http://$elementumHost:$elementumPort"
+}
+
+/** Ordenações expostas na UI (VOD e canais). */
+enum class SortMode { NAME, ADDED, RATING, YEAR }
+enum class SortDirection { ASC, DESC }
+
+data class BrowseQuery(
+    val search: String = "",
+    val category: String = ALL,
+    val sort: SortMode = SortMode.ADDED,
+    val direction: SortDirection = SortDirection.DESC,
+) {
+    companion object { const val ALL = "Todos"; const val FAVORITES = "★ Favoritos" }
+    val isFavorites: Boolean get() = category == FAVORITES
+    val isAll: Boolean get() = category == ALL
+}
+
+/** Linha da lista de canais (coluna 2). */
+data class ChannelRow(
+    val channel: LiveChannel,
+    val now: Programme?,
+    val next: Programme?,
+    val progressPercent: Int,
+    val isFavorite: Boolean,
+)
+
+/** Progresso local de reprodução (retomar filme/série). */
+data class PlaybackProgress(val positionMs: Long, val durationMs: Long, val updatedAt: Long)
+
+/** Página de resultados com cursor de offset (paginação simples e estável). */
+data class Page<T>(val items: List<T>, val total: Int, val hasMore: Boolean) {
+    companion object {
+        const val SIZE = 80
     }
 }
-
-@Serializable
-data class AppData(
-    val addons: List<InstalledAddon> = emptyList(),
-    val favorites: List<MediaItem> = emptyList(),
-    val progress: Map<String, PlaybackProgress> = emptyMap(),
-    val preferences: UserPreferences = UserPreferences(),
-) {
-    init { require(addons.size <= 3) { "Limite de 3 addons." } }
-}
-
-data class CatalogPage(val items: List<MediaItem>, val nextCursor: com.smarted.tv.core.catalog.PageCursor?, val warnings: List<String> = emptyList())
-
-enum class Sort { AZ, ADDED, RATING, YEAR }
-enum class Direction { ASC, DESC }
-data class CatalogQuery(
-    val search: String = "",
-    val category: String = "Todos",
-    val sort: Sort = Sort.ADDED,
-    val direction: Direction = Direction.DESC,
-)

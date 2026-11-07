@@ -1,76 +1,71 @@
-# SmartED TV — especificação visual e funcional (BR-PT)
+# SmartED TV — especificação visual e funcional (BR-PT) — arquitetura 3.0
 
-Este documento registra o pedido detalhado e como ele foi traduzido para o app nativo Android TV.
-As referências abaixo são usadas como **modelo visual/organizacional**, não como fonte de catálogos, listas IPTV, plugins ou código de reprodução.
+Documento do pivô: o app **deixou de ser um cliente de addons Stremio** e passou a ser o
+repositório local definitivo (estilo Kodi SmartED + OnePlay), com Elementum como camada de
+torrent/VOD via daemon HTTP do Kodi. As referências abaixo são modelos visuais/organizacionais,
+não fontes de catálogo.
 
 ## Referências
 
 | Referência | O que foi aproveitado | O que não foi importado |
 |---|---|---|
-| [TNT-Likely/xplayer](https://github.com/TNT-Likely/xplayer) | Cartões escuros com logo/arte, metadados, favoritos e busca; adaptação para vidro fumê | Fontes IPTV embutidas, lógica M3U, player Flutter |
-| [HTWMedia/HTV](https://github.com/HTWMedia/HTV) | Menu de canais por categorias, favoritos, lista com programa atual/próximo e pré-visualização | Listas fixas, sources/EPG externos do app |
-| [vantaflow/ultra-tv](https://github.com/vantaflow/ultra-tv) | Desenho da tela inicial com data/hora e navegação lateral | Xtream/M3U, perfis, Trakt, sincronização e catálogo do app |
-| [Stremio](https://github.com/Stremio/stremio-web) | Organização das configurações: Geral, Interface, Player, Streaming, Atalhos; gestão de addons | Conta, servidor de streaming/torrent, addons oficiais embutidos |
+| [TNT-Likely/xplayer](https://github.com/TNT-Likely/xplayer) | Cartões escuros com logo/arte, metadados, favoritos e busca | Lógica M3U crua, player Flutter |
+| [HTV](https://github.com/HTWMedia/HTV) | Menu de categorias, lista com agora/próximo e pré-visualização | Listas fixas embutidas |
+| [ultra-tv](https://github.com/vantaflow/ultra-tv) | Tela inicial com data/hora e navegação lateral | Xtream/perfis/Trakt |
+| Stremio (UI) | Organização das Configurações em seções | Servidor de streaming, addons, conta |
+| Elementum (Kodi) | Modelo de repositório: fontes, auto-update, daemon HTTP | Execução de torrent dentro do app |
+| OnePlay | Índice JSON de repositório com diff de fontes filhas | — |
+
+## Identidade
+
+- Fundo fumê (`#0B0C0E`→gradientes), painéis `smokedGlass`, tipografia Material3 em pt-BR.
+- **Foco/seleção por D-pad sempre branco puro `#FFFFFF`** (`whiteFocus`); proibido magenta/rosa em código, recursos e temas (gate `tools/check_architecture.py`).
 
 ## Telas
 
 ### Inicial
+Data/hora no canto superior direito; rail lateral Início/Canais/Filmes/Séries + Configurações ao fim. Cartões: canais favoritos, continuar assistindo (progresso salvo por `fav_key`), últimos adicionados e mais votados.
 
-- Data e hora no canto superior direito, em `pt-BR`.
-- Cartões **Canais**, **Filmes** e **Séries** centralizados verticalmente no lado esquerdo.
-- **Configurações** perto da borda inferior esquerda.
-- Mesmo vidro fumê dos cartões de conteúdo; foco branco puro para D-pad.
+### Canais (3 colunas — estritas)
+1. Categorias + Favoritos, com **busca de categorias** própria.
+2. Canais: número, logo, nome, programa atual com barra de progresso e próximo; coração por linha; paginação 80/80.
+3. Pré-visualização mudada (toggle em Interface), ação **Assistir** (tela cheia) e grade de próximos programas do canal selecionado.
 
-### Canais
+A busca de conteúdo da aba filtra **somente canais** (nome/grupo), nunca categorias do painel 1. O EPG vem do XMLTV da fonte casado por nome real (tiers do matcher) e, em painéis Xtream sem XMLTV, de `get_short_epg` — este último só em memória (nunca persistido como se fosse guia completo).
 
-Três colunas:
+### Filmes/Séries (2 colunas)
+Esquerda: busca de categorias + Favoritos + chips de categoria (com contagem). Direita: grade infinita com A–Z/Últimos/Mais votados/Ano e Crescente/Decrescente (colunas SQL whitelist + tiebreak por nome). Tocar num título: hero full-bleed (backdrop, pôster, sinopse, metadados, Favoritar, Assistir) substituindo a barra de busca; séries carregam temporadas/episódios (`get_series_info` no Xtream; Episódios ficam no banco).
 
-1. Categorias + Favoritos, com busca de categorias no topo.
-2. Canais com logo, programa atual e próximo programa (EPG do addon).
-3. Player/pré-visualização + programação abaixo, com ação de favoritar e tela cheia.
-
-A busca de conteúdo pesquisa somente canais. A paginação continuaverticalmente e para quando o addon repetir a página ou encerrar o catálogo.
-
-### Filmes e Séries
-
-Duas colunas:
-
-1. Categorias + Favoritos, com busca de categorias.
-2. Grade vertical com carregamento infinito de cima para baixo.
-
-Busca de conteúdo isolada por aba. Ordenações expostas:
-
-- De A a Z;
-- Últimos adicionados;
-- Mais votados;
-- Ano;
-- Crescente/Decrescente.
-
-**Limite honesto do protocolo:** o manifesto Stremio não padroniza contagem de votos nem ordenação global do servidor. “Mais votados” usa a nota IMDb dos títulos carregados como aproximação, e a UI informa isso. “Últimos adicionados” usa data de lançamento/ordem do addon quando não há timestamp de adição.
-
-### Detalhes
-
-Ao abrir um título, a busca de conteúdo desaparece e dá lugar a hero + sinopse, metadados, favorito e assistir.
-Séries mostram todas as temporadas (incluindo especiais quando `season=0`) e episódios da temporada selecionada.
+### Player
+media3/ExoPlayer nativo: HLS/DASH/progressivo, headers por stream, legendas (idioma preferido, tamanho), saltos ←/→ configuráveis, OK play/pause, Voltar fecha; progresso persistido a cada 10 s e no dispose; “Próximo episódio” é ação confirmada (sem autoplay silencioso).
 
 ### Configurações
+- **Fontes:** adicionar M3U/Xtream/repositório, status por linha, Atualizar, Só EPG, pausar, intervalo de auto-update, URL de EPG, remover (cascata limpa canais/VOD/EPG da fonte).
+- **Elementum:** host/porta, teste de conexão (health = `GET /torrents/list`), reload de provedores (`GET /reload`), contagem de torrents ativos.
+- **Reprodução:** idiomas, legendas, retomar, saltos, tamanho de legenda.
+- **Interface:** pré-visualização, janela do EPG (3–72 h), auto-update global.
+- **Sistema:** atualizar tudo, reindexar EPG nome a nome, limpar índices, apagar histórico, restaurar preferências, contagens do repositório.
 
-Menu lateral no modelo Stremio, com gestão de addons junto das configurações:
+## Camadas
 
-- **Addons:** até 3 manifestos; URL HTTP/JSON; escolha explícita de Canais, Filmes ou Séries; validar, adicionar, atualizar, alterar escopo e remover.
-- **Geral:** idioma BR-PT, armazenamento local, apagar histórico, restaurar preferências.
-- **Interface:** tema fumê, foco branco, layout por aba.
-- **Player:** áudio/legendas, tamanho de legenda, retomar reprodução, próximo episódio, saltos.
-- **Streaming:** compatibilidade HTTP/HLS/DASH e limites de torrent/DRM.
-- **Atalhos:** D-pad, OK, Voltar e busca.
-- **Sobre:** versão e referências.
+```
+core/    JVM puro: parse M3U/XMLTV, normalizador, matcher EPG, timeline, RepoIndex/diff, FavKeys, StreamRules
+data/    SQLite (IptvStore), importadores (M3U/Xtream/repo), ElementumClient, SettingsStore, SourceManager, CatalogRepository
+ui/      Compose TV: AppViewModel + VMs por aba, componentes fumê, telas
+```
 
-Não há controle falso de conta Stremio ou servidor de torrent: o app é um cliente nativo de addons HTTP.
+O `core` não importa `android.*` (verificado no gate). A UI nunca toca rede/banco: só ViewModels.
 
 ## Validação
 
-- Kotlin com `allWarningsAsErrors=true`.
-- Testes JVM de protocolo, paginação, escopo, favoritos, preferências e reprodução.
-- Lint Android com relatório texto/XML.
-- Testes instrumentados Android TV para D-pad, busca por escopo, detalhes, temporadas, canais e configurações.
-- APK debug publicado como artefato para teste direto; APK assinado final só após as etapas de qualidade.
+- `allWarningsAsErrors=true`; compilação debug+androidTest.
+- Testes JVM: parsers, matcher/timeline, diffs de repositório, queries VOD, FavKeys, mappers Xtream e cliente Elementum (MockWebServer).
+- Gate de arquitetura: foco branco obrigatório, cores proibidas, ausência de vestígios do antigo modo addons, manifest TV + `<queries> org.xbmc.kodi`.
+- Instrumentados no emulador Android TV: adicionar fonte pela UI → EPG visível → busca só-canais → hero de filmes → player pronto sem erro (MP4 local do MockWebServer).
+- Selftest local do core (`tools/corecheck`) para iteração rápida fora do Android.
+
+## Limites honestos
+
+- Sem contagem universal de votos: “Mais votados” usa a nota da fonte e a UI informa a aproximação.
+- EPG ausente nunca é inventado; painéis sem XMLTV recebem apenas now/next volátil.
+- Torrent não roda no app: integração é o daemon do Elementum (Kodi) via HTTP + intent de play.
