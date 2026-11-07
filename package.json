@@ -10,7 +10,8 @@
     "check:imports": "python3 tools/check-imports.py",
     "check:compose": "python3 tools/check-compose.py",
     "check:symbols": "python3 tools/check-symbols.py",
-    "check:all": "npm run check:syntax && npm run check:refs && npm run check:imports && npm run check:compose && npm run check:symbols"
+    "check:all": "npm run check:syntax && npm run check:refs && npm run check:imports && npm run check:compose && npm run check:symbols && npm run check:workflow",
+    "check:workflow": "python3 tools/check-workflow.py"
   },
   "dependencies": {
     "web-tree-sitter": "0.20.8",
