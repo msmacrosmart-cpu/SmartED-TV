@@ -66,7 +66,7 @@ fun ChannelsScreen(
     val listState = rememberLazyListState()
     val compact = LocalCompact.current
     LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 to listState.layoutInfo.totalItemsCount }
+        snapshotFlow { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) to listState.layoutInfo.totalItemsCount }
             .collect { pair -> val (last, total) = pair; if (total > 0 && last >= total - 14) vm.loadMore() }
     }
 
