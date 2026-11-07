@@ -70,7 +70,7 @@ tasks.withType<Test>().configureEach {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
-        allWarningsAsErrors.set(false)
+        allWarningsAsErrors.set(true)
         freeCompilerArgs.addAll("-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi", "-opt-in=androidx.compose.ui.ExperimentalComposeUiApi", "-opt-in=androidx.compose.ui.test.ExperimentalTestApi")
     }
 }
