@@ -10,13 +10,25 @@ Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelh
 | # | Pedido | Status | Onde | Verificação |
 |---|--------|--------|------|-------------|
 | 1 | Reconhecer o addon `plugin.video.elementum` do repositório Vikings e garanti-lo na lista, mesmo antes de sincronizar | ✅ | `Elementum.isElementum`, `AddonManager.ensureElementum/elementumAddon` | `verify-core.sh` (detecção por id/nome/script) |
-| 2 | Falar com o daemon local (`127.0.0.1:65220`) em vez de tentar rodar o plugin Python: status, busca e link de reprodução | ✅ | `core/addons/Elementum.kt`, `core/net/ElementumClient.kt` | 46 asserções (status, JSON, magnet, play) |
+| 2 | Falar com o daemon local (`127.0.0.1:65220`) no **protocolo real** (view do Kodi, `list=1`, `/play?uri=`) em vez de tentar rodar o plugin Python | ✅ | `core/addons/Elementum.kt`, `core/net/ElementumClient.kt` | 34 asserções (endpoints, view, tagline, magnet, play) |
 | 3 | Resultado do Elementum entra em **Filmes/Séries**, nunca em Canais, e abre no player em tela cheia | ✅ | `Elementum.toEntries`, `AddonBrowser.isLocalPlayerLink`, `AddonBrowserScreen(onPlay)`, rota `browser` | `verify-core.sh` + emulador |
-| 4 | Estado do daemon visível (ligado/desligado) e busca por título na UI | ✅ | cartão `ElementumCard` em Addons, campo de busca no navegador, `AddonsViewModel.openElementum/searchElementum/checkElementum` | gates + emulador |
+| 4 | Estado do daemon visível (ligado/desligado), destaques e busca por título na UI | ✅ | cartão `ElementumCard` em Addons, busca + **Destaques/Recomeçar** no navegador, `AddonsViewModel.openElementum/searchElementum/resetElementum/checkElementum` | gates + emulador |
+
+**Contrato do daemon (verificado no código-fonte do `elementumd`):**
+
+- `GET /status` → corpo com `version` quando ligado.
+- `GET /?list=1`, `/movies/popular?list=1`, `/shows/popular?list=1`,
+  `/search?list=1&q=…` → `{"content_type":"…","items":[{label, label2, path, is_playable, info:{tagline, title, code}}]}`.
+- Item reproduzível: `path = /play?uri=<magnet escapado>`.
+- `GET /play?uri=…` → `302` para `/files/…` (arquivo servido pelo daemon).
+- Cabeçalho `User-Agent` **não** pode ser `plugin.video.elementum` (com ele o
+  daemon trata a chamada como vinda do Kodi e abre diálogo).
 
 **Limite conhecido:** sem o daemon instalado no aparelho o Elementum fica
 "desligado" — o app informa isso e o restante da navegação (repositório) segue
-funcionando. O addon Python em si nunca é executado.
+funcionando. O addon Python em si nunca é executado. A versão do registro local
+é `1.0.0` até a primeira sincronização do índice do Vikings (o índice não foi
+consultado daqui: o download do `addons.xml` no sandbox falha por TLS).
 
 ## Rodada 5 — arquitetura de repositórios e addons (M3U desativado)
 

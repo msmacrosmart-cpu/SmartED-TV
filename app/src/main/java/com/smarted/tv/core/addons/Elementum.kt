@@ -7,24 +7,31 @@ import com.smarted.tv.core.util.TextUtils
 /**
  * Addon **Elementum** — torrentes dentro do app.
  *
- * O Elementum é um addon do repositório Vikings (`plugin.video.elementum`).
- * Como todo addon de repositório, ele é um plugin Python e não executa no
- * Android. A diferença é que o Elementum tem um **serviço local**: o daemon
- * (app Elementum para Android / `elementumd`) abre um servidor HTTP em
- * `127.0.0.1:65220` que busca torrentes e entrega o vídeo por streaming.
+ * O Elementum está no repositório Vikings (`plugin.video.elementum`). É um
+ * addon Python, então não roda no Android; quem faz o trabalho é o **daemon**
+ * (`elementumd`), um binário nativo que abre HTTP em `127.0.0.1:65220`.
  *
- * O SmartED TV fala direto com esse daemon:
+ * O daemon fala **Kodi**: as respostas de navegação são uma *view* com
+ * `items[]`, cada item com `label`, `path` e `is_playable` — exatamente o que o
+ * plugin Python consome. O app reaproveita esse contrato:
  *
  * | Uso | Endpoint |
  * | --- | --- |
  * | está no ar? | `GET /status` |
- * | buscar | `GET /search?q=<termo>` |
- * | abrir o vídeo | `GET /play?torrent=<magnet>` (o daemon serve o arquivo) |
+ * | menu inicial | `GET /?list=1` |
+ * | filmes populares | `GET /movies/popular?list=1` |
+ * | séries populares | `GET /shows/popular?list=1` |
+ * | buscar | `GET /search?list=1&q=<termo>` |
+ * | reproduzir | `GET /play?uri=<magnet>` |
  *
- * Tudo aqui é **puro** (sem OkHttp/Android): os testes de
- * `tools/verify-core.sh` exercitam a detecção do addon, a leitura do JSON do
- * daemon e a montagem do link de reprodução. Quem faz as chamadas é
- * `core/net/ElementumClient.kt`.
+ * O `list=1` é o que faz o daemon **devolver a lista** de torrentes em vez de
+ * abrir o diálogo de seleção do Kodi (ver `wantsLinksList` no daemon). Cada
+ * item já vem com `path` apontando para `/play?uri=…`, então a reprodução é
+ * montada a partir desse `path`.
+ *
+ * Tudo aqui é **puro** (sem OkHttp/Android): `tools/verify-core.sh` exercita a
+ * detecção do addon, a leitura da view, o `play` e o descarte de magnet. Quem
+ * faz as chamadas é `core/net/ElementumClient.kt`.
  *
  * Regra de acervo: Elementum é VOD — filme ou série, **nunca canal ao vivo**.
  */
@@ -41,6 +48,10 @@ object Elementum {
 
     /** O daemon escuta só em loopback — o app é o cliente. */
     const val HOST = "127.0.0.1"
+
+    /** Caminhos do menu do daemon usados pela tela. */
+    const val PATH_MOVIES = "/movies/popular"
+    const val PATH_SHOWS = "/shows/popular"
 
     /** Aceita variações do id/nome que o repositório publica. */
     private val ID_HINTS = listOf("elementum", "plugin.video.elementum", "script.elementum")
@@ -66,28 +77,65 @@ object Elementum {
 
     fun statusUrl(port: Int = DEFAULT_PORT): String = "${baseUrl(port)}/status"
 
-    /** Busca por termo; o texto vai escapado porque o termo vem do usuário. */
+    /**
+     * Busca por termo.
+     *
+     * `list=1` devolve a lista de torrentes no corpo em vez de pedir ao Kodi
+     * que abra o seletor. O texto vai escapado porque vem do usuário.
+     */
     fun searchUrl(query: String, port: Int = DEFAULT_PORT): String =
-        "${baseUrl(port)}/search?q=${encodeQuery(query)}"
+        "${baseUrl(port)}/search?list=1&q=${encodeQuery(query)}"
+
+    /** Navegação de um caminho do menu (`/movies/`, `/movies/popular`, `/`…). */
+    fun browseUrl(path: String, port: Int = DEFAULT_PORT): String {
+        val clean = if (path.startsWith("/")) path else "/$path"
+        val separator = if (clean.contains('?')) "&" else "?"
+        return "${baseUrl(port)}$clean${separator}list=1"
+    }
 
     /**
      * Link de reprodução entregue ao player.
      *
-     * O daemon resolve o magnet e serve o arquivo por HTTP; o player só precisa
-     * tocar essa URL. `title` ajuda o daemon a escolher o arquivo dentro do
-     * torrent (pacotes com vários episódios).
+     * O daemon resolve o magnet, baixa o pedaço necessário e responde com um
+     * `302` para `/files/…`, servindo o vídeo por HTTP. `uri` é o magnet
+     * (ou o `path` cru do item, quando ele já está no formato do daemon).
      */
     fun playUrl(item: Item, port: Int = DEFAULT_PORT): String {
-        val torrent = item.torrent.ifBlank { return "" }
-        val title = if (item.title.isBlank()) "" else "&title=${encodeQuery(item.title)}"
-        return "${baseUrl(port)}/play?torrent=${encodeQuery(torrent)}$title"
+        val uri = item.torrent.ifBlank { return "" }
+        return "${baseUrl(port)}/play?uri=${encodeQuery(uri)}"
+    }
+
+    /** Extrai um parâmetro de uma URL do daemon, já decodificado. */
+    fun parameter(url: String, name: String): String {
+        val marker = "$name="
+        val queryAt = url.indexOf('?')
+        if (queryAt >= 0) {
+            for (part in url.substring(queryAt + 1).split('&')) {
+                if (part.startsWith(marker)) return decodeQuery(part.substring(marker.length))
+            }
+            return ""
+        }
+        // path pode vir sozinho, ex.: "magnet:?xt=…"
+        val at = url.indexOf(marker)
+        return if (at >= 0) decodeQuery(url.substring(at + marker.length).substringBefore('&')) else ""
     }
 
     // ---------------------------------------------------------------------
     // modelo
     // ---------------------------------------------------------------------
 
-    /** Um resultado de busca do daemon. */
+    /** Um nó devolvido pelo daemon: menu (pasta) ou torrente (reproduzível). */
+    data class Node(
+        val label: String,
+        val path: String = "",
+        val playable: Boolean = false,
+        val label2: String = "",
+        val icon: String = "",
+        val tagline: String = "",
+        val code: String = "",
+    )
+
+    /** Um resultado de busca/navegação já resolvido para o player. */
     data class Item(
         val title: String,
         val torrent: String = "",
@@ -95,6 +143,7 @@ object Elementum {
         val seeds: Int = 0,
         val peers: Int = 0,
         val quality: String = "",
+        val provider: String = "",
     ) {
         /** Filme ou série — sempre VOD. */
         val kind: MediaKind
@@ -110,6 +159,7 @@ object Elementum {
                 if (quality.isNotBlank()) add(quality)
                 if (sizeBytes > 0) add(humanSize(sizeBytes))
                 if (seeds > 0) add("$seeds seeds")
+                if (provider.isNotBlank()) add(provider)
             }.joinToString(" · ")
     }
 
@@ -135,15 +185,14 @@ object Elementum {
     )
 
     // ---------------------------------------------------------------------
-    // leitura do JSON do daemon
+    // leitura das respostas
     // ---------------------------------------------------------------------
 
     /**
      * Lê o `/status`.
      *
-     * O daemon responde com um objeto simples (`{"status":"ok","version":"…"}`)
-     * ou, em versões mais novas, com um objeto aninhado. Qualquer resposta HTTP
-     * já indica que o serviço está no ar — por isso a leitura é tolerante.
+     * Qualquer resposta HTTP já indica que o serviço está no ar; a versão é
+     * aproveitada quando aparece no corpo (`version`/`elementum_version`).
      */
     fun parseStatus(json: String?, port: Int = DEFAULT_PORT): Status {
         if (json.isNullOrBlank()) {
@@ -154,27 +203,113 @@ object Elementum {
     }
 
     /**
-     * Lê a lista de resultados.
+     * Lê uma *view* do daemon (`{"content_type":"…","items":[…]}`).
      *
-     * O daemon devolve um array de objetos (`[{"title":…,"torrent":…}]`) ou um
-     * objeto com a lista dentro (`{"items":[…]}`). Cada objeto é lido campo a
-     * campo, aceitando os nomes que as versões do Elementum usam.
+     * Aceita também um array cru de objetos, que é o formato de versões
+     * anteriores do daemon.
      */
-    fun parseItems(json: String?): List<Item> {
+    fun parseView(json: String?): List<Node> {
         if (json.isNullOrBlank()) return emptyList()
         return jsonObjects(json).mapNotNull { obj ->
-            val title = field(obj, "title", "name", "label", "torrent_name").orEmpty().trim()
-            val torrent = field(obj, "torrent", "magnet", "magnet_uri", "url", "link").orEmpty().trim()
-            if (title.isBlank() && torrent.isBlank()) return@mapNotNull null
-            Item(
-                title = title.ifBlank { torrentName(torrent) },
-                torrent = torrent,
-                sizeBytes = numberField(obj, "size", "size_bytes", "total_size", "length"),
-                seeds = numberField(obj, "seeds", "seeders", "seed").toInt(),
-                peers = numberField(obj, "peers", "leechers").toInt(),
-                quality = qualityOf(title),
+            val label = field(obj, "label", "title"); 
+            val path = field(obj, "path", "url", "link").orEmpty()
+            if (label.isNullOrBlank() && path.isBlank()) return@mapNotNull null
+            Node(
+                label = stripKodiTags(label.orEmpty()).trim(),
+                path = path.trim(),
+                playable = rawValue(obj, "is_playable")?.trim() == "true",
+                label2 = stripKodiTags(field(obj, "label2").orEmpty()).trim(),
+                icon = field(obj, "icon", "thumbnail").orEmpty(),
+                tagline = stripKodiTags(field(obj, "tagline").orEmpty()),
+                code = field(obj, "code").orEmpty(),
             )
         }
+    }
+
+    /**
+     * Converte a view em resultados reproduzíveis.
+     *
+     * Só entram itens com `path` de reprodução: nós de menu (`is_playable`
+     * falso) são ignorados — o app já oferece os destinos que interessam
+     * (filmes, séries e busca).
+     */
+    fun parseItems(json: String?): List<Item> =
+        parseView(json)
+            .filter { it.playable }
+            .mapNotNull { node ->
+                val magnet = playTarget(node.path)
+                if (magnet.isBlank()) return@mapNotNull null
+                val meta = parseTagline(node.tagline)
+                val title = node.label.ifBlank { parameter(node.path, "query") }.trim()
+                if (title.isBlank()) return@mapNotNull null
+                Item(
+                    title = title,
+                    torrent = magnet,
+                    sizeBytes = meta.sizeBytes,
+                    seeds = meta.seeds,
+                    peers = meta.peers,
+                    quality = meta.quality.ifBlank { qualityOf(node.label) },
+                    provider = node.label2,
+                )
+            }
+
+    /** Magnet/URI de um `path` do daemon (`/play?uri=…`, `/download?uri=…`). */
+    fun playTarget(path: String): String {
+        if (path.isBlank()) return ""
+        val uri = parameter(path, "uri")
+        if (uri.isNotBlank()) return uri
+        // Alguns caminhos vêm com o magnet inteiro, sem parâmetro.
+        if (path.startsWith("magnet:")) return path.trim()
+        return ""
+    }
+
+    /** Dados de apoio do rótulo: `"320 / 45 - 1080p - 1.4 GB"`. */
+    data class TagMeta(val seeds: Int = 0, val peers: Int = 0, val sizeBytes: Long = 0L, val quality: String = "")
+
+    fun parseTagline(tagline: String?): TagMeta {
+        val text = tagline.orEmpty()
+        if (text.isBlank()) return TagMeta()
+        val parts = text.split('-').map { it.trim() }
+        var seeds = 0
+        var peers = 0
+        var size = 0L
+        var quality = ""
+        for (part in parts) {
+            if (part.contains('/') && seeds == 0) {
+                val numbers = part.split('/').mapNotNull { it.trim().toIntOrNull() }
+                if (numbers.size >= 2) {
+                    seeds = numbers[0]
+                    peers = numbers[1]
+                    continue
+                }
+            }
+            val bytes = parseSize(part)
+            if (bytes > 0) {
+                size = bytes
+                continue
+            }
+            val q = qualityOf(part)
+            if (q.isNotBlank()) quality = q
+        }
+        return TagMeta(seeds = seeds, peers = peers, sizeBytes = size, quality = quality)
+    }
+
+    /** "1.4 GB" / "700,5 MB" → bytes. */
+    fun parseSize(text: String): Long {
+        val cleaned = text.trim()
+        if (cleaned.isEmpty()) return 0L
+        val match = Regex("""([0-9]+(?:[.,][0-9]+)?)\s*([KMGT]i?B)""", RegexOption.IGNORE_CASE).find(cleaned)
+            ?: return 0L
+        val value = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return 0L
+        val unit = match.groupValues[2].uppercase().first()
+        val factor = when (unit) {
+            'K' -> 1024L
+            'M' -> 1024L * 1024
+            'G' -> 1024L * 1024 * 1024
+            'T' -> 1024L * 1024 * 1024 * 1024
+            else -> 1L
+        }
+        return (value * factor).toLong()
     }
 
     /** Resolução declarada no título ("1080p", "720p", "4K"). */
@@ -199,7 +334,8 @@ object Elementum {
             value /= 1024
             index++
         }
-        val rounded = (value * 10).toLong() / 10.0
+        // Arredonda (e não trunca): 1.400.000.000 B deve virar "1,4 GB", não "1,3 GB".
+        val rounded = kotlin.math.round(value * 10) / 10.0
         val text = if (rounded >= 100 || rounded == rounded.toLong().toDouble()) {
             rounded.toLong().toString()
         } else {
@@ -211,9 +347,9 @@ object Elementum {
     /**
      * Converte resultados em itens de pasta.
      *
-     * O `streamUrl` é o link do daemon: assim o item entra na pasta **Filmes**
-     * ou **Séries** já reproduzível, e a barreira do [AddonBrowser] continua
-     * valendo (um magnet não é canal ao vivo).
+     * O `streamUrl` é o `/play` do daemon: assim o item entra em **Filmes** ou
+     * **Séries** já reproduzível, e a barreira do [AddonBrowser] continua
+     * valendo (magnet cru não é URL de player; `/play` de loopback é).
      */
     fun toEntries(items: List<Item>, port: Int = DEFAULT_PORT): List<BrowserEntry> =
         items.mapIndexed { index, item ->
@@ -227,7 +363,7 @@ object Elementum {
             )
         }
 
-    /** Magnet do torrent a partir do info hash (quando o daemon só devolve o hash). */
+    /** Magnet do torrent a partir do info hash (quando só o hash é conhecido). */
     fun magnet(infoHash: String, name: String = ""): String {
         val hash = infoHash.trim()
         if (hash.isBlank()) return ""
@@ -243,14 +379,37 @@ object Elementum {
     // JSON mínimo (o núcleo do app não depende de biblioteca de JSON nos testes)
     // ---------------------------------------------------------------------
 
-    /** Objetos `{…}` de primeiro nível (ou os de dentro de um array). */
+    /**
+     * Objetos de item de uma resposta do daemon.
+     *
+     * Aceita as duas formas: um array na raiz (`[{…},{…}]`) ou a *view* do
+     * Kodi (`{"content_type":"…","items":[{…}]}`). Cada item pode ter objetos
+     * aninhados (`info`, `art`) — eles ficam dentro do objeto devolvido, e a
+     * leitura de campo continua achando as chaves de lá.
+     */
     private fun jsonObjects(json: String): List<String> {
+        val text = json.trim()
+        if (text.isEmpty()) return emptyList()
+        return when (text.first()) {
+            '[' -> objectsInArray(text, 0)
+            '{' -> {
+                val itemsAt = indexOfKey(text, "items")
+                if (itemsAt < 0) listOf(text) else objectsInArray(text, itemsAt)
+            }
+            else -> emptyList()
+        }
+    }
+
+    /** Objetos `{…}` de primeiro nível a partir do array que abre em [arrayHint]. */
+    private fun objectsInArray(json: String, arrayHint: Int): List<String> {
+        val arrayStart = json.indexOf('[', arrayHint)
+        if (arrayStart < 0) return emptyList()
         val out = mutableListOf<String>()
         var depth = 0
         var start = -1
         var inString = false
         var escaped = false
-        for (i in json.indices) {
+        for (i in arrayStart until json.length) {
             val c = json[i]
             when {
                 escaped -> escaped = false
@@ -258,19 +417,38 @@ object Elementum {
                 c == '"' -> inString = !inString
                 inString -> Unit
                 c == '{' -> {
-                    if (depth == 0) start = i
+                    if (depth == 1) start = i
                     depth++
                 }
                 c == '}' -> {
                     depth--
-                    if (depth == 0 && start >= 0) {
+                    if (depth == 1 && start >= 0) {
                         out.add(json.substring(start, i + 1))
                         start = -1
                     }
                 }
+                c == '[' -> depth++
+                c == ']' -> {
+                    depth--
+                    if (depth == 0) break
+                }
             }
         }
         return out
+    }
+
+    /** Posição da chave `"nome"` (seguida de `:`), ou -1. */
+    private fun indexOfKey(json: String, name: String): Int {
+        val needle = "\"$name\""
+        var from = 0
+        while (true) {
+            val at = json.indexOf(needle, from)
+            if (at < 0) return -1
+            var i = at + needle.length
+            while (i < json.length && json[i].isWhitespace()) i++
+            if (i < json.length && json[i] == ':') return at
+            from = at + needle.length
+        }
     }
 
     /** Primeiro valor de texto entre os campos pedidos. */
@@ -280,16 +458,6 @@ object Elementum {
             return value.trim().trim('"')
         }
         return null
-    }
-
-    /** Primeiro valor numérico entre os campos pedidos. */
-    private fun numberField(json: String, vararg names: String): Long {
-        for (name in names) {
-            val value = rawValue(json, name) ?: continue
-            val number = value.trim().trim('"').filter { it.isDigit() }
-            number.toLongOrNull()?.let { return it }
-        }
-        return 0L
     }
 
     /** Valor cru do campo (string entre aspas, número ou booleano). */
@@ -330,12 +498,23 @@ object Elementum {
         return -1
     }
 
-    /** Nome do torrent a partir do magnet (`dn=`). */
-    private fun torrentName(torrent: String): String {
-        val marker = torrent.indexOf("dn=")
-        if (marker < 0) return ""
-        val rest = torrent.substring(marker + 3)
-        return rest.substringBefore('&').replace('+', ' ').trim()
+    /** Remove marcação do Kodi (`[B]`, `[COLOR x]`, `[I]`…) dos rótulos. */
+    fun stripKodiTags(text: String): String {
+        if (text.indexOf('[') < 0) return text
+        val builder = StringBuilder()
+        var i = 0
+        while (i < text.length) {
+            if (text[i] == '[') {
+                val end = text.indexOf(']', i)
+                if (end > i) {
+                    i = end + 1
+                    continue
+                }
+            }
+            builder.append(text[i])
+            i++
+        }
+        return builder.toString()
     }
 
     /** Percent-encoding para query string (UTF-8, sem depender do Android). */
@@ -351,6 +530,37 @@ object Elementum {
             }
         }
         return builder.toString()
+    }
+
+    /** Percent-decoding (`+` conta como espaço, igual ao `url.Query` do Go). */
+    fun decodeQuery(text: String): String {
+        if (text.indexOf('%') < 0 && text.indexOf('+') < 0) return text
+        val bytes = ArrayList<Byte>(text.length)
+        var i = 0
+        while (i < text.length) {
+            val c = text[i]
+            when {
+                c == '%' && i + 2 < text.length -> {
+                    val value = text.substring(i + 1, i + 3).toIntOrNull(16)
+                    if (value != null) {
+                        bytes.add(value.toByte())
+                        i += 3
+                    } else {
+                        bytes.add(c.code.toByte())
+                        i++
+                    }
+                }
+                c == '+' -> {
+                    bytes.add(' '.code.toByte())
+                    i++
+                }
+                else -> {
+                    bytes.add(c.code.toByte())
+                    i++
+                }
+            }
+        }
+        return String(bytes.toByteArray(), Charsets.UTF_8)
     }
 
     private const val HEX = "0123456789ABCDEF"

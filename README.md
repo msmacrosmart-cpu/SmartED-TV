@@ -207,7 +207,7 @@ compilado e testado de verdade com o compilador Kotlin:
 npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
-./tools/verify-core.sh           # 231 asserções reais (EPG 12h, cruzamento de canais, separação de acervo, séries, navegador de repositório)
+./tools/verify-core.sh           # 249 asserções reais (EPG 12h, cruzamento de canais, separação de acervo, séries, navegador de repositório)
 ./tools/verify-logic.sh          # typecheck de 35 arquivos (rede, TMDB, EPG, DB, VMs)
 node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
@@ -263,22 +263,26 @@ navegador marcados como **catálogo**.
 
 O repositório Vikings publica o **Elementum** (`plugin.video.elementum`). Ele não
 é um catálogo: é um cliente de torrentes com **daemon nativo**. No Android esse
-daemon é um serviço local que responde em `127.0.0.1:65220`, e é com ele que o
+daemon é um serviço que responde em `127.0.0.1:65220`, e é com ele que o
 SmartED TV conversa — plugin Python continua não executando no app.
+
+O daemon fala o mesmo dialeto do Kodi: respostas são uma *view* com `items[]`
+(`label`, `path`, `is_playable`). O app pede sempre `list=1`, que é o que faz o
+daemon devolver a lista em vez de abrir o seletor de arquivos do Kodi.
 
 | Passo | O que acontece |
 | --- | --- |
-| **Addons → Elementum → Abrir** | o app garante o addon na lista, consulta `/status` e mostra se o daemon está ligado |
-| Digitar um título e **Buscar** | `GET /search?q=…`; o JSON é lido por um parser tolerante (`Elementum.parseItems`) |
-| Resultado | vira pasta **Filmes** ou **Séries** (episódio/temporada detectado pelo título) — **nunca Canais** |
-| Assistir | o player recebe `http://127.0.0.1:65220/play?torrent=<magnet>`, e o daemon serve o arquivo |
+| **Addons → Elementum → Abrir** | o app garante o addon na lista, consulta `/status` e, se o daemon estiver no ar, mostra os destaques |
+| Destaques | `/movies/popular` + `/shows/popular` → pastas **Filmes** e **Séries** |
+| Digitar um título e **Buscar** | `GET /search?list=1&q=…`; a resposta é lida por `Elementum.parseItems` |
+| Assistir | `/play?uri=<magnet>` responde `302` para `/files/…`, e o player toca essa URL |
 
 Se o daemon estiver desligado, a tela diz exatamente isso em vez de dar erro: o
-cartão em **Addons** mostra o estado real (`ligado`/`desligado`) e o botão
-**Verificar** refaz a consulta. O vínculo entre pasta e aba continua valendo: um
-item do Elementum só entra em Filmes/Séries se o link for um arquivo estático ou
-o `/play` de um serviço em loopback (`AddonBrowser.isLocalPlayerLink`) — magnet
-cru é recusado.
+cartão em **Addons** mostra o estado real (`ligado`/`desligado`), o botão
+**Verificar** refaz a consulta e a busca fica disponível para quando ele subir.
+O vínculo entre pasta e aba continua valendo: um item do Elementum só entra em
+Filmes/Séries se o link for um arquivo estático ou o `/play` de um serviço em
+loopback (`AddonBrowser.isLocalPlayerLink`) — magnet cru é recusado.
 
 ### Filtro de português
 

@@ -114,6 +114,14 @@ fun AddonBrowserScreen(
                     onClick = { viewModel.searchElementum(query) },
                     icon = EdIcons.search,
                 )
+                EdSecondaryButton(
+                    label = "Destaques",
+                    onClick = {
+                        query = ""
+                        viewModel.resetElementum()
+                    },
+                    icon = EdIcons.refresh,
+                )
             }
         }
 
@@ -157,6 +165,14 @@ fun AddonBrowserScreen(
                 if (openKind != null) {
                     EdSecondaryButton(label = "Pastas", onClick = { viewModel.closeFolder() }, icon = EdIcons.folder)
                 }
+                EdSecondaryButton(
+                    label = "Recomeçar",
+                    onClick = {
+                        query = ""
+                        viewModel.resetElementum()
+                    },
+                    icon = EdIcons.back,
+                )
             } else if (openKind != null) {
                 val bound = openKind in state.browserBound
                 EdPrimaryButton(

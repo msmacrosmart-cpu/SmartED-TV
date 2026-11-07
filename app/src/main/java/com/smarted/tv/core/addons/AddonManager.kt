@@ -240,6 +240,8 @@ class AddonManager(
                 id = Elementum.ADDON_ID,
                 repositoryId = repositoryId,
                 name = Elementum.ADDON_NAME,
+                // O daemon publica a versão real; "1.0.0" é o registro local
+                // até a primeira sincronização com o índice do Vikings.
                 version = "1.0.0",
                 summary = "Filmes e séries por torrentes",
                 summaryLong = "Busca torrentes no daemon local do Elementum " +

@@ -860,16 +860,20 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
             runCatching { graph.addons.ensureElementum() }
             val status = runCatching { graph.elementum.status() }
                 .getOrElse { Elementum.Status(online = false, message = "Sem resposta do Elementum") }
-            _state.value = _state.value.copy(
-                elementum = status,
-                browserLoading = false,
-                browserMessage = if (status.online) {
-                    "Elementum ligado" + status.version.ifBlank { "" }.let { if (it.isBlank()) "" else " · v$it" } +
-                        " — busque um filme ou série"
-                } else {
-                    status.message.ifBlank { "Elementum desligado: abra o daemon e tente de novo" }
-                },
-            )
+            if (!status.online) {
+                _state.value = _state.value.copy(
+                    elementum = status,
+                    browserLoading = false,
+                    browserMessage = status.message.ifBlank {
+                        "Elementum desligado: abra o daemon e tente de novo"
+                    },
+                )
+                return@launch
+            }
+            // Daemon no ar: já mostra o que ele tem de filmes e séries.
+            val filmes = runCatching { graph.elementum.movies() }.getOrDefault(emptyList())
+            val series = runCatching { graph.elementum.shows() }.getOrDefault(emptyList())
+            loadElementum(filmes + series, status, null)
         }
     }
 
@@ -885,22 +889,40 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
                 browserKind = null,
                 browserMessage = null,
             )
+            val status = _state.value.elementum
             val items = runCatching { graph.elementum.search(term) }.getOrDefault(emptyList())
-            val entries = Elementum.toEntries(items)
-            _state.value = _state.value.copy(
-                browserFolders = AddonBrowser.folders(entries),
-                browserLoading = false,
-                elementumBusy = false,
-                browserMessage = if (items.isEmpty()) {
-                    "Nenhum torrente encontrado para \"$term\""
-                } else {
-                    "${items.size} torrente(s) para \"$term\""
-                },
-            )
+            if (items.isEmpty()) {
+                _state.value = _state.value.copy(
+                    browserFolders = emptyList(),
+                    browserEntries = emptyList(),
+                    browserLoading = false,
+                    elementumBusy = false,
+                    browserMessage = "Nenhum torrente encontrado para \"$term\"",
+                )
+                return@launch
+            }
+            loadElementum(items, status, term)
         }
     }
 
-    /** Recarrega as pastas (usado depois de sincronizar o repositório). */
+    /** Estado comum das duas entradas do Elementum (abertura e busca). */
+    private fun loadElementum(items: List<Elementum.Item>, status: Elementum.Status?, term: String?) {
+        val entries = Elementum.toEntries(items)
+        _state.value = _state.value.copy(
+            elementum = status,
+            browserFolders = AddonBrowser.folders(entries),
+            browserEntries = entries,
+            browserLoading = false,
+            elementumBusy = false,
+            browserMessage = when {
+                term != null && items.isNotEmpty() -> "${items.size} torrente(s) para \"$term\""
+                items.isNotEmpty() -> "${items.size} torrente(s) em destaque"
+                else -> "O daemon está ligado, mas não devolveu itens. Use a busca."
+            },
+        )
+    }
+
+    /** Recarrega as pastas (usado depois de sincronizar o repositório). */    /** Recarrega as pastas (usado depois de sincronizar o repositório). */
     fun refreshBrowser() {
         val id = _state.value.browserRepository?.id ?: return
         openBrowser(id)
@@ -918,6 +940,14 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
 
     fun closeFolder() {
         _state.value = _state.value.copy(browserKind = null, browserEntries = emptyList())
+    }
+
+    /**
+     * "Recomeçar" no Elementum: limpa a busca e volta ao destaque do daemon
+     * (filmes e séries populares), que é o que ele oferece sem catálogo.
+     */
+    fun resetElementum() {
+        openElementum()
     }
 
     /** Conecta a pasta aberta à aba correspondente do app. */
