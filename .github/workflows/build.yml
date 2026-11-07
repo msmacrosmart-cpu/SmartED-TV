@@ -158,6 +158,7 @@ jobs:
           fi
 
       - name: Build release
+        id: gradle
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           RELEASE_STORE_FILE: ${{ steps.keystore.outputs.signed == 'true' && format('{0}/release.jks', runner.temp) || '' }}
@@ -165,16 +166,53 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -o pipefail
           ./gradlew :app:assembleRelease \
             --no-daemon --stacktrace --warning-mode=all \
             -PversionName="${{ steps.version.outputs.name }}" \
             -PversionCode="${{ steps.version.outputs.code }}" \
-            -Pminify="${{ github.event.inputs.minify || 'true' }}"
+            -Pminify="${{ github.event.inputs.minify || 'true' }}" \
+            2>&1 | tee gradle-build.log
+          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # Em caso de falha, os erros de compilação ficam legíveis no resumo do run
+      # e num artefato baixável (o log bruto do Actions expira e é grande demais).
+      - name: Resumo da falha de compilação
+        if: failure()
+        run: |
+          set -euo pipefail
+          if [[ ! -f gradle-build.log ]]; then exit 0; fi
+          ERRORS=$(grep -E "^e: |error:|FAILURE:|Caused by:|> Task .* FAILED" gradle-build.log | head -120 || true)
+          if [[ -z "$ERRORS" ]]; then
+            ERRORS="sem linhas de erro reconhecidas; veja o artefato gradle-build-log"
+          fi
+          {
+            echo "## Falha no build"
+            echo
+            echo "~~~"
+            echo "$ERRORS"
+            echo "~~~"
+          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p dist
+          cp gradle-build.log dist/gradle-build.log
+
+      - name: Guardar log de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: dist/gradle-build.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Localizar e normalizar APK
         id: apk
         run: |
           set -euo pipefail
+          if [[ "${{ steps.gradle.outputs.status }}" != "0" ]]; then
+            echo "::error::O Gradle falhou (status ${{ steps.gradle.outputs.status }}); veja o resumo do job."
+            exit 1
+          fi
           FOUND=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           if [[ -z "$FOUND" ]]; then echo "::error::APK não encontrado"; exit 1; fi
           mkdir -p dist
