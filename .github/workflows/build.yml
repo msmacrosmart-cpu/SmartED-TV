@@ -219,6 +219,8 @@ jobs:
       # storage externo e podem ser inacessíveis).
       - name: Anotar erros de compilação
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           if [[ ! -f gradle-build.log ]]; then exit 0; fi
@@ -245,6 +247,18 @@ jobs:
             grep -E "^e: |FAILURE:|Caused by:|> Task .* FAILED" gradle-build.log | head -60 || true
             echo "~~~"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # As anotações têm teto de 12 por step e às vezes escondem erros.
+          # O comentário de commit carrega a lista completa e é lido por API —
+          # o log bruto fica em blob storage externo e costuma falhar aqui.
+          errors="$(grep -E "^e: " gradle-build.log | head -80 || true)"
+          if [[ -n "$errors" ]]; then
+            payload="$(printf '%s\n' "$errors" | jq -Rs --arg sha "${GITHUB_SHA:0:7}" \
+              '{body: ("Erros de compilação do build " + $sha + ":\n\n```\n" + . + "```")}')"
+            printf '%s' "$payload" | gh api \
+              -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+              --input - > /dev/null || true
+          fi
 
       - name: Localizar e normalizar APK
         id: apk

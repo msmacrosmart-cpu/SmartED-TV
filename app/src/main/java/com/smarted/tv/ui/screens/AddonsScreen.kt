@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.smarted.tv.R
 import com.smarted.tv.core.addons.AddonKind
 import com.smarted.tv.core.addons.InstalledAddon
 import com.smarted.tv.ui.components.AccentDot

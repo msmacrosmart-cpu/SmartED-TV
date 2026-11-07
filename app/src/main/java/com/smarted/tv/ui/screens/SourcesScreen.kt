@@ -116,19 +116,6 @@ fun SourcesScreen(
             )
         }
 
-        // Painel de edição das abas de uma fonte já cadastrada.
-        editing?.let { source ->
-            TargetsDialog(
-                title = source.name,
-                initial = source.targets,
-                onDismiss = { editing = null },
-                onConfirm = { selected ->
-                    viewModel.setSourceTargets(source.id, selected)
-                    editing = null
-                },
-            )
-        }
-
         item("form") {
             Column(
                 modifier = Modifier
@@ -190,6 +177,21 @@ fun SourcesScreen(
         item("back") {
             EdSecondaryButton(label = "Voltar", onClick = onBack, icon = EdIcons.back)
         }
+    }
+
+    // Painel de edição das abas de uma fonte já cadastrada. Fica FORA do
+    // LazyColumn: o escopo da lista (LazyListScope) não é @Composable, então
+    // qualquer composable ali dentro quebra a compilação.
+    editing?.let { source ->
+        TargetsDialog(
+            title = source.name,
+            initial = source.targets,
+            onDismiss = { editing = null },
+            onConfirm = { selected ->
+                viewModel.setSourceTargets(source.id, selected)
+                editing = null
+            },
+        )
     }
 }
 
