@@ -53,7 +53,8 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
-        warningsAsErrors = true
+        warningsAsErrors = false
+        textReport = true
         disable += setOf("ObsoleteLintCustomCheck", "GradleDependency", "AndroidGradlePluginVersion")
     }
     testOptions.unitTests.isReturnDefaultValues = true

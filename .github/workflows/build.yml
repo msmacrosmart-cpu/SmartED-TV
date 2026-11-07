@@ -1,6 +1,6 @@
 name: SmartED TV — qualidade e APK
 
-on:
+"on":
   push:
     branches: ["**"]
   pull_request:
@@ -23,6 +23,9 @@ jobs:
     name: Compilação, tipagem, lint e testes JVM
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      ORG_GRADLE_PROJECT_versionCode: ${{ github.run_number }}
+      ORG_GRADLE_PROJECT_versionName: 2.0.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -32,11 +35,33 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Architecture gate
         run: python3 tools/check_architecture.py
-      - name: Kotlin compile + JVM tests + Android lint
+      - name: Kotlin compile
         run: |
-          set -o pipefail
-          ./gradlew --max-workers=2 :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }} 2>&1 | tee build.log
-      - name: Annotate compiler/test failures
+          set -euo pipefail
+          ./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee -a build.log
+      - name: JVM tests
+        run: |
+          set -euo pipefail
+          ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee -a build.log
+      - name: Assemble debug APK
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleDebug --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee -a build.log
+      - name: Upload debug APK for direct TV testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartED-TV-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - name: Android lint
+        run: |
+          set -euo pipefail
+          ./gradlew :app:lintDebug --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee -a build.log
+      - name: Assemble release APK
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee -a build.log
+      - name: Annotate compiler/test/lint failures
         if: failure()
         run: |
           python3 tools/ci_report.py build.log
@@ -49,6 +74,11 @@ jobs:
                   if failure is not None:
                       message = (failure.get('message') or '') + '\n' + (failure.text or '')
                       print('::error title=JUnit failure::' + message.replace('%','%25').replace('\r','%0D').replace('\n','%0A')[:3000])
+          for name in ('lint-results-debug.txt', 'lint-results-debug.xml'):
+              path = Path('app/build/reports') / name
+              if path.exists():
+                  print(f'--- {path} ---')
+                  print(path.read_text(errors='replace')[:55000])
           PY
       - name: Test report
         if: always()
@@ -60,8 +90,11 @@ jobs:
             app/build/test-results/
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
+            app/build/reports/lint-results-debug.txt
           if-no-files-found: ignore
-      - uses: actions/upload-artifact@v4
+      - name: Candidate APKs
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
           name: candidate-apks
           path: |
@@ -105,8 +138,10 @@ jobs:
           emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           script: |
             set -o pipefail
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace 2>&1 | tee tv-build.log
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee tv-build.log
+            gradle_status=${PIPESTATUS[0]}
             adb exec-out run-as com.smarted.tv.debug cat files/tv-player.png > app/build/tv-player.png || true
+            exit "$gradle_status"
       - name: Annotate TV failures
         if: failure()
         run: python3 tools/ci_report.py tv-build.log
@@ -128,6 +163,9 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+    env:
+      ORG_GRADLE_PROJECT_versionCode: ${{ github.run_number }}
+      ORG_GRADLE_PROJECT_versionName: 2.0.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -157,10 +195,12 @@ jobs:
       - name: Build signed release
         run: |
           set -euo pipefail
-          ./gradlew :app:assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }}
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --console=plain --stacktrace
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk dist/SmartED-TV-2.0.0.${{ github.run_number }}.apk
-          BT="$ANDROID_HOME/build-tools/35.0.0"
+          cp app/build/outputs/apk/release/app-release.apk "dist/SmartED-TV-2.0.0.${{ github.run_number }}.apk"
+          BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BT/apksigner"
+          test -x "$BT/aapt2"
           "$BT/apksigner" verify --verbose dist/*.apk
           "$BT/aapt2" dump badging dist/*.apk | grep -E "package:|sdkVersion|targetSdkVersion|leanback|launchable-activity"
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
