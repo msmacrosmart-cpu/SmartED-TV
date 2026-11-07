@@ -187,7 +187,7 @@ fun EdPill(
     }
 }
 
-/** Interruptor no estilo da referência (pílula fúcsia). */
+/** Interruptor do design system (trilho branco puro quando ligado). */
 @Composable
 fun EdSwitch(
     checked: Boolean,

@@ -2,12 +2,12 @@ package com.smarted.tv.ui.components
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,24 +17,35 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.smarted.tv.R
 import com.smarted.tv.ui.theme.Ed
 import com.smarted.tv.ui.theme.EdEasing
 
 /**
- * Barra lateral de navegação — réplica fiel da referência:
- *  - 72dp de largura (56dp em telas curtas),
- *  - item ativo: pílula `surface-2` + barra de acento à esquerda,
- *  - foco D-pad: preenchimento `surface-3` + anel de acento de 3dp.
+ * Doca lateral flutuante — a espinha dorsal da nova navegação.
+ *
+ * Diferente da rail antiga (uma faixa sólida que empurrava o conteúdo para a
+ * direita), a doca **flutua sobre a arte**: o backdrop do palco sangra até a
+ * borda esquerda da tela e um véu de vidro em degradê mantém os ícones
+ * legíveis. É o que dá o ar cinematográfico do layout de referência.
+ *
+ * Cada destino tem ícone **e** rótulo em caixa alta (some quando a tela é
+ * baixa, para nunca cortar item). O estado de foco é branco puro (#FFFFFF):
+ * preenchimento de vidro + anel de 2dp + rótulo aceso.
  */
 enum class EdDestination(
     @StringRes val labelRes: Int,
@@ -51,6 +62,21 @@ enum class EdDestination(
     SETTINGS(R.string.nav_settings, EdIcons.settings, "settings"),
 }
 
+/** Destinos com rótulo (navegação principal) e só ícone (apoio). */
+private val PRIMARY_DESTINATIONS = listOf(
+    EdDestination.HOME,
+    EdDestination.LIVE,
+    EdDestination.MOVIES,
+    EdDestination.SERIES,
+    EdDestination.GUIDE,
+    EdDestination.SEARCH,
+)
+
+private val SECONDARY_DESTINATIONS = listOf(
+    EdDestination.ADDONS,
+    EdDestination.SETTINGS,
+)
+
 @Composable
 fun SideRail(
     current: EdDestination,
@@ -61,101 +87,177 @@ fun SideRail(
 ) {
     val palette = Ed.palette
 
-    Column(
-        modifier = modifier
-            .width(if (compact) 60.dp else 76.dp)
-            .fillMaxHeight()
-            .background(palette.bg)
-            .padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        EdDestination.entries.forEach { dest ->
-            RailItem(
-                destination = dest,
-                selected = dest == current,
-                compact = compact,
-                focusRequester = if (dest == EdDestination.HOME) firstFocusRequester else null,
-                onClick = { onSelect(dest) },
+    BoxWithConstraints(modifier.fillMaxHeight()) {
+        // Telas de 720p caem para ~540dp de altura: nesse caso a doca entra em
+        // modo compacto e os rótulos dão lugar ao ícone sozinho.
+        val lowHeight = maxHeight < 560.dp
+        val slim = compact || lowHeight
+        val width = if (slim) 84.dp else 96.dp
+
+        Box(Modifier.width(width).fillMaxHeight()) {
+            // Véu de vidro: escurece a arte atrás da doca sem criar um painel.
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .width(width)
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to palette.bg.copy(alpha = 0.96f),
+                            0.62f to palette.bg.copy(alpha = 0.82f),
+                            1f to palette.bg.copy(alpha = 0.0f),
+                        ),
+                    ),
             )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(width)
+                    .padding(vertical = if (slim) 10.dp else 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                BrandMark(size = if (slim) 40.dp else 46.dp)
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    PRIMARY_DESTINATIONS.forEach { destination ->
+                        DockItem(
+                            destination = destination,
+                            selected = destination == current,
+                            slim = slim,
+                            showLabel = !lowHeight,
+                            focusRequester = if (destination == EdDestination.HOME) firstFocusRequester else null,
+                            onClick = { onSelect(destination) },
+                        )
+                    }
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    SECONDARY_DESTINATIONS.forEach { destination ->
+                        DockItem(
+                            destination = destination,
+                            selected = destination == current,
+                            slim = true,
+                            showLabel = false,
+                            focusRequester = null,
+                            onClick = { onSelect(destination) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+            }
         }
+    }
+}
+
+/** Marca do app: quadrado de vidro com o glifo de reprodução em branco puro. */
+@Composable
+fun BrandMark(size: androidx.compose.ui.unit.Dp = 46.dp) {
+    val palette = Ed.palette
+    val shape = RoundedCornerShape(size / 4)
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(shape)
+            .background(palette.glassStrong, shape)
+            .border(1.dp, palette.glassBorderStrong, shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = EdIcons.play,
+            contentDescription = null,
+            tint = palette.onArt,
+            modifier = Modifier.size(size * 0.46f),
+        )
     }
 }
 
 @Composable
-private fun RailItem(
+private fun DockItem(
     destination: EdDestination,
     selected: Boolean,
-    compact: Boolean,
+    slim: Boolean,
+    showLabel: Boolean,
     focusRequester: FocusRequester?,
     onClick: () -> Unit,
 ) {
     val palette = Ed.palette
+    val type = Ed.type
     val interaction = edInteraction(onClick = onClick, focusRequester = focusRequester)
     val focused = interaction.isFocused
 
-    val background by animateColorAsState(
-        when {
-            focused -> palette.surface3
-            selected -> palette.surface2
+    val tileShape = RoundedCornerShape(14.dp)
+    val fill by animateColorAsState(
+        targetValue = when {
+            focused -> palette.glassStrong
+            selected -> palette.glass
             else -> Color.Transparent
         },
-        tween(160, easing = EdEasing),
-        label = "rail-bg",
+        animationSpec = tween(160, easing = EdEasing),
+        label = "dock-fill",
     )
     val iconColor by animateColorAsState(
-        when {
-            focused -> palette.fg
-            selected -> palette.accent
-            else -> palette.fg2
+        targetValue = when {
+            focused || selected -> palette.onArt
+            else -> palette.fg3
         },
-        tween(160, easing = EdEasing),
-        label = "rail-icon",
+        animationSpec = tween(160, easing = EdEasing),
+        label = "dock-icon",
     )
-    val indicatorHeight by animateDpAsState(
-        if (selected) 24.dp else 0.dp,
-        tween(180, easing = EdEasing),
-        label = "rail-indicator",
+    val labelColor by animateColorAsState(
+        targetValue = when {
+            focused || selected -> palette.onArt
+            else -> palette.fg3
+        },
+        animationSpec = tween(160, easing = EdEasing),
+        label = "dock-label",
     )
 
-    val shape = RoundedCornerShape(14.dp)
-    val itemWidth = if (compact) 50.dp else 56.dp
-    val itemHeight = if (compact) 42.dp else 46.dp
+    val label = stringResource(destination.labelRes)
 
-    Box(
-        modifier = Modifier.width(itemWidth).height(itemHeight + 6.dp),
-        contentAlignment = Alignment.Center,
+    Column(
+        modifier = Modifier
+            .width(if (slim) 72.dp else 84.dp)
+            .clip(tileShape)
+            .background(fill, tileShape)
+            .then(if (focused) Modifier.border(2.dp, palette.onArt, tileShape) else Modifier)
+            .then(interaction.modifier)
+            .padding(vertical = if (showLabel) 7.dp else 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        if (indicatorHeight > 0.dp) {
-            Box(
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .width(3.dp)
-                    .height(indicatorHeight)
-                    .background(palette.accent, RoundedCornerShape(2.dp)),
+        Icon(
+            imageVector = destination.icon,
+            contentDescription = label,
+            tint = iconColor,
+            modifier = Modifier.size(if (slim) 20.dp else 23.dp),
+        )
+        if (showLabel) {
+            Text(
+                text = label.uppercase(),
+                style = type.label.copy(fontSize = 8.5.sp, letterSpacing = 0.7.sp),
+                color = labelColor,
+                maxLines = 1,
             )
         }
-        Box(
-            modifier = Modifier
-                .width(itemWidth - 6.dp)
-                .height(itemHeight)
-                .background(background, shape)
-                .then(
-                    if (focused) Modifier.border(3.dp, palette.accent, shape) else Modifier,
-                )
-                .then(interaction.modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = destination.icon,
-                contentDescription = stringResource(destination.labelRes),
-                tint = iconColor,
-                modifier = Modifier.size(if (compact) 21.dp else 23.dp),
+        if (selected) {
+            Box(
+                Modifier
+                    .size(4.dp)
+                    .background(palette.onArt, RoundedCornerShape(percent = 50)),
             )
+        } else {
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
 
-/** Espaçador vertical usado entre seções da rail (compat). */
+/** Espaçador vertical usado entre seções (compat). */
 @Composable
 fun RailSpacer() = Spacer(Modifier.height(8.dp))

@@ -21,25 +21,29 @@ import androidx.compose.ui.unit.sp
 /**
  * Tokens visuais portados 1:1 do design de referência (Extreme-InfiniTV).
  *
- * Fundação "slate" (oklch L=.165 C=.013 H=255) + acento fúcsia suave
- * (oklch L=.78 C=.15 H=330). Os valores hexadecimais abaixo foram convertidos
- * de OKLCH para sRGB para que o resultado em Compose seja idêntico ao original.
+ * Fundação quase preta (#07080B) + **acento branco puro (#FFFFFF)** em todo
+ * foco, seleção, anel e ação primária. Não existe matiz de acento: a interface
+ * é neutra e o destaque vem de contraste e de camadas de vidro (Glass.kt).
+ *
+ * O layout cinematográfico (palco + trilhas + doca flutuante) usa os mesmos
+ * tokens, apenas com mais camadas translúcidas sobre a arte.
  */
 object EdColors {
     // ---- fundação escura (base das camadas de vidro) ----
-    val Bg = Color(0xFF0A0C10)
-    val BgDeep = Color(0xFF06080B)
+    // Preto levemente azulado: é o que faz o branco puro do foco "acender" na TV.
+    val Bg = Color(0xFF07080B)
+    val BgDeep = Color(0xFF030406)
 
     // ---- superfícies (glassmorphism: mais claras e translúcidas em camadas) ----
-    val Surface = Color(0xFF12151B)
-    val Surface2 = Color(0xFF1A1E26)
-    val Surface3 = Color(0xFF252B35)
-    val Line = Color(0xFF313845)
-    val LineSoft = Color(0xFF20252E)
+    val Surface = Color(0xFF10131A)
+    val Surface2 = Color(0xFF171B23)
+    val Surface3 = Color(0xFF222833)
+    val Line = Color(0xFF2E3542)
+    val LineSoft = Color(0xFF1B2029)
 
     // vidro: preenchimentos translúcidos para empilhar sobre backdrops
     val Glass = Color(0x14FFFFFF)      // 8%  — cartões sobre imagem
-    val GlassStrong = Color(0x1FFFFFFF) // 12% — painéis/barras
+    val GlassStrong = Color(0x24FFFFFF) // 14% — painéis/barras
     val GlassBorder = Color(0x1AFFFFFF) // 10% — contorno de 1px
     val GlassBorderStrong = Color(0x33FFFFFF)
 
@@ -119,6 +123,14 @@ data class EdDimens(
     val landscapeWidth: Dp = 268.dp,
     val landscapeHeight: Dp = 151.dp,
     val posterGridMin: Dp = 156.dp,
+    // ---- nova estrutura "palco" (Stremio-like) ----
+    /** Largura da doca lateral flutuante (ícone + rótulo). */
+    val dockWidth: Dp = 96.dp,
+    /** Recuo do conteúdo que fica sob a doca. */
+    val dockInset: Dp = 84.dp,
+    /** Altura mínima/máxima do palco cinematográfico da Home. */
+    val stageMin: Dp = 300.dp,
+    val stageMax: Dp = 620.dp,
 )
 
 val LocalEdDimens = staticCompositionLocalOf { EdDimens() }
@@ -147,6 +159,10 @@ data class EdPalette(
     val glassStrong: Color = Color(0x1FFFFFFF),
     val glassBorder: Color = Color(0x1AFFFFFF),
     val glassHighlight: Color = Color(0x0DFFFFFF),
+    /** Preenchimento de vidro escuro para HUDs e botões secundários. */
+    val glassDark: Color = Color(0x66000000),
+    /** Texto sobre a arte do palco (sempre branco puro). */
+    val onArt: Color = Color(0xFFFFFFFF),
 )
 
 fun paletteFor(dark: Boolean, accent: AccentSwatch): EdPalette = if (dark) {

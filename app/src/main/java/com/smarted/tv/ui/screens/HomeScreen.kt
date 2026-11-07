@@ -3,11 +3,10 @@ package com.smarted.tv.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,43 +14,52 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smarted.tv.R
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.model.WatchProgress
-import com.smarted.tv.ui.components.CardSize
-import com.smarted.tv.ui.components.ChannelCard
-import com.smarted.tv.ui.components.EdPill
 import com.smarted.tv.ui.components.EmptyState
-import com.smarted.tv.ui.components.HeroBanner
-import com.smarted.tv.ui.components.PosterCard
-import com.smarted.tv.ui.components.RailSpacer
-import com.smarted.tv.ui.components.SectionHeader
+import com.smarted.tv.ui.components.EdIcons
+import com.smarted.tv.ui.components.FeatureCard
+import com.smarted.tv.ui.components.GenrePill
+import com.smarted.tv.ui.components.LiveChannelCard
+import com.smarted.tv.ui.components.ShelfHeader
+import com.smarted.tv.ui.components.ShelfMetrics
 import com.smarted.tv.ui.components.ShimmerBox
-import com.smarted.tv.ui.components.WideCard
-import com.smarted.tv.ui.theme.edFocusRing
-import com.smarted.tv.ui.components.edInteraction
+import com.smarted.tv.ui.components.StageHero
 import com.smarted.tv.ui.state.HomeUiState
 import com.smarted.tv.ui.state.HomeViewModel
 import com.smarted.tv.ui.theme.Ed
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * Home — réplica da experiência da referência:
- *  hero de destaque no topo, "Continuar assistindo", favoritos e faixas de
- *  canais/filmes/séries em rolagem horizontal com foco em D-pad.
+ * Home cinematográfica.
+ *
+ * Estrutura (de cima para baixo):
+ *
+ *  1. **Palco** — backdrop full-bleed que passa por baixo da doca lateral, com
+ *     título, classificação, ano, duração, gêneros, sinopse e as ações
+ *     "Assistir" / "Detalhes" em branco puro.
+ *  2. **Em destaque para você** — cada trilha horizontal é um mural de cartões
+ *     16:10 com o título e os metadados dentro da própria arte.
+ *  3. Trilhas: Top 10 em alta, Séries em alta, Continuar assistindo,
+ *     Lançamentos, Séries para maratonar, Canais favoritos e Gêneros.
+ *
+ * O conteúdo começa em [ShelfMetrics] + doca, nunca atrás dos ícones — o palco,
+ * esse sim, sangra até a borda esquerda.
  */
 @Composable
 fun HomeScreen(
@@ -69,247 +77,308 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) { viewModel.load() }
 
-    // Entrega a lista ao root para o zap do player (canal anterior/próximo).
-    // Usa o acervo completo de canais, não só os favoritos exibidos na Home.
+    // Entrega a lista completa de canais ao root (zap do player).
     LaunchedEffect(state.liveChannels) {
         if (state.liveChannels.isNotEmpty()) onChannelsLoaded(state.liveChannels)
     }
 
-    LazyColumn(
+    val contentStart: Dp = Ed.dimen.dockInset + 20.dp
+    val refreshed = remember { formattedNow() }
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.bg),
-        contentPadding = PaddingValues(top = 20.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(26.dp),
     ) {
-        item(key = "hero") {
-            Box(Modifier.padding(horizontal = 32.dp)) {
+        val stageHeight = (maxHeight * 0.68f)
+            .coerceIn(Ed.dimen.stageMin, Ed.dimen.stageMax)
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            // ---------------------------------------------------------- palco
+            item(key = "stage") {
                 val hero = state.hero
                 if (hero != null) {
-                    HeroBanner(
+                    StageHero(
                         item = hero,
-                        eyebrow = state.heroEyebrow,
+                        eyebrow = eyebrowFor(hero, state),
                         onPlay = { onPlay(hero) },
                         onDetails = { onOpenDetails(hero) },
+                        modifier = Modifier.height(stageHeight),
                         playFocusRequester = heroFocusRequester,
                         progress = state.heroProgress,
                         backdrops = state.heroBackdrops,
+                        insetStart = Ed.dimen.dockInset,
+                        refreshedLabel = stringResource(R.string.home_refreshed, refreshed),
                     )
                 } else {
-                    ShimmerBox(Modifier.fillMaxWidth().height(300.dp))
+                    StageSkeleton(height = stageHeight, insetStart = Ed.dimen.dockInset)
                 }
             }
-        }
 
-        if (state.loading && state.hero == null) {
-            items(2) { ShimmerRow() }
-        }
-
-        // ===== Ordem de produto (de cima para baixo) =====
-        // 1. Top 10 filmes mais votados
-        // 2. Top 10 séries mais votadas
-        // 3. Canais favoritos
-        // 4. Todos os filmes
-        // "Continuar assistindo" entra depois do Top 10 (é estado do usuário,
-        // não curadoria) e "Ao vivo" fica como último bloco de catálogo.
-
-        if (state.topMovies.isNotEmpty()) {
-            item(key = "top-movies") {
-                Rail(
-                    title = stringResource(R.string.home_top_movies),
-                    trailing = stringResource(R.string.home_top_movies_hint),
-                    onSeeAll = { onOpenDestination("movies") },
-                ) {
-                    itemsIndexed(state.topMovies, key = { _, it -> "top-mv-${it.id}" }) { index, item ->
-                        TopRankCard(
-                            rank = index + 1,
-                            item = item,
-                            onClick = { onOpenDetails(item) },
-                        )
-                    }
-                }
-            }
-        }
-
-        if (state.topSeries.isNotEmpty()) {
-            item(key = "top-series") {
-                Rail(
-                    title = stringResource(R.string.home_top_series),
-                    trailing = stringResource(R.string.home_top_series_hint),
-                    onSeeAll = { onOpenDestination("series") },
-                ) {
-                    itemsIndexed(state.topSeries, key = { _, it -> "top-sr-${it.id}" }) { index, item ->
-                        TopRankCard(
-                            rank = index + 1,
-                            item = item,
-                            onClick = { onOpenDetails(item) },
-                        )
-                    }
-                }
-            }
-        }
-
-        if (state.favoriteChannels.isNotEmpty()) {
-            item(key = "fav-channels") {
-                Rail(
-                    title = stringResource(R.string.home_favorite_channels),
-                    trailing = "${state.favoriteChannels.size} ${if (state.favoriteChannels.size == 1) "canal" else "canais"}",
-                    onSeeAll = { onOpenDestination("favorites") },
-                ) {
-                    itemsIndexed(state.favoriteChannels, key = { i, it -> "favch-$i-${it.ref.key}" }) { index, channel ->
-                        ChannelCard(
-                            item = channel,
-                            onClick = { onOpenChannel(channel) },
-                            nowPlaying = channel.subtitle,
-                            number = index + 1,
-                        )
-                    }
-                }
-            }
-        }
-
-        if (state.movies.isNotEmpty()) {
-            item(key = "movies") {
-                Rail(
-                    title = stringResource(R.string.home_all_movies),
-                    trailing = "${state.movieCount} títulos",
-                    onSeeAll = { onOpenDestination("movies") },
-                ) {
-                    items(state.movies, key = { "mv-${it.id}" }) { item ->
-                        PosterCard(item = item, onClick = { onOpenDetails(item) })
-                    }
-                }
-            }
-        }
-
-        if (state.continueWatching.isNotEmpty()) {
-            item(key = "continue") {
-                Rail(
-                    title = stringResource(R.string.home_continue),
-                    trailing = "${state.continueWatching.size} ${if (state.continueWatching.size == 1) "item" else "itens"}",
-                    onSeeAll = { onOpenDestination("continue") },
-                ) {
-                    items(state.continueWatching, key = { "cw-${it.ref}" }) { progress ->
-                        WideCard(
-                            item = progressToItem(progress),
-                            onClick = { onPlay(progressToItem(progress)) },
-                            progress = progress.fraction,
-                            overline = progress.subtitleText(),
-                        )
-                    }
-                }
-            }
-        }
-
-        if (state.series.isNotEmpty()) {
-            item(key = "series") {
-                Rail(
-                    title = stringResource(R.string.home_all_series),
-                    trailing = "${state.seriesCount} títulos",
-                    onSeeAll = { onOpenDestination("series") },
-                ) {
-                    items(state.series, key = { "sr-${it.id}" }) { item ->
-                        PosterCard(item = item, onClick = { onOpenDetails(item) })
-                    }
-                }
-            }
-        }
-
-        val favoriteTitles = state.favorites.filter { it.kind != MediaKind.LIVE }
-        if (favoriteTitles.isNotEmpty()) {
-            item(key = "favorites") {
-                Rail(
-                    title = stringResource(R.string.home_favorites),
-                    trailing = "${favoriteTitles.size} ${if (favoriteTitles.size == 1) "item" else "itens"}",
-                    onSeeAll = { onOpenDestination("favorites") },
-                ) {
-                    items(favoriteTitles, key = { "fav-${it.ref.key}" }) { item ->
-                        PosterCard(
-                            item = item,
-                            onClick = { onOpenDetails(item) },
-                            width = CardSize.posterWidth,
-                        )
-                    }
-                }
-            }
-        }
-
-        // Estado vazio real: nada de canais, filmes ou séries. O banner só
-        // aparece com filme, então "sem hero" não significa "sem conteúdo".
-        val hasContent = state.liveChannels.isNotEmpty() ||
-            state.movies.isNotEmpty() ||
-            state.series.isNotEmpty() ||
-            state.favoriteChannels.isNotEmpty()
-        if (!state.loading && !hasContent) {
-            item(key = "empty") {
-                EmptyState(
-                    title = stringResource(R.string.home_empty_title),
-                    message = stringResource(R.string.home_empty_message),
+            // ------------------------------------------- cabeçalho da vitrine
+            item(key = "featured-head") {
+                ShelfHeader(
+                    title = stringResource(R.string.home_featured_for_you),
+                    trailing = null,
+                    modifier = Modifier.padding(start = contentStart, end = 40.dp),
+                    big = true,
                 )
             }
-        }
 
-        item(key = "footer") {
-            Column(Modifier.padding(horizontal = 32.dp)) {
-                RailSpacer()
-                Text(
-                    text = state.status.ifBlank { stringResource(R.string.home_ready) },
-                    style = type.caption,
-                    color = palette.fg3,
-                )
-                state.error?.let {
-                    Text(text = "Aviso: $it", style = type.caption, color = palette.warn)
+            // ------------------------------------------------- trilhas
+            if (state.topMovies.isNotEmpty()) {
+                item(key = "top-movies") {
+                    Shelf(
+                        title = stringResource(R.string.home_top_trending),
+                        hint = stringResource(R.string.home_top_movies_hint),
+                        contentStart = contentStart,
+                        onSeeAll = { onOpenDestination("movies") },
+                    ) {
+                        itemsIndexed(state.topMovies, key = { _, it -> "top-mv-${it.id}" }) { index, item ->
+                            FeatureCard(
+                                item = item,
+                                onClick = { onOpenDetails(item) },
+                                rank = index + 1,
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (state.topSeries.isNotEmpty()) {
+                item(key = "top-series") {
+                    Shelf(
+                        title = stringResource(R.string.home_trending_series),
+                        hint = stringResource(R.string.home_top_series_hint),
+                        contentStart = contentStart,
+                        onSeeAll = { onOpenDestination("series") },
+                    ) {
+                        itemsIndexed(state.topSeries, key = { _, it -> "top-sr-${it.id}" }) { index, item ->
+                            FeatureCard(
+                                item = item,
+                                onClick = { onOpenDetails(item) },
+                                rank = index + 1,
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (state.continueWatching.isNotEmpty()) {
+                item(key = "continue") {
+                    Shelf(
+                        title = stringResource(R.string.home_continue),
+                        hint = "${state.continueWatching.size}",
+                        contentStart = contentStart,
+                        onSeeAll = { onOpenDestination("continue") },
+                    ) {
+                        items(state.continueWatching, key = { "cw-${it.ref}" }) { progress ->
+                            val item = progressToItem(progress)
+                            FeatureCard(
+                                item = item,
+                                onClick = { onPlay(item) },
+                                progress = progress.fraction,
+                                overline = progress.subtitleText(),
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (state.movies.isNotEmpty()) {
+                item(key = "movies") {
+                    Shelf(
+                        title = stringResource(R.string.home_new_movies),
+                        hint = "${state.movieCount}",
+                        contentStart = contentStart,
+                        onSeeAll = { onOpenDestination("movies") },
+                    ) {
+                        items(state.movies, key = { "mv-${it.id}" }) { item ->
+                            FeatureCard(item = item, onClick = { onOpenDetails(item) })
+                        }
+                    }
+                }
+            }
+
+            if (state.series.isNotEmpty()) {
+                item(key = "series") {
+                    Shelf(
+                        title = stringResource(R.string.home_more_series),
+                        hint = "${state.seriesCount}",
+                        contentStart = contentStart,
+                        onSeeAll = { onOpenDestination("series") },
+                    ) {
+                        items(state.series, key = { "sr-${it.id}" }) { item ->
+                            FeatureCard(item = item, onClick = { onOpenDetails(item) })
+                        }
+                    }
+                }
+            }
+
+            val favoriteTitles = state.favorites.filter { it.kind != MediaKind.LIVE }
+            if (favoriteTitles.isNotEmpty()) {
+                item(key = "favorites") {
+                    Shelf(
+                        title = stringResource(R.string.home_favorites),
+                        hint = "${favoriteTitles.size}",
+                        contentStart = contentStart,
+                        onSeeAll = { onOpenDestination("favorites") },
+                    ) {
+                        items(favoriteTitles, key = { "fav-${it.ref.key}" }) { item ->
+                            FeatureCard(item = item, onClick = { onOpenDetails(item) })
+                        }
+                    }
+                }
+            }
+
+            if (state.favoriteChannels.isNotEmpty()) {
+                item(key = "channels") {
+                    Shelf(
+                        title = stringResource(R.string.home_favorite_channels),
+                        hint = "${state.favoriteChannels.size}",
+                        contentStart = contentStart,
+                        onSeeAll = { onOpenDestination("favorites") },
+                    ) {
+                        items(state.favoriteChannels, key = { "ch-${it.ref.key}" }) { channel ->
+                            LiveChannelCard(
+                                item = channel,
+                                onClick = { onOpenChannel(channel) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            val genres = collectGenres(state)
+            if (genres.isNotEmpty()) {
+                item(key = "genres") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ShelfHeader(
+                            title = stringResource(R.string.home_genres),
+                            modifier = Modifier.padding(start = contentStart, end = 40.dp),
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(start = contentStart, end = 40.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            items(genres, key = { "genre-$it" }) { genre ->
+                                GenrePill(
+                                    label = genre,
+                                    icon = EdIcons.grid,
+                                    onClick = { onOpenDestination("movies") },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ------------------------------------------------- estados vazios
+            val hasContent = state.liveChannels.isNotEmpty() ||
+                state.movies.isNotEmpty() ||
+                state.series.isNotEmpty() ||
+                state.favoriteChannels.isNotEmpty()
+            if (!state.loading && !hasContent) {
+                item(key = "empty") {
+                    EmptyState(
+                        title = stringResource(R.string.home_empty_title),
+                        message = stringResource(R.string.home_empty_message),
+                        modifier = Modifier.padding(start = contentStart),
+                    )
+                }
+            }
+
+            item(key = "footer") {
+                val hint = stringResource(R.string.home_dpad_hint)
+                Column(
+                    modifier = Modifier.padding(start = contentStart, end = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = state.status.ifBlank { hint },
+                        style = type.caption,
+                        color = palette.fg3,
+                    )
+                    state.error?.let {
+                        Text(text = it, style = type.caption, color = palette.warn)
+                    }
                 }
             }
         }
     }
 }
 
-/** Faixa horizontal com título e ação "ver tudo". */
+/** Trilha horizontal com título pequeno e ação discreta. */
 @Composable
-private fun Rail(
+private fun Shelf(
     title: String,
-    trailing: String? = null,
+    contentStart: Dp,
+    hint: String? = null,
     onSeeAll: (() -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SectionHeader(title = title, trailing = trailing, modifier = Modifier.weight(1f))
-            onSeeAll?.let { SeeAllPill(it) }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ShelfHeader(
+            title = title,
+            trailing = hint,
+            actionLabel = if (onSeeAll != null) stringResource(R.string.action_see_all) else null,
+            onAction = onSeeAll,
+            modifier = Modifier.padding(start = contentStart, end = 40.dp),
+        )
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(start = contentStart, end = 40.dp, top = 2.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(ShelfMetrics.gap),
             content = content,
         )
     }
 }
 
+/** Esqueleto do palco enquanto o catálogo chega. */
 @Composable
-private fun SeeAllPill(onClick: () -> Unit) {
-    EdPill(label = "Ver tudo", onClick = onClick)
-}
-
-@Composable
-private fun ShimmerRow() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ShimmerBox(Modifier.padding(horizontal = 32.dp).height(22.dp).fillMaxWidth(0.22f))
-        Row(
-            modifier = Modifier.padding(horizontal = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+private fun StageSkeleton(height: Dp, insetStart: Dp) {
+    val palette = Ed.palette
+    Box(Modifier.fillMaxSize().height(height).background(palette.bgDeep)) {
+        Column(
+            modifier = Modifier.padding(start = insetStart + 30.dp, bottom = 40.dp).fillMaxSize(),
+            verticalArrangement = Arrangement.Bottom,
         ) {
-            repeat(6) {
-                ShimmerBox(Modifier.height(250.dp).weight(1f))
-            }
+            ShimmerBox(Modifier.height(12.dp).fillMaxSize())
         }
     }
 }
 
-/** Converte progresso persistido em item de catálogo exibível. */
+/** Eyebrow do palco de acordo com o tipo do destaque. */
+@Composable
+private fun eyebrowFor(hero: MediaItem, state: HomeUiState): String = when (hero.kind) {
+    MediaKind.MOVIE -> stringResource(R.string.home_stage_movie)
+    MediaKind.SERIES -> stringResource(R.string.home_stage_series)
+    MediaKind.LIVE -> stringResource(R.string.home_stage_live)
+    else -> state.heroEyebrow
+}
+
+/** Gêneros mais frequentes do acervo (máximo 14, ordem alfabética). */
+private fun collectGenres(state: HomeUiState): List<String> {
+    val counter = LinkedHashMap<String, Int>()
+    (state.movies + state.series).forEach { item ->
+        item.genres.forEach { raw ->
+            val genre = raw.trim()
+            if (genre.isNotEmpty() && genre.length <= 22) {
+                counter[genre] = (counter[genre] ?: 0) + 1
+            }
+        }
+    }
+    return counter.entries
+        .sortedByDescending { it.value }
+        .take(14)
+        .map { it.key }
+        .sorted()
+}
+
+/** Converte progresso persistido em item exibível nos cartões. */
 private fun progressToItem(progress: WatchProgress): MediaItem = MediaItem(
     id = progress.itemId.ifBlank { progress.ref },
     addonId = progress.addonId,
@@ -324,36 +393,7 @@ private fun progressToItem(progress: WatchProgress): MediaItem = MediaItem(
 private fun WatchProgress.subtitleText(): String? =
     if (season != null && episode != null) "T${season}E$episode" else null
 
-/**
- * Cartão do "Top 10": número grande à esquerda, pôster à direita.
- * O número usa o contorno branco do design system e o preenchimento em vidro.
- */
-@Composable
-private fun TopRankCard(
-    rank: Int,
-    item: MediaItem,
-    onClick: () -> Unit,
-) {
-    val palette = Ed.palette
-    val type = Ed.type
-    val interaction = edInteraction(onClick = onClick)
-    Row(
-        modifier = Modifier
-            .edFocusRing(interaction.isFocused, RoundedCornerShape(14.dp))
-            .then(interaction.modifier)
-            .padding(end = 8.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Text(
-            text = rank.toString(),
-            style = type.display.copy(fontSize = 64.sp, fontWeight = FontWeight.Black),
-            color = if (interaction.isFocused) palette.accent else palette.fg3,
-            modifier = Modifier.padding(end = 6.dp),
-        )
-        PosterCard(
-            item = item,
-            onClick = onClick,
-            width = CardSize.posterWidth,
-        )
-    }
-}
+/** "2:13" — usado no selo de atualização do palco. */
+private fun formattedNow(): String =
+    runCatching { SimpleDateFormat("H:mm", Locale.forLanguageTag("pt-BR")).format(Date()) }
+        .getOrDefault("")

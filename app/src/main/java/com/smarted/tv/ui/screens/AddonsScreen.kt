@@ -59,6 +59,7 @@ fun AddonsScreen(
     onOpenBrowser: () -> Unit,
     onOpenElementum: () -> Unit,
     onOpenMyList: () -> Unit,
+    onOpenStremio: () -> Unit,
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -101,6 +102,14 @@ fun AddonsScreen(
                 label = "Minha lista" + if (state.savedCount > 0) " (${state.savedCount})" else "",
                 onClick = onOpenMyList,
                 icon = EdIcons.check,
+            )
+            Box(Modifier.size(10.dp))
+            // Addons de manifesto (estilo Stremio): catálogos HTTP/JSON com
+            // vínculo manual por aba.
+            EdSecondaryButton(
+                label = "Addons Stremio",
+                onClick = onOpenStremio,
+                icon = EdIcons.bolt,
             )
         }
 

@@ -77,9 +77,9 @@ import com.smarted.tv.core.player.VlcEngine
 import com.smarted.tv.core.util.TextUtils
 import com.smarted.tv.ui.components.EdBadge
 import com.smarted.tv.ui.components.EdIcons
-import com.smarted.tv.ui.components.EdPill
+import com.smarted.tv.ui.components.GlassPanel
+import com.smarted.tv.ui.components.GlassPill
 import com.smarted.tv.ui.components.ThinProgress
-import com.smarted.tv.ui.components.edInteraction
 import com.smarted.tv.ui.state.PlayerViewModel
 import com.smarted.tv.ui.theme.Ed
 
@@ -342,52 +342,69 @@ fun PlayerScreen(
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize(),
         ) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.78f),
-                            0.30f to Color.Transparent,
-                            0.62f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.90f),
+            Box(Modifier.fillMaxSize()) {
+                // Véu leve: apenas o suficiente para os painéis de vidro terem
+                // contraste. Nada de barras pretas de tela cheia.
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Black.copy(alpha = 0.55f),
+                                0.30f to Color.Transparent,
+                                0.70f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.60f),
+                            ),
                         ),
-                    ),
-            ) {
+                )
+
                 // ---------- topo: título, badges, motor ----------
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                GlassPanel(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    padding = 16.dp,
+                    spacing = 0.dp,
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = state.title.ifBlank { item.title },
-                            style = type.title,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        state.subtitle?.let {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
                             Text(
-                                text = it,
-                                style = type.caption,
-                                color = Color.White.copy(alpha = 0.7f),
+                                text = state.title.ifBlank { item.title },
+                                style = type.title,
+                                color = palette.onArt,
                                 maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
+                            state.subtitle?.let {
+                                Text(
+                                    text = it,
+                                    style = type.caption,
+                                    color = palette.onArt.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                        if (isLive) LiveBadge()
+                        (resolution ?: item.quality)?.let { EdBadge(it, palette.onArt) }
+                        if (!usingVlc) {
+                            EdBadge(stringResource(R.string.player_compatibility), palette.onArt.copy(alpha = 0.7f))
                         }
                     }
-                    if (isLive) LiveBadge()
-                    (resolution ?: item.quality)?.let { EdBadge(it, Color.White) }
-                    if (!usingVlc) EdBadge(stringResource(R.string.player_compatibility), Color.White.copy(alpha = 0.7f))
                 }
 
-                Box(Modifier.weight(1f))
-
-                // ---------- base: controles por tipo de mídia ----------
-                Column(
-                    Modifier.fillMaxWidth().padding(28.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                // ---------- base: controles flutuantes por tipo de mídia ----------
+                GlassPanel(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    padding = 18.dp,
+                    spacing = 12.dp,
                 ) {
                     if (isLive) {
                         LiveControls(
@@ -452,8 +469,12 @@ fun PlayerScreen(
                     Icon(EdIcons.warning, contentDescription = null, tint = palette.warn, modifier = Modifier.size(34.dp))
                     Text(message, style = type.body, color = Color.White, maxLines = 4)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        EdPill(label = "Tentar de novo", onClick = { viewModel.prepare(item) }, icon = EdIcons.refresh)
-                        EdPill(label = "Voltar", onClick = onBack)
+                        GlassPill(
+                            label = stringResource(R.string.action_retry),
+                            onClick = { viewModel.prepare(item) },
+                            icon = EdIcons.refresh,
+                        )
+                        GlassPill(label = stringResource(R.string.action_back), onClick = onBack)
                     }
                 }
             }
@@ -509,23 +530,23 @@ private fun LiveControls(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             onPreviousChannel?.let {
-                EdPill(label = stringResource(R.string.player_channel_previous), onClick = it, icon = EdIcons.rewind)
+                GlassPill(label = stringResource(R.string.player_channel_previous), onClick = it, icon = EdIcons.rewind)
             }
             PlayPauseButton(playing = playing, onClick = onTogglePlay)
             onNextChannel?.let {
-                EdPill(label = stringResource(R.string.player_channel_next), onClick = it, icon = EdIcons.fastForward)
+                GlassPill(label = stringResource(R.string.player_channel_next), onClick = it, icon = EdIcons.fastForward)
             }
-            EdPill(label = audioLabel, onClick = onCycleAudio, icon = EdIcons.volume)
-            EdPill(label = subtitleLabel, onClick = onCycleSubtitle, icon = EdIcons.subtitles)
+            GlassPill(label = audioLabel, onClick = onCycleAudio, icon = EdIcons.volume)
+            GlassPill(label = subtitleLabel, onClick = onCycleSubtitle, icon = EdIcons.subtitles)
             if (sources > 1) {
-                EdPill(
+                GlassPill(
                     label = "Servidor ${sourceIndex + 1}/$sources",
                     onClick = onNextSource,
                     icon = EdIcons.bolt,
                 )
             }
             Spacer(Modifier.weight(1f))
-            EdPill(label = stringResource(R.string.action_exit), onClick = onBack, icon = EdIcons.close)
+            GlassPill(label = stringResource(R.string.action_exit), onClick = onBack, icon = EdIcons.close)
         }
     }
 }
@@ -590,55 +611,33 @@ private fun CinemaControls(
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            EdPill(label = stringResource(R.string.player_back_10), onClick = { onSeek(-10_000L) }, icon = EdIcons.rewind)
+            GlassPill(label = stringResource(R.string.player_back_10), onClick = { onSeek(-10_000L) }, icon = EdIcons.rewind)
             PlayPauseButton(playing = playing, onClick = onTogglePlay)
-            EdPill(label = stringResource(R.string.player_forward_30), onClick = { onSeek(30_000L) }, icon = EdIcons.fastForward)
-            EdPill(label = stringResource(R.string.player_start), onClick = { onSeekTo(0f) })
-            EdPill(label = "Cap. 25%", onClick = { onSeekTo(0.25f) })
-            EdPill(label = "Cap. 50%", onClick = { onSeekTo(0.5f) })
-            EdPill(label = "Cap. 75%", onClick = { onSeekTo(0.75f) })
-            EdPill(label = audioLabel, onClick = onCycleAudio, icon = EdIcons.volume)
-            EdPill(label = subtitleLabel, onClick = onCycleSubtitle, icon = EdIcons.subtitles)
+            GlassPill(label = stringResource(R.string.player_forward_30), onClick = { onSeek(30_000L) }, icon = EdIcons.fastForward)
+            GlassPill(label = stringResource(R.string.player_start), onClick = { onSeekTo(0f) })
+            GlassPill(label = "Cap. 25%", onClick = { onSeekTo(0.25f) })
+            GlassPill(label = "Cap. 50%", onClick = { onSeekTo(0.5f) })
+            GlassPill(label = "Cap. 75%", onClick = { onSeekTo(0.75f) })
+            GlassPill(label = audioLabel, onClick = onCycleAudio, icon = EdIcons.volume)
+            GlassPill(label = subtitleLabel, onClick = onCycleSubtitle, icon = EdIcons.subtitles)
             Spacer(Modifier.weight(1f))
-            EdPill(label = stringResource(R.string.action_exit), onClick = onBack, icon = EdIcons.close)
+            GlassPill(label = stringResource(R.string.action_exit), onClick = onBack, icon = EdIcons.close)
         }
     }
 }
 
 @Composable
 private fun PlayPauseButton(playing: Boolean, onClick: () -> Unit) {
-    val palette = Ed.palette
-    val interaction = edInteraction(onClick = onClick)
-    val shape = RoundedCornerShape(percent = 50)
-    Row(
-        modifier = Modifier
-            .height(42.dp)
-            .clip(shape)
-            .background(if (interaction.isFocused) palette.accent else Color.White, shape)
-            .then(
-                if (interaction.isFocused) {
-                    Modifier.border(2.dp, Color.White, shape)
-                } else {
-                    Modifier
-                },
-            )
-            .then(interaction.modifier)
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            imageVector = if (playing) EdIcons.pause else EdIcons.play,
-            contentDescription = null,
-            tint = if (interaction.isFocused) palette.onAccent else Color.Black,
-            modifier = Modifier.size(18.dp),
-        )
-        Text(
-            text = if (playing) "Pausar" else "Reproduzir",
-            style = Ed.type.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-            color = if (interaction.isFocused) palette.onAccent else Color.Black,
-        )
-    }
+    GlassPill(
+        label = if (playing) {
+            stringResource(R.string.action_pause)
+        } else {
+            stringResource(R.string.action_resume_playback)
+        },
+        icon = if (playing) EdIcons.pause else EdIcons.play,
+        primary = true,
+        onClick = onClick,
+    )
 }
 
 /** "1080p · 50 fps" a partir do tamanho de vídeo entregue pelo VLC. */
@@ -697,7 +696,7 @@ fun YouTubePlayer(
             modifier = Modifier.fillMaxWidth().padding(24.dp),
             horizontalArrangement = Arrangement.End,
         ) {
-            EdPill(label = stringResource(R.string.action_close), onClick = onClose, icon = EdIcons.close)
+            GlassPill(label = stringResource(R.string.action_close), onClick = onClose, icon = EdIcons.close)
         }
     }
 }

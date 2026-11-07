@@ -405,23 +405,6 @@ fun QualityBadge(quality: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun RatingPill(rating: Double, modifier: Modifier = Modifier) {
-    val palette = Ed.palette
-    val type = Ed.type
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(palette.bg.copy(alpha = 0.86f))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(5.dp).background(palette.accent, RoundedCornerShape(percent = 50)))
-            Text(text = "  ${String.format("%.1f", rating)}", style = type.label, color = palette.fg)
-        }
-    }
-}
-
-@Composable
 fun LiveDot(modifier: Modifier = Modifier) {
     val palette = Ed.palette
     val type = Ed.type

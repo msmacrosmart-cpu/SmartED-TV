@@ -93,6 +93,11 @@ data class MediaItem(
     /** `tvg-country` (BR, PT, US…). */
     val country: String? = null,
     val ext: String? = null,
+    /**
+     * Classificação indicativa já conhecida da fonte (ex.: "12", "16", "L").
+     * Quando nula, a UI usa a heurística de [com.smarted.tv.core.util.ContentRating].
+     */
+    val certification: String? = null,
 ) {
     val ref: ItemRef get() = ItemRef(addonId, kind, id)
 }

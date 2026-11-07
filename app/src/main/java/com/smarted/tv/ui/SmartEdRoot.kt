@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
@@ -50,6 +51,7 @@ import com.smarted.tv.ui.screens.RepositoryScreen
 import com.smarted.tv.ui.screens.SearchScreen
 import com.smarted.tv.ui.screens.SettingsScreen
 import com.smarted.tv.ui.screens.SourcesScreen
+import com.smarted.tv.ui.screens.StremioScreen
 import com.smarted.tv.ui.screens.YouTubePlayer
 import com.smarted.tv.ui.state.AddonsViewModel
 import com.smarted.tv.ui.state.CatalogViewModel
@@ -192,7 +194,14 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                 }
             },
     ) {
-        Row(
+        // ---------------------------------------------------------------
+        // Casca flutuante: a doca lateral é uma CAMADA sobre o conteúdo, e não
+        // uma coluna que empurra a tela. É o que permite o backdrop do palco
+        // sangrar até a borda esquerda, como no layout de referência.
+        // Telas internas recebem o recuo da doca; a Home cuida do próprio
+        // recuo (só o texto), deixando a arte passar por baixo dos ícones.
+        // ---------------------------------------------------------------
+        Box(
             Modifier
                 .fillMaxSize()
                 .padding(
@@ -202,17 +211,11 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                     bottom = overscan,
                 ),
         ) {
-            SideRail(
-                current = current,
-                onSelect = {
-                    destination = it.name
-                    detailsItem = null
-                    subScreen = null
-                },
-                firstFocusRequester = navFocus,
-            )
-
-            Box(Modifier.weight(1f).fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(start = if (current == EdDestination.HOME) 0.dp else Ed.dimen.dockInset),
+            ) {
                 AnimatedContent(
                     targetState = Triple(current, subScreen, detailsItem?.ref?.key),
                     transitionSpec = {
@@ -338,6 +341,13 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                 )
                             }
 
+                            // Addons de manifesto (estilo Stremio): a tela lê o
+                            // registry do próprio grafo — catálogos HTTP/JSON
+                            // com escopo declarado e vínculo manual por aba.
+                            "stremio" -> {
+                                StremioScreen(onBack = { subScreen = "addons" })
+                            }
+
                             "sources" -> {
                                 val addonsVm: AddonsViewModel = viewModel(factory = factory)
                                 SourcesScreen(
@@ -436,6 +446,7 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                     subScreen = "browser"
                                 },
                                 onOpenMyList = { subScreen = "mylist" },
+                                onOpenStremio = { subScreen = "stremio" },
                                 onBack = { destination = EdDestination.SETTINGS.name },
                             )
                         }
@@ -455,12 +466,22 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                         else -> HomePlaceholder()
                     }
                 }
-
             }
+
+            SideRail(
+                current = current,
+                onSelect = {
+                    destination = it.name
+                    detailsItem = null
+                    subScreen = null
+                },
+                modifier = Modifier.align(Alignment.CenterStart).zIndex(2f),
+                firstFocusRequester = navFocus,
+            )
         }
 
         // ---------------------------------------------------------------
-        // Player e trailer ficam FORA da Row: dentro dela herdavam o padding
+        // Player e trailer ficam FORA da casca: dentro dela herdavam o padding
         // de overscan e a largura da SideRail, e o vídeo nunca ocupava a tela
         // inteira. Aqui cobrem o app por completo (tela cheia absoluta).
         // ---------------------------------------------------------------

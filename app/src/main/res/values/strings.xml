@@ -53,8 +53,34 @@
     <string name="home_live_channels">Canais ao vivo</string>
     <string name="home_all_series">Todas as séries</string>
     <string name="home_ready">Catálogo pronto</string>
+    <!-- ===== home cinematográfica (palco + trilhas) ===== -->
+    <string name="home_featured_for_you">Em destaque para você</string>
+    <string name="home_top_trending">Top 10 em alta</string>
+    <string name="home_trending_series">Séries em alta</string>
+    <string name="home_new_movies">Lançamentos</string>
+    <string name="home_more_series">Séries para maratonar</string>
+    <string name="home_genres">Explorar por gênero</string>
+    <string name="home_refreshed">Atualizado hoje, %1$s</string>
+    <string name="home_dpad_hint">Navegue com o D-pad · OK para abrir</string>
+    <string name="home_stage_movie">Filme em destaque</string>
+    <string name="home_stage_series">Série em destaque</string>
+    <string name="home_stage_live">Canal em destaque</string>
+
     <string name="home_empty_title">Nenhum conteúdo indexado ainda</string>
     <string name="home_empty_message">Confira sua conexão e os repositórios em Ajustes. Os repositórios configurados sincronizam automaticamente na abertura.</string>
+
+    <!-- ===== addons estilo Stremio ===== -->
+    <string name="stremio_title">Addons Stremio</string>
+    <string name="stremio_subtitle">%1$d instalados · manifesto HTTP/JSON</string>
+    <string name="stremio_url_label">URL do manifesto</string>
+    <string name="stremio_url_hint">https://exemplo.com/addon/manifest.json</string>
+    <string name="stremio_install">Instalar</string>
+    <string name="stremio_empty_title">Nenhum addon Stremio instalado</string>
+    <string name="stremio_empty_message">Cole a URL do manifest.json de um addon. O app lê os catálogos declarados e você escolhe a qual aba (Canais, Filmes ou Séries) cada um pertence.</string>
+    <string name="stremio_catalog_scope">tipo %1$s · aba %2$s</string>
+    <string name="stremio_bound">%1$s ✓</string>
+    <string name="stremio_bind">Vincular a %1$s</string>
+    <string name="stremio_scopes">Escopos declarados: %1$s</string>
 
     <!-- ===== player ===== -->
     <string name="player_live">Ao vivo</string>

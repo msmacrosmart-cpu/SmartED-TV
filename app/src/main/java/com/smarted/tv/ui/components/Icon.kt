@@ -22,7 +22,9 @@ import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Forward30
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Hd
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
@@ -32,7 +34,9 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Replay10
@@ -40,7 +44,9 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Subtitles
+import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.VolumeOff
@@ -92,6 +98,14 @@ object EdIcons {
     val subtitles: ImageVector = Icons.Outlined.Subtitles
     val mute: ImageVector = Icons.Outlined.VolumeOff
     val volume: ImageVector = Icons.Outlined.VolumeUp
+
+    // --- palco / Home cinematográfica ---
+    val star: ImageVector = Icons.Outlined.Star
+    val trending: ImageVector = Icons.Outlined.TrendingUp
+    val history: ImageVector = Icons.Outlined.History
+    val grid: ImageVector = Icons.Outlined.GridView
+    val person: ImageVector = Icons.Outlined.Person
+    val playCircle: ImageVector = Icons.Outlined.PlayCircleOutline
 
     // --- player: navegação de mídia ---
     val skipPrev: ImageVector = Icons.Outlined.SkipPrevious
