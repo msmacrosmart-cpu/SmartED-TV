@@ -201,6 +201,12 @@ jobs:
               'find "$RUNNER_TEMP" -maxdepth 2 -name *.log -size +0c -exec tail -c 13000 {} ;',
               shell=True, capture_output=True, text=True).stdout[-13000:])
           emit('avd-dir', subprocess.run('ls -la ~/.android/avd 2>/dev/null; tail -c 9000 ~/.android/emulator-debug.log 2>/dev/null; tail -c 9000 ~/.android/avd/*/*log 2>/dev/null', shell=True, capture_output=True, text=True).stdout[-13000:])
+          emit('sdk', subprocess.run(
+              'echo ANDROID_HOME=$ANDROID_HOME; ls $ANDROID_HOME 2>/dev/null | head; '
+              'ls $ANDROID_HOME/system-images 2>/dev/null; ls $ANDROID_HOME/emulator 2>/dev/null | head -3; '
+              'find $ANDROID_HOME/cmdline-tools -maxdepth 3 -name avdmanager | head -1 | xargs -r -I{} sh -c \'{} list avd 2>&1 | head -12\'; '
+              'tail -c 6000 $RUNNER_TEMP/*.log 2>/dev/null',
+              shell=True, capture_output=True, text=True, executable='/bin/bash').stdout[-13000:])
           PY3
           find "$RUNNER_TEMP" -maxdepth 2 -name '*.log' -size +0c -exec head -c 200000 {} ';' > app/build/tvevidence/runner-temp-logs.txt 2>/dev/null
           find "$HOME/.android" -maxdepth 3 -type f \( -name '*.log' -o -name '*.txt' \) -exec sh -c 'echo "== $1"; tail -c 4000 "$1"' _ {} ';' > app/build/tvevidence/android-dir-logs.txt 2>/dev/null
