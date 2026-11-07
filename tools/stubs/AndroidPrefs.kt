@@ -27,6 +27,7 @@ open class Context {
     open fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
         throw UnsupportedOperationException("stub")
     open val applicationContext: Context get() = this
+    open fun deleteDatabase(name: String): Boolean = false
 
     companion object { const val MODE_PRIVATE = 0 }
 }

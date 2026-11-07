@@ -207,16 +207,23 @@ npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
 ./tools/verify-core.sh           # 161 asserções reais (M3U, XMLTV, EPG 12h, cruzamento de canais, separação de acervo, séries)
-./tools/verify-logic.sh          # typecheck de 29 arquivos (rede, TMDB, EPG, DB, VMs)
+./tools/verify-logic.sh          # typecheck de 35 arquivos (rede, TMDB, EPG, DB, VMs)
 node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
 python3 tools/check-compose.py   # lint de padrões Compose
 python3 tools/check-symbols.py   # símbolo usado → import presente
 python3 tools/check-workflow.py  # consistência do próprio CI
 python3 tools/check-ptbr.py      # interface 100% pt-BR + R.string existentes
+python3 tools/check-db-schema.py # Room: versão x baseline + SQL da migração executado no SQLite
 ```
 
-Todos esses passos rodam no CI antes do build do APK.
+Todos esses passos rodam no CI antes do build do APK. Depois do APK, o job
+**Emulador** sobe um Android 11 de verdade, instala o app, confere que ele
+abre e que um banco v1 antigo migra para v2 sem crash — o cenário exato do bug
+de abertura que a versão anterior tinha.
+
+O acompanhamento de tudo (pedidos, correções e pendências) fica em
+[`docs/TASKS.md`](docs/TASKS.md).
 
 ---
 

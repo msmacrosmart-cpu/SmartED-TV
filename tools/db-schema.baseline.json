@@ -1,0 +1,212 @@
+{
+  "current": 2,
+  "versions": {
+    "1": {
+      "repositories": [
+        "id TEXT NOT NULL",
+        "name TEXT NOT NULL",
+        "url TEXT NOT NULL",
+        "isDefault INTEGER NOT NULL",
+        "enabled INTEGER NOT NULL",
+        "addedAt INTEGER NOT NULL",
+        "lastSyncAt INTEGER NOT NULL",
+        "addonCount INTEGER NOT NULL",
+        "status TEXT NOT NULL",
+        "message TEXT",
+        "icon TEXT"
+      ],
+      "installed_addons": [
+        "id TEXT NOT NULL",
+        "repositoryId TEXT NOT NULL",
+        "name TEXT NOT NULL",
+        "version TEXT NOT NULL",
+        "summary TEXT NOT NULL",
+        "summaryLong TEXT NOT NULL",
+        "author TEXT NOT NULL",
+        "icon TEXT",
+        "enabled INTEGER NOT NULL",
+        "installedAt INTEGER NOT NULL",
+        "updatedAt INTEGER NOT NULL",
+        "kind TEXT NOT NULL",
+        "types TEXT NOT NULL",
+        "sortOrder INTEGER NOT NULL"
+      ],
+      "favorites": [
+        "refKey TEXT NOT NULL",
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "itemId TEXT NOT NULL",
+        "title TEXT NOT NULL",
+        "subtitle TEXT",
+        "poster TEXT",
+        "streamUrl TEXT",
+        "addedAt INTEGER NOT NULL",
+        "position INTEGER NOT NULL"
+      ],
+      "watch_progress": [
+        "refKey TEXT NOT NULL",
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "itemId TEXT NOT NULL",
+        "title TEXT NOT NULL",
+        "poster TEXT",
+        "positionMs INTEGER NOT NULL",
+        "durationMs INTEGER NOT NULL",
+        "updatedAt INTEGER NOT NULL",
+        "season INTEGER",
+        "episode INTEGER",
+        "showId TEXT",
+        "subtitle TEXT",
+        "streamUrl TEXT"
+      ],
+      "catalog_cache": [
+        "key TEXT NOT NULL",
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "payload TEXT NOT NULL",
+        "updatedAt INTEGER NOT NULL",
+        "ttlMs INTEGER NOT NULL"
+      ],
+      "public_sources": [
+        "id TEXT NOT NULL",
+        "name TEXT NOT NULL",
+        "url TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "format TEXT NOT NULL",
+        "group TEXT",
+        "logo TEXT",
+        "enabled INTEGER NOT NULL",
+        "priority INTEGER NOT NULL",
+        "lastCheckedMs INTEGER NOT NULL",
+        "healthy INTEGER NOT NULL",
+        "lastError TEXT",
+        "discoveredFrom TEXT"
+      ],
+      "hidden_categories": [
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "name TEXT NOT NULL"
+      ],
+      "epg_sources": [
+        "url TEXT NOT NULL",
+        "label TEXT NOT NULL",
+        "enabled INTEGER NOT NULL",
+        "priority INTEGER NOT NULL",
+        "lastFetchedMs INTEGER NOT NULL",
+        "channelCount INTEGER NOT NULL",
+        "programCount INTEGER NOT NULL",
+        "status TEXT NOT NULL",
+        "message TEXT",
+        "fromAddonId TEXT"
+      ],
+      "search_history": [
+        "query TEXT NOT NULL",
+        "usedAt INTEGER NOT NULL"
+      ]
+    },
+    "2": {
+      "repositories": [
+        "id TEXT NOT NULL",
+        "name TEXT NOT NULL",
+        "url TEXT NOT NULL",
+        "isDefault INTEGER NOT NULL",
+        "enabled INTEGER NOT NULL",
+        "addedAt INTEGER NOT NULL",
+        "lastSyncAt INTEGER NOT NULL",
+        "addonCount INTEGER NOT NULL",
+        "status TEXT NOT NULL",
+        "message TEXT",
+        "icon TEXT",
+        "kinds TEXT NOT NULL"
+      ],
+      "installed_addons": [
+        "id TEXT NOT NULL",
+        "repositoryId TEXT NOT NULL",
+        "name TEXT NOT NULL",
+        "version TEXT NOT NULL",
+        "summary TEXT NOT NULL",
+        "summaryLong TEXT NOT NULL",
+        "author TEXT NOT NULL",
+        "icon TEXT",
+        "enabled INTEGER NOT NULL",
+        "installedAt INTEGER NOT NULL",
+        "updatedAt INTEGER NOT NULL",
+        "kind TEXT NOT NULL",
+        "types TEXT NOT NULL",
+        "sortOrder INTEGER NOT NULL"
+      ],
+      "favorites": [
+        "refKey TEXT NOT NULL",
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "itemId TEXT NOT NULL",
+        "title TEXT NOT NULL",
+        "subtitle TEXT",
+        "poster TEXT",
+        "streamUrl TEXT",
+        "addedAt INTEGER NOT NULL",
+        "position INTEGER NOT NULL"
+      ],
+      "watch_progress": [
+        "refKey TEXT NOT NULL",
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "itemId TEXT NOT NULL",
+        "title TEXT NOT NULL",
+        "poster TEXT",
+        "positionMs INTEGER NOT NULL",
+        "durationMs INTEGER NOT NULL",
+        "updatedAt INTEGER NOT NULL",
+        "season INTEGER",
+        "episode INTEGER",
+        "showId TEXT",
+        "subtitle TEXT",
+        "streamUrl TEXT"
+      ],
+      "catalog_cache": [
+        "key TEXT NOT NULL",
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "payload TEXT NOT NULL",
+        "updatedAt INTEGER NOT NULL",
+        "ttlMs INTEGER NOT NULL"
+      ],
+      "public_sources": [
+        "id TEXT NOT NULL",
+        "name TEXT NOT NULL",
+        "url TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "format TEXT NOT NULL",
+        "group TEXT",
+        "logo TEXT",
+        "enabled INTEGER NOT NULL",
+        "priority INTEGER NOT NULL",
+        "lastCheckedMs INTEGER NOT NULL",
+        "healthy INTEGER NOT NULL",
+        "lastError TEXT",
+        "discoveredFrom TEXT"
+      ],
+      "hidden_categories": [
+        "addonId TEXT NOT NULL",
+        "kind TEXT NOT NULL",
+        "name TEXT NOT NULL"
+      ],
+      "epg_sources": [
+        "url TEXT NOT NULL",
+        "label TEXT NOT NULL",
+        "enabled INTEGER NOT NULL",
+        "priority INTEGER NOT NULL",
+        "lastFetchedMs INTEGER NOT NULL",
+        "channelCount INTEGER NOT NULL",
+        "programCount INTEGER NOT NULL",
+        "status TEXT NOT NULL",
+        "message TEXT",
+        "fromAddonId TEXT"
+      ],
+      "search_history": [
+        "query TEXT NOT NULL",
+        "usedAt INTEGER NOT NULL"
+      ]
+    }
+  }
+}

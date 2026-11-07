@@ -2,6 +2,8 @@
 @file:Suppress("unused", "UNUSED_PARAMETER")
 package androidx.room
 
+import androidx.sqlite.db.SupportSQLiteDatabase
+
 @Target(AnnotationTarget.CLASS) annotation class Dao
 @Target(AnnotationTarget.CLASS)
 annotation class Entity(
@@ -33,6 +35,14 @@ annotation class Database(
     val exportSchema: Boolean = true,
 )
 abstract class RoomDatabase {
+    /** Equivalente ao SupportSQLiteOpenHelper real; usado para abrir o banco cedo. */
+    interface OpenHelper {
+        val writableDatabase: SupportSQLiteDatabase
+    }
+
+    open val openHelper: OpenHelper get() = throw UnsupportedOperationException("stub")
+    open fun close() = Unit
+
     companion object
 }
 
@@ -41,6 +51,7 @@ object Room {
 
     class Builder {
         fun fallbackToDestructiveMigration(): Builder = this
+        fun addMigrations(vararg migrations: androidx.room.migration.Migration): Builder = this
         fun <T : RoomDatabase> build(): T = throw UnsupportedOperationException("stub")
     }
 }

@@ -60,7 +60,8 @@ jobs:
           python3 tools/check-symbols.py
           python3 tools/check-workflow.py
           python3 tools/check-ptbr.py
-      - name: Testes do núcleo (87 asserções)
+          python3 tools/check-db-schema.py
+      - name: Testes do núcleo (161 asserções)
         run: bash tools/verify-core.sh
       - name: Typecheck do núcleo não-UI
         run: bash tools/verify-logic.sh
@@ -404,3 +405,67 @@ jobs:
                 echo "removendo $old"
                 gh release delete-asset "$TAG" "$old" --yes || true
               done || true
+
+  # ---------------------------------------------------------------------------
+  # 3) Teste de fumaça num emulador Android de verdade (celular, API 30)
+  #
+  # Instala o APK recém-gerado, abre o app e reproduz o cenário que causou o
+  # "erro ao abrir o app": banco local com esquema v1 (de uma instalação
+  # anterior) sendo migrado para v2. Sem migração correta o app morre na
+  # abertura — e este job falha antes de o usuário receber o APK.
+  # ---------------------------------------------------------------------------
+  smoke:
+    name: Emulador (abertura e migração do banco)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar o APK do build
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-release-${{ needs.build.outputs.version_name }}
+          path: dist
+
+      - name: Gerar banco legado (esquema v1)
+        run: python3 tools/make-legacy-db.py legacy.db 1
+
+      - name: Habilitar KVM
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Emulador — instalar, abrir e migrar
+        id: emu
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none
+          script: |
+            set -o pipefail
+            bash tools/emulator-smoke.sh 2>&1 | tee smoke.log
+
+      # O log do emulador é grande e o log bruto do Actions é inacessível por
+      # API; o comentário de commit carrega o trecho útil da falha.
+      - name: Registrar a falha no commit
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -f smoke.log ]] || exit 0
+          trecho="$(grep -iE 'error|fail|fatal|crash|Exception|colunas de|OK:' smoke.log | tail -40 || true)"
+          [[ -n "$trecho" ]] || trecho="$(tail -40 smoke.log)"
+          payload="$(printf '%s\n' "$trecho" | jq -Rs --arg sha "${GITHUB_SHA:0:7}" \
+            '{body: ("Teste no emulador falhou no build " + $sha + ":\n\n```\n" + . + "```")}')"
+          printf '%s' "$payload" | gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+            --input - > /dev/null || true

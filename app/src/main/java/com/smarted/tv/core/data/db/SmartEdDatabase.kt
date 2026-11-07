@@ -1,10 +1,29 @@
 package com.smarted.tv.core.data.db
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
+/**
+ * Banco local do app.
+ *
+ * Regra de ouro: **toda** mudança de esquema (coluna nova, tabela nova, tipo
+ * alterado) exige subir `version` E escrever a migração correspondente.
+ *
+ * O Room guarda a assinatura do esquema em `room_master_table`. Se a assinatura
+ * gravada no arquivo não bate com a das entidades, ele lança
+ * `IllegalStateException: Room cannot verify the data integrity` — e isso
+ * acontece na **abertura do app**, porque o [AppGraph] abre o banco ao subir.
+ * Foi exatamente o que ocorreu ao adicionar `repositories.kinds`.
+ *
+ * `tools/check-db-schema.py` quebra o build se o esquema mudar sem versão nova,
+ * se faltar a migração daquele passo ou se o SQL não reproduzir o esquema
+ * esperado (ele roda o ALTER num SQLite de verdade antes de aprovar).
+ */
 @Database(
     entities = [
         RepositoryEntity::class,
@@ -17,7 +36,7 @@ import androidx.room.RoomDatabase
         EpgSourceEntity::class,
         SearchHistoryEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class SmartEdDatabase : RoomDatabase() {
@@ -34,6 +53,17 @@ abstract class SmartEdDatabase : RoomDatabase() {
 
     companion object {
         private const val DB_NAME = "smarted-tv.db"
+        private const val TAG = "SmartEdDatabase"
+
+        /**
+         * v1 → v2: `repositories.kinds`, as abas (Canais/Filmes/Séries) que o
+         * usuário marcou ao cadastrar o repositório. Vazio = todas as abas.
+         */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `repositories` ADD COLUMN `kinds` TEXT NOT NULL DEFAULT ''")
+            }
+        }
 
         @Volatile
         private var instance: SmartEdDatabase? = null
@@ -42,8 +72,33 @@ abstract class SmartEdDatabase : RoomDatabase() {
             instance ?: build(context.applicationContext).also { instance = it }
         }
 
-        private fun build(context: Context): SmartEdDatabase =
+        /**
+         * Abre o banco já na inicialização.
+         *
+         * O Room abre o arquivo de forma preguiçosa, na primeira consulta — e
+         * uma falha no meio de uma tela derruba o app sem chance de recuperação.
+         * Aqui forçamos a abertura dentro do `get`: se o arquivo antigo for
+         * incompatível por qualquer motivo (migração faltando, esquema de uma
+         * versão intermediária, arquivo corrompido), recriamos o banco em vez de
+         * deixar o app morrer na abertura. Perder o cache local é melhor do que
+         * um crash loop que impede o usuário de abrir o app.
+         */
+        private fun build(context: Context): SmartEdDatabase {
+            val db = openDatabase(context)
+            return try {
+                db.openHelper.writableDatabase
+                db
+            } catch (t: Throwable) {
+                Log.w(TAG, "Banco local incompatível; recriando.", t)
+                runCatching { db.close() }
+                runCatching { context.deleteDatabase(DB_NAME) }
+                openDatabase(context)
+            }
+        }
+
+        private fun openDatabase(context: Context): SmartEdDatabase =
             Room.databaseBuilder(context, SmartEdDatabase::class.java, DB_NAME)
+                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration()
                 .build()
     }
