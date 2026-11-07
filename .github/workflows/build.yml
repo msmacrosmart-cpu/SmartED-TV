@@ -451,9 +451,6 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk dist/app-debug.apk
           ls -lh dist/
 
-      - name: Gerar banco legado (esquema v1)
-        run: python3 tools/make-legacy-db.py legacy.db 1
-
       - name: Habilitar KVM
         run: |
           set -euo pipefail

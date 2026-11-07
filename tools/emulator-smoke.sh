@@ -5,8 +5,7 @@
 # o esquema novo (v2).
 #
 # Roda dentro do emulador criado pelo reactivecircus/android-emulator-runner,
-# com adb já conectado. Sai com código != 0 em qualquer falha, publicando o
-# logcat relevante como anotação do run.
+# com adb já conectado (usuário shell + `adb root` para ler o banco do app).
 
 set -uo pipefail
 
@@ -18,12 +17,12 @@ echo "FAIL" > "$STATUS_FILE"   # só muda para PASS no fim, se tudo passar
 # O APK de teste é o variant `debug`, cujo applicationId tem sufixo `.debug`.
 # SMOKE_PKG permite apontar para outro applicationId sem editar o script.
 PKG="${SMOKE_PKG:-com.smarted.tv}"
-# Com applicationIdSuffix o applicationId ganha o sufixo, mas as classes do
-# manifest continuam no namespace `com.smarted.tv`. Em vez de adivinhar,
-# resolvemos a Activity lançadora no próprio aparelho.
+# Com applicationIdSuffix o applicationId muda, mas as classes do manifest
+# continuam no namespace `com.smarted.tv`. Resolvemos a Activity no aparelho.
 ACTIVITY=""
+
 APK_PATH="$(ls dist/*.apk 2>/dev/null | head -1)"
-LEGACY_DB="legacy.db"
+LEGACY_DB="legacy-v1.db"
 
 dump_logs() {
   echo "== buffer de crash (stack trace) =="
@@ -60,10 +59,6 @@ alive() {
   echo "OK: app vivo (pid $pid)"
 }
 
-[[ -n "$APK_PATH" ]] || fail "APK não encontrado em dist/"
-echo "APK: $APK_PATH"
-adb shell getprop ro.build.version.sdk | tr -d '\r' | xargs -I{} echo "Android API: {}"
-
 resolver_activity() {
   local found
   found="$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$PKG" 2>/dev/null \
@@ -73,6 +68,21 @@ resolver_activity() {
   fi
   echo "$found"
 }
+
+# Copia banco + WAL/SHM (o WAL pode conter páginas ainda não gravadas).
+pull_db() {
+  local dir="$1"
+  rm -rf "$dir" && mkdir -p "$dir"
+  adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
+  adb pull "/data/data/$PKG/databases/smarted-tv.db" "$dir/" >/dev/null 2>&1 || return 1
+  adb pull "/data/data/$PKG/databases/smarted-tv.db-wal" "$dir/" >/dev/null 2>&1 || true
+  adb pull "/data/data/$PKG/databases/smarted-tv.db-shm" "$dir/" >/dev/null 2>&1 || true
+  return 0
+}
+
+[[ -n "$APK_PATH" ]] || fail "APK não encontrado em dist/"
+echo "APK: $APK_PATH"
+echo "Android API: $(adb shell getprop ro.build.version.sdk | tr -d '\r')"
 
 echo "== 1/4 instalando =="
 INSTALL_OUT="$(adb install -r -g "$APK_PATH" 2>&1)"
@@ -98,8 +108,7 @@ if [[ -s /tmp/ui.xml ]] && ! grep -qiE "Canais|Filmes|Séries|Início|Smarted" /
   head -c 400 /tmp/ui.xml || true
 fi
 
-echo "== 4/4 upgrade: banco v1 antigo no aparelho, app novo =="
-[[ -f "$LEGACY_DB" ]] || fail "banco legado não foi gerado ($LEGACY_DB)"
+echo "== 4/4 upgrade: banco v1 real no aparelho, app novo =="
 adb root >/dev/null 2>&1 || true
 adb wait-for-device
 adb shell am force-stop "$PKG" || true
@@ -107,6 +116,15 @@ adb shell am force-stop "$PKG" || true
 APP_UID="$(adb shell dumpsys package "$PKG" | grep -m1 -o 'userId=[0-9]*' | cut -d= -f2 | tr -d '\r')"
 [[ -n "$APP_UID" ]] || fail "não descobri o uid do app"
 echo "uid do app: $APP_UID"
+
+echo "-- banco que o app criou na primeira execução (v2) --"
+pull_db /tmp/v2 || fail "não consegui ler o banco criado pelo app"
+python3 tools/check-db-state.py /tmp/v2/smarted-tv.db 2 kinds \
+  || fail "o banco criado pelo app não está no esquema v2"
+
+echo "-- derivando o v1 (sem a coluna kinds) e devolvendo ao aparelho --"
+python3 tools/legacy-from-current.py /tmp/v2/smarted-tv.db "$LEGACY_DB" \
+  || fail "não consegui derivar o banco v1"
 
 adb push "$LEGACY_DB" /data/local/tmp/legacy.db >/dev/null || fail "adb push do banco legado falhou"
 adb shell "rm -rf /data/data/$PKG/databases" || fail "não consegui limpar o banco atual"
@@ -119,28 +137,20 @@ adb logcat -c
 adb shell am start -W -n "$ACTIVITY" >/dev/null 2>&1 || fail "app não abriu com o banco antigo (crash na abertura)"
 alive 25
 
-adb shell am force-stop "$PKG" || true
-adb pull "/data/data/$PKG/databases/smarted-tv.db" /tmp/after.db >/dev/null 2>&1 \
-  || fail "não consegui ler o banco depois da migração"
+# Se a migração falhasse, a rede de segurança recriaria o banco e o app
+# continuaria abrindo — o teste precisa reprovar esse cenário, não aceitá-lo.
+if adb logcat -d 2>/dev/null | grep -q "Banco local incompat"; then
+  fail "migração falhou: o app recriou o banco em vez de migrar os dados"
+fi
 
-python3 - <<'PY' || fail "migração 1→2 não foi aplicada (coluna kinds ausente)"
-import sqlite3
-
-con = sqlite3.connect("/tmp/after.db")
-columns = [row[1] for row in con.execute("PRAGMA table_info(repositories)")]
-version = con.execute("PRAGMA user_version").fetchone()[0]
-print("colunas de repositories:", ", ".join(columns))
-print("user_version depois da migração:", version)
-if "kinds" not in columns:
-    raise SystemExit("coluna kinds ausente")
-if version != 2:
-    raise SystemExit(f"user_version={version}, esperado 2")
-PY
+pull_db /tmp/after || fail "não consegui ler o banco depois da migração"
+python3 tools/check-db-state.py /tmp/after/smarted-tv.db 2 kinds --marker \
+  || fail "migração 1→2 não foi aplicada corretamente"
 
 echo "PASS" > "$STATUS_FILE"
-echo "OK: banco v1 migrado para v2 e o app abriu sem crash"
+echo "OK: banco v1 migrado para v2, dados preservados e o app abriu sem crash"
 echo "== resumo =="
 echo "  1. instalação limpa, app abre"
 echo "  2. UI renderiza"
-echo "  3. banco antigo (v1) migra para v2"
-echo "  4. app continua vivo depois da migração"
+echo "  3. banco antigo (v1) migra para v2 sem recriar"
+echo "  4. dados antigos preservados"
