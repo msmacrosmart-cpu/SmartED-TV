@@ -18,7 +18,10 @@ echo "FAIL" > "$STATUS_FILE"   # só muda para PASS no fim, se tudo passar
 # O APK de teste é o variant `debug`, cujo applicationId tem sufixo `.debug`.
 # SMOKE_PKG permite apontar para outro applicationId sem editar o script.
 PKG="${SMOKE_PKG:-com.smarted.tv}"
-ACTIVITY="$PKG/.MainActivity"
+# Com applicationIdSuffix o applicationId ganha o sufixo, mas as classes do
+# manifest continuam no namespace `com.smarted.tv`. Em vez de adivinhar,
+# resolvemos a Activity lançadora no próprio aparelho.
+ACTIVITY=""
 APK_PATH="$(ls dist/*.apk 2>/dev/null | head -1)"
 LEGACY_DB="legacy.db"
 
@@ -61,6 +64,16 @@ alive() {
 echo "APK: $APK_PATH"
 adb shell getprop ro.build.version.sdk | tr -d '\r' | xargs -I{} echo "Android API: {}"
 
+resolver_activity() {
+  local found
+  found="$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$PKG" 2>/dev/null \
+    | tr -d '\r' | tail -1)"
+  if [[ -z "$found" || "$found" == *"No activity"* || "$found" == *"Error"* ]]; then
+    found="$PKG/com.smarted.tv.MainActivity"
+  fi
+  echo "$found"
+}
+
 echo "== 1/4 instalando =="
 INSTALL_OUT="$(adb install -r -g "$APK_PATH" 2>&1)"
 echo "$INSTALL_OUT"
@@ -68,6 +81,9 @@ echo "$INSTALL_OUT"
 
 echo "== 2/4 instalação limpa: abre o app =="
 adb shell pm clear "$PKG" >/dev/null 2>&1 || true
+ACTIVITY="$(resolver_activity)"
+echo "activity lançadora: $ACTIVITY"
+[[ -n "$ACTIVITY" ]] || fail "não descobri a activity lançadora de $PKG"
 adb logcat -c
 START_OUT="$(adb shell am start -W -n "$ACTIVITY" 2>&1)"
 echo "$START_OUT"
