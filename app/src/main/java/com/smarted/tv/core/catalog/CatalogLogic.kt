@@ -52,7 +52,7 @@ class CatalogPager(private val api: com.smarted.tv.core.protocol.StremioApi) {
                 raw.filter { matches(it, query) }.forEach { if (it.key !in known) unique.putIfAbsent(it.key, it) }
                 progress[index] = SourceProgress(state.skip + raw.size,
                     raw.isEmpty() || !catalog.paged || repeated, fingerprint)
-                if (raw.isEmpty() || !catalog.paged || repeated) index++
+                index++
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -61,8 +61,12 @@ class CatalogPager(private val api: com.smarted.tv.core.protocol.StremioApi) {
                 index++
             }
         }
-        while (index < sources.size && progress[index].done) index++
-        val next = PageCursor(progress.toList(), index).takeUnless { it.complete }
+        // One response per catalog per batch: a small page must not silently prefetch
+        // the next page and break the UI's visible infinite-scroll boundary.
+        val start = cursor?.index ?: 0
+        val remaining = progress.drop(start).indexOfFirst { !it.done }
+        val nextIndex = if (remaining < 0) sources.size else start + remaining
+        val next = PageCursor(progress.toList(), nextIndex).takeUnless { it.complete }
         return CatalogPage(unique.values.toList(), next, warnings.distinct())
     }
 
