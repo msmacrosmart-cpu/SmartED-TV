@@ -18,7 +18,8 @@ texto em **português do Brasil**.
 
 | Requisito | Implementação |
 |---|---|
-| Identidade visual | Tokens neutros (`#0A0C10` de fundo), **acento branco puro `#FFFFFF`** em foco/seleção, 3 camadas de vidro (`Glass.kt`), rail de 76dp, grid de pôsteres 2:3, anel de foco de 2dp e lift de 4% |
+| Identidade visual | Fundo `#07080B`, **acento branco puro `#FFFFFF`** em foco/seleção/ação, 3 camadas de vidro (`Glass.kt`), **doca flutuante de 96dp** com ícone + rótulo, anel de foco de 2–3dp e lift de 3–5% |
+| Layout da Home | **Palco cinematográfico full-bleed** (68% da altura) com backdrop rotativo, classificação indicativa, ano, duração, gêneros, sinopse e as ações "Assistir"/"Detalhes"; abaixo, trilhas horizontais de **cartões 16:10 com o título e os metadados dentro da arte** (`Stage.kt`, `FeatureCard.kt`, `HomeScreen.kt`) — ver [`docs/NOVO-LAYOUT.md`](docs/NOVO-LAYOUT.md) e a [prévia estática](docs/preview/home.html) |
 | App 100% pt-BR | `strings.xml` como fonte única, locale fixo em `MainActivity`, gate `tools/check-ptbr.py` no CI |
 | Player VLC | `VlcEngine` sobre `libvlc-all` 3.5.1 (codecs + reconexão), fallback automático para ExoPlayer |
 | Layouts por tipo de mídia | **Ao vivo**: zap ◀ ▶ / CH±, áudio, legendas, badge AO VIVO, resolução. **Filmes/Séries**: linha do tempo, capítulos, ±10s/+30s, áudio e legendas |
@@ -30,10 +31,11 @@ texto em **português do Brasil**.
 | EPG inteligente por nome | `EpgMatcher` normaliza o nome (remove HD/FHD/SD, `|`, `[tags]`) e cruza com o XMLTV por similaridade quando o `tvg-id` falta ou está errado |
 | Filtro PT-BR | `LanguageFilter` em cascata (metadados → grupo → título → palavras funcionais), com contagem de descartados |
 | EPG ≥ 12h contínuas | `EpgTimeline.pad` preenche lacunas; fontes XMLTV de fallback registradas no boot |
-| Home por ranking | Top 10 filmes → Top 10 séries → Canais favoritos → Todos os filmes; **hero só com filmes**, botões "Assistir" e "Detalhes" em branco |
+| Home por ranking | Top 10 em alta → Séries em alta → Continuar assistindo → Lançamentos → Séries para maratonar → Canais favoritos → Gêneros; **palco só com filme**, botões "Assistir" e "Detalhes" em branco puro |
 | Home sem canal poluindo | A seção de canais mostra **apenas favoritos** — sem favoritos, a seção não aparece |
-| Player em tela cheia absoluta | Vídeo em `MATCH_PARENT`/`FILL_BOUNDS`, fora do overscan e da rail; `IVLCVout.setWindowSize` informa o tamanho real da janela ao libVLC (sem isso o vout desenha num viewport minúsculo no canto); controles glassmorphism com foco branco |
+| Player em tela cheia absoluta · HUD de vidro | Vídeo em `MATCH_PARENT`/`FILL_BOUNDS`, fora do overscan e da rail; `IVLCVout.setWindowSize` informa o tamanho real da janela ao libVLC (sem isso o vout desenha num viewport minúsculo no canto); controles em **painéis de vidro flutuantes** (`GlassPanel`/`GlassPill`) com texto e foco branco puro |
 | Arquitetura de addons estilo Kodi | `Addon`, `AddonManager`, `KodiRepoParser` (addons.xml + índice HTML) e persistência em Room |
+| Addons de manifesto (estilo Stremio) | `core/addons/stremio/`: lê `manifest.json` por HTTP/JSON, **escopo declarado por catálogo** (Filmes/Séries/Canais) e vínculo manual por aba persistido; tela em **Addons → Addons Stremio**. Sem torrentes, sem scraping — ver [`docs/ADDONS-STREMIO.md`](docs/ADDONS-STREMIO.md) |
 | Repositório de addons padrão | **Vikings** (`vikingskoditeam.github.io`), com addons BR/PT |
 | Elementum (torrentes) | Addon `plugin.video.elementum` do Vikings reconhecido como provedor de **Filmes/Séries**; o app conversa com o **daemon local** (`127.0.0.1:65220`) em vez de tentar rodar o plugin Python — busca, pastas e reprodução pelo player |
 | Canais / Filmes / Séries | Abas dedicadas com sidebar de categorias, contagem por grupo e EPG "agora" nos canais |

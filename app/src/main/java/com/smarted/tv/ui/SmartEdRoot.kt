@@ -269,6 +269,7 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                         subScreen = "browser"
                                     },
                                     onOpenMyList = { subScreen = "mylist" },
+                                    onOpenStremio = { subScreen = "stremio" },
                                     onBack = { subScreen = null },
                                 )
                             }
