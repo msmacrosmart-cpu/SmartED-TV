@@ -14,8 +14,9 @@ android {
         applicationId = "com.smarted.tv"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        // O CI sobrescreve com -PversionCode=/-PversionName=; padrão para build local.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "1.0.0"
 
         // Optional TMDB credentials (see docs/METADADOS.md). Ship your own key.
         buildConfigField("String", "TMDB_API_KEY", "\"${project.findProperty("TMDB_API_KEY") ?: ""}\"")
@@ -25,10 +26,15 @@ android {
     signingConfigs {
         create("release") {
             // Set these in ~/.gradle/gradle.properties or via -P flags; never commit them.
-            val store = project.findProperty("RELEASE_STORE_FILE") as String?
-            val storePasswordValue = project.findProperty("RELEASE_STORE_PASSWORD") as String?
-            val keyAliasValue = project.findProperty("RELEASE_KEY_ALIAS") as String?
-            val keyPasswordValue = project.findProperty("RELEASE_KEY_PASSWORD") as String?
+            // Aceita -P (local) ou variáveis de ambiente (CI). Nunca commite segredos.
+            fun secret(prop: String, env: String): String? =
+                (project.findProperty(prop) as String?)?.takeIf { it.isNotBlank() }
+                    ?: System.getenv(env)?.takeIf { it.isNotBlank() }
+
+            val store = secret("RELEASE_STORE_FILE", "RELEASE_STORE_FILE")
+            val storePasswordValue = secret("RELEASE_STORE_PASSWORD", "RELEASE_STORE_PASSWORD")
+            val keyAliasValue = secret("RELEASE_KEY_ALIAS", "RELEASE_KEY_ALIAS")
+            val keyPasswordValue = secret("RELEASE_KEY_PASSWORD", "RELEASE_KEY_PASSWORD")
             if (store != null && storePasswordValue != null && keyAliasValue != null && keyPasswordValue != null) {
                 storeFile = file(store)
                 storePassword = storePasswordValue
@@ -45,8 +51,10 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // `-Pminify=false` gera um release sem R8 (diagnóstico no CI).
+            val minify = (project.findProperty("minify") as String?)?.toBoolean() ?: true
+            isMinifyEnabled = minify
+            isShrinkResources = minify
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             val releaseSigning = signingConfigs.getByName("release")
             if (releaseSigning.storeFile != null) {

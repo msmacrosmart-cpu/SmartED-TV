@@ -1,6 +1,5 @@
 package com.smarted.tv
 
-import android.app.Application
 import android.content.Context
 import com.smarted.tv.addons.brazuca.BrazucaCatalog
 import com.smarted.tv.addons.brazuca.BrazucaPlayAddon
@@ -150,31 +149,3 @@ class AppGraph(context: Context) : com.smarted.tv.ui.state.AppServices {
     }
 }
 
-/**
- * Substitui a classe Application apenas para manter o grafo de dependências
- * acessível globalmente. O nome vem do manifest (`android:name`).
- */
-class SmartEdApplication : Application() {
-
-    lateinit var graph: AppGraph
-        private set
-
-    override fun onCreate() {
-        super.onCreate()
-        instance = this
-        graph = AppGraph(this)
-        graph.boot()
-    }
-
-    override fun onTerminate() {
-        super.onTerminate()
-        instance?.graph?.shutdown()
-    }
-
-    companion object {
-        @Volatile
-        private var instance: SmartEdApplication? = null
-
-        fun graphOrNull(): AppGraph? = instance?.graph
-    }
-}

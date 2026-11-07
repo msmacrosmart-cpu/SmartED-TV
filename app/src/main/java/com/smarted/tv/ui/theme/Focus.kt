@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /**
  * Curva de easing usada em toda a referência: cubic-bezier(0.16, 1, 0.3, 1).

@@ -18,6 +18,8 @@ lint-results*.html
 lint-results*.xml
 app/release/
 app/debug/
+
+# Schemas do Room são versionados de propósito (ver app/schemas/)
 keystore.properties
 *.jks
 *.keystore

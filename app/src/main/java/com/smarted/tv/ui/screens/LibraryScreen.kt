@@ -2,7 +2,6 @@ package com.smarted.tv.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,7 +25,6 @@ import com.smarted.tv.ui.components.EdPill
 import com.smarted.tv.ui.components.EmptyState
 import com.smarted.tv.ui.components.PosterCard
 import com.smarted.tv.ui.components.ScreenTitle
-import com.smarted.tv.ui.components.SectionHeader
 import com.smarted.tv.ui.components.WideCard
 import com.smarted.tv.ui.state.HomeViewModel
 import com.smarted.tv.ui.theme.Ed

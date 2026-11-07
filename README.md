@@ -55,6 +55,75 @@ RELEASE_KEY_PASSWORD=...
 
 ---
 
+## ⚙️ Compilação automática (GitHub Actions)
+
+O workflow [`.github/workflows/build.yml`](.github/workflows/build.yml) compila o
+APK de release na nuvem. Você não precisa de Android SDK na sua máquina.
+
+**Dispara em:** todo push (qualquer branch), tag `v*`, pull request para `main`
+e execução manual em *Actions → Build & Release APK → Run workflow*.
+
+**O que acontece:**
+
+1. **Núcleo** — roda os linters e as 67 asserções dos parsers. Se falhar, o
+   build caro nem começa.
+2. **APK** — `./gradlew :app:assembleRelease` com JDK 17 + Android SDK 35,
+   cache do Gradle entre execuções.
+3. **Verificação** — `aapt2 dump badging` (pacote, SDKs) e `apksigner verify`
+   quando há keystore.
+4. **Publicação** — APK + `SHA256SUMS.txt` numa Release do repositório.
+
+### De onde vem o APK
+
+| Disparo | Tag da Release | Observação |
+|---|---|---|
+| push em branch | `latest-build` | release rolante, **sobrescrita** a cada push |
+| tag `v1.2.3` | `v1.2.3` | versão nomeada, marcada como *latest* |
+| pull request | — | só artefato, não publica |
+| manual | conforme acima | campo `publish` permite desligar |
+
+O `versionCode` usa o **número do run** do Actions, então é sempre crescente e o
+Android aceita atualizar por cima (`adb install -r`). O `versionName` numa branch
+é `1.0.0.<run>`; numa tag é o próprio número da tag.
+
+### Secrets (opcionais, recomendados)
+
+Em *Settings → Secrets and variables → Actions*:
+
+| Secret | Para quê |
+|---|---|
+| `KEYSTORE_BASE64` | keystore de release em base64 — **sem isso o APK usa o debug keystore** e não pode ser atualizado por cima de uma versão assinada antes |
+| `KEYSTORE_PASSWORD` | senha do keystore |
+| `KEY_ALIAS` | alias da chave |
+| `KEY_PASSWORD` | senha da chave |
+| `TMDB_API_KEY` | habilita notas, elenco e trailers na ficha |
+
+Gerar o keystore e o base64:
+
+```bash
+keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
+        -validity 10000 -alias smarted -storetype JKS
+base64 -w0 release.jks > release.jks.b64   # cole o conteúdo em KEYSTORE_BASE64
+```
+
+> ⚠️ Guarde o `release.jks` e as senhas. Perder a chave impede atualizar o app
+> instalado — só é possível desinstalar e reinstalar (perdendo os dados).
+
+### Baixar o APK
+
+- Release rolante: <https://github.com/msmacrosmart-cpu/SmartED-TV/releases/tag/latest-build>
+- Versões estáveis: <https://github.com/msmacrosmart-cpu/SmartED-TV/releases>
+
+### Build local
+
+```bash
+./gradlew :app:assembleDebug        # debug
+./gradlew :app:assembleRelease      # release (sem assinatura se não houver keystore)
+./gradlew :app:assembleRelease -Pminify=false   # sem R8, para diagnosticar
+```
+
+---
+
 ## 🧱 Arquitetura
 
 ```
@@ -115,7 +184,10 @@ npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 python3 tools/kt-check.mjs       # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
 python3 tools/check-compose.py   # lint de padrões Compose
+python3 tools/check-symbols.py   # símbolo usado → import presente
 ```
+
+Todos esses passos rodam no CI antes do build do APK.
 
 ---
 
