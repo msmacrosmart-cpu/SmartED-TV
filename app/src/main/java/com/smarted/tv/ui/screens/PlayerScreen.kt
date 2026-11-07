@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.smarted.tv.core.model.PlaybackTarget
+import kotlinx.coroutines.delay
+import com.smarted.tv.ui.theme.TvColors
 import com.smarted.tv.player.VideoSurface
 import com.smarted.tv.player.playerStatus
 import com.smarted.tv.player.rememberVideoPlayer

@@ -119,7 +119,7 @@ private fun SourcesPanel(sources: List<ListSource>, app: AppViewModel, ui: com.s
         EmptyState("Nenhuma fonte cadastrada", "Adicione uma playlist M3U, um painel Xtream ou um repositório de fontes.", Modifier.fillMaxWidth())
     }
     LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(sources, key { "src-${it.id}" }) { source ->
+        items(sources, key = { "src-$it" }) { source ->
             SourceRow(source, app, form == null)
         }
     }

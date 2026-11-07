@@ -103,7 +103,7 @@ fun SidebarItem(
             .smokedGlass(18.dp)
             .whiteFocus(focused, selected, 18.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(if (selected) Color(0x2EFFFFFF) else Brush.linearGradient(listOf(TvColors.GlassTop, TvColors.GlassBottom)))
+            .then(if (selected) Modifier.background(Color(0x2EFFFFFF)) else Modifier.background(Brush.linearGradient(listOf(TvColors.GlassTop, TvColors.GlassBottom))))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

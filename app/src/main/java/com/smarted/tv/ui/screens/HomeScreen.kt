@@ -56,7 +56,7 @@ fun HomeScreen(
         }
         if (ui.favoriteChannels.isNotEmpty()) {
             HomeRow("Canais favoritos ao vivo", ui.counts[Tab.CHANNELS], Modifier.testTag("row-fav-channels")) {
-                items(ui.favoriteChannels, key { "fc-${it.id}" }) { channel ->
+                items(ui.favoriteChannels, key = { "fc-$it" }) { channel ->
                     FavoriteChannelCard(channel.name, channel.logoUrl, onOpenChannels) {
                         onPlay(
                             PlayRequest(
@@ -70,7 +70,7 @@ fun HomeScreen(
         }
         if (ui.continueWatching.isNotEmpty()) {
             HomeRow("Continuar assistindo", null, Modifier.testTag("row-continue")) {
-                items(ui.continueWatching, key { "cw-${it.favKey}" }) { record ->
+                items(ui.continueWatching, key = { "cw-$it" }) { record ->
                     ContinueCard(record.title, record.positionMs, record.durationMs, onClick = {
                         onPlay(
                             PlayRequest(
@@ -107,7 +107,7 @@ private fun VodRow(title: String, entries: List<VodEntry>, tag: String, onPlay: 
         item {
             TvAction("Abrir catálogo →", onOpenTab, compact = true)
         }
-        items(entries, key { "v-${it.id}" }) { entry ->
+        items(entries, key = { "v-$it" }) { entry ->
             Box(Modifier.width(if (LocalCompact.current) 168.dp else 196.dp)) {
                 VodPosterCard(entry, onClick = { if (entry.kind == Tab.SERIES) onOpenTab() else onPlay(entry) })
             }

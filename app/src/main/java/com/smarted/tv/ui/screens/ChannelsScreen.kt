@@ -90,7 +90,7 @@ fun ChannelsScreen(
                 item {
                     CategoryChip(BrowseQuery.ALL, if (ui.query.isAll) ui.totalRows else null, ui.query.isAll, { vm.setQuery { q -> q.copy(category = BrowseQuery.ALL) } })
                 }
-                items(ui.groups.filter { it.first.isNotBlank() && com.smarted.tv.core.text.TextNormalizer.searchMatches(ui.categorySearch, it.first) }, key { "g-${it.first}" }) { (name, count) ->
+                items(ui.groups.filter { it.first.isNotBlank() && com.smarted.tv.core.text.TextNormalizer.searchMatches(ui.categorySearch, it.first) }, key = { "g-$it" }) { (name, count) ->
                     CategoryChip(name, count, ui.query.category == name, { vm.setQuery { q -> q.copy(category = name) } })
                 }
                 if (ui.groups.isEmpty()) {
@@ -183,7 +183,7 @@ fun ChannelsScreen(
             }
             Text("GRADE DO CANAL", style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
             LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
-                items(ui.upcoming, key { "up-${it.startMs}" }) { programme ->
+                items(ui.upcoming, key = { "up-$it" }) { programme ->
                     ProgrammeGridCell(programme, highlight = ui.selectedNow?.startMs == programme.startMs)
                 }
                 if (ui.upcoming.isEmpty() && channel != null) {
@@ -200,7 +200,7 @@ fun ChannelsScreen(
 private fun PreviewSurface(target: com.smarted.tv.core.model.PlaybackTarget) {
     val player = rememberVideoPlayer(target, muted = true)
     VideoSurface(player, Modifier.fillMaxSize(), showController = false)
-    Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color(0x22FFFFFF), Color(0x33000000)))))
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x22FFFFFF), Color(0x33000000)))))
 }
 
 @Composable

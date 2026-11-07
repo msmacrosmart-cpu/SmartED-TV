@@ -100,7 +100,7 @@ fun VodScreen(
                 item {
                     CategoryChip(BrowseQuery.ALL, ui.total.takeIf { ui.query.isAll && ui.query.search.isBlank() && !ui.query.isFavorites }, ui.query.isAll, { vm.setQuery { q -> q.copy(category = BrowseQuery.ALL) } })
                 }
-                items(ui.categories, key { "cat-${it.first}" }) { (name, count) ->
+                items(ui.categories, key = { "cat-$it" }) { (name, count) ->
                     CategoryChip(name, count, ui.query.category == name, { vm.setQuery { q -> q.copy(category = name) } })
                 }
                 if (ui.categories.isEmpty()) {
@@ -286,7 +286,7 @@ private fun SeriesEpisodeList(
                 }
             }
             LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(ui.episodes.filter { it.season == ui.selectedSeason }, key { "e-${it.id}" }) { episode ->
+                items(ui.episodes.filter { it.season == ui.selectedSeason }, key = { "e-$it" }) { episode ->
                     EpisodeRow(episode, onPlayEpisode)
                 }
             }
