@@ -5,6 +5,9 @@ com arquitetura de **addons no estilo Kodi** e o **Brazuca Play** integrado nati
 
 > Orientação travada em paisagem (`sensorLandscape`), interface D-pad-first com suporte a toque.
 
+**[⬇️ Baixar o APK mais recente](https://github.com/msmacrosmart-cpu/SmartED-TV/releases/latest)** —
+compilado e assinado automaticamente pelo GitHub Actions a cada push.
+
 ---
 
 ## ✨ O que está implementado
@@ -191,7 +194,8 @@ npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 python3 tools/kt-check.mjs       # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
 python3 tools/check-compose.py   # lint de padrões Compose
-python3 tools/check-symbols.py   # símbolo usado → import presente
+python3 tools/check-symbols.py    # símbolo usado → import presente
+python3 tools/check-workflow.py   # consistência do próprio CI
 ```
 
 Todos esses passos rodam no CI antes do build do APK.
