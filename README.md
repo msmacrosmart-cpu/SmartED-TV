@@ -177,6 +177,7 @@ Como o núcleo (parsers, addons, dados, view-models) não depende do Android, el
 compilado e testado de verdade com o compilador Kotlin:
 
 ```bash
+npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
 ./tools/verify-core.sh           # 67 asserções reais (M3U, XMLTV, addons.xml, textos)

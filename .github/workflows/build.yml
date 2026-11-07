@@ -49,6 +49,8 @@ jobs:
           unzip -q /tmp/kotlin.zip -d "$HOME/kotlin"
           echo "$HOME/kotlin/kotlinc/bin" >> "$GITHUB_PATH"
           "$HOME/kotlin/kotlinc/bin/kotlinc" -version
+      - name: Instalar ferramentas de verificação
+        run: npm ci --no-audit --no-fund
       - name: Linters estáticos (sintaxe, imports, Compose)
         run: |
           node tools/kt-check.mjs app/src
