@@ -1,63 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Banner do Android TV (320x180 dp) -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="320dp"
-    android:height="180dp"
-    android:viewportWidth="320"
-    android:viewportHeight="180">
-
-    <path
-        android:fillColor="#0B0F14"
-        android:pathData="M0,0 L320,0 L320,180 L0,180 Z" />
-
-    <!-- brilho de acento -->
-    <path
-        android:fillAlpha="0.16"
-        android:fillColor="#EC92E5"
-        android:pathData="M0,120 C80,80 180,170 320,96 L320,180 L0,180 Z" />
-
-    <!-- TV -->
-    <path
-        android:strokeColor="#EC92E5"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M46,56 L118,56 A6,6 0 0 1 124,62 L124,110 A6,6 0 0 1 118,116 L46,116 A6,6 0 0 1 40,110 L40,62 A6,6 0 0 1 46,56 Z" />
-    <path
-        android:strokeColor="#EC92E5"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M60,44 L72,54" />
-    <path
-        android:strokeColor="#EC92E5"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M104,44 L92,54" />
-    <path
-        android:fillColor="#EC92E5"
-        android:pathData="M70,72 L92,83 L70,94 Z" />
-    <path
-        android:strokeColor="#F3F5F8"
-        android:strokeAlpha="0.5"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M64,124 L100,124" />
-
-    <!-- wordmark -->
-    <path
-        android:fillColor="#F3F5F8"
-        android:pathData="M150,80 L150,110 L156,110 L156,86 L168,86 L168,110 L174,110 L174,80 L168,80 L168,81 L156,81 L156,80 Z" />
-    <path
-        android:fillColor="#F3F5F8"
-        android:pathData="M182,80 L182,110 L188,110 L188,80 Z" />
-    <path
-        android:fillColor="#EC92E5"
-        android:pathData="M196,80 L196,110 L202,110 L202,86 L214,86 L214,110 L220,110 L220,80 Z" />
-    <path
-        android:fillColor="#F3F5F8"
-        android:fillAlpha="0.6"
-        android:pathData="M150,122 L220,122 L220,125 L150,125 Z" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="320dp" android:height="180dp" android:viewportWidth="320" android:viewportHeight="180">
+    <path android:fillColor="#090A0C" android:pathData="M0,0 H320 V180 H0 Z" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="3" android:fillColor="#00000000" android:pathData="M31,65 H83 Q87,65 87,69 V108 Q87,112 83,112 H31 Q27,112 27,108 V69 Q27,65 31,65 Z M44,54 L57,65 L70,54" />
+    <path android:fillColor="#FFFFFF" android:pathData="M50,77 L69,88 L50,99 Z M107,98 L120,72 L128,72 L141,98 H133 L130,91 H117 L114,98 Z M120,85 H127 L123.5,77 Z M148,72 H156 V98 H148 Z M164,72 H172 L184,87 V72 H192 V98 H184 L172,83 V98 H164 Z M202,72 H216 Q232,72 232,85 Q232,98 216,98 H202 Z M210,79 V91 H216 Q224,91 224,85 Q224,79 216,79 Z" />
 </vector>

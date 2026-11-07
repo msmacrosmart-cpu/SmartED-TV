@@ -1,167 +1,103 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.smarted.tv"
     compileSdk = 35
-
     defaultConfig {
-        ndk {
-            // O libVLC (player principal) traz binários de 4 arquiteturas e
-            // sozinho levava o APK a ~184 MB. Android TV e celulares usam ARM;
-            // manter apenas arm64-v8a + armeabi-v7a cobre praticamente todo o
-            // parque instalado e corta boa parte do tamanho.
-            // O CI de emulador passa -Pabis=x86_64 para gerar um APK de teste
-            // que roda na máquina virtual x86 do runner (o emulador não
-            // executa binários ARM). Sem a propriedade, o padrão continua ARM.
-            val abis = (project.findProperty("abis") as String?)
-                ?.split(',', ' ')
-                ?.map { it.trim() }
-                ?.filter { it.isNotEmpty() }
-                ?.takeIf { it.isNotEmpty() }
-                ?: listOf("arm64-v8a", "armeabi-v7a")
-            abiFilters += abis
-        }
         applicationId = "com.smarted.tv"
         minSdk = 23
         targetSdk = 35
-        // O CI sobrescreve com -PversionCode=/-PversionName=; padrão para build local.
-        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
-        versionName = (project.findProperty("versionName") as String?) ?: "1.0.0"
-
-        // Optional TMDB credentials (see docs/METADADOS.md). Ship your own key.
-        buildConfigField("String", "TMDB_API_KEY", "\"${project.findProperty("TMDB_API_KEY") ?: ""}\"")
-        buildConfigField("String", "TMDB_LANGUAGE", "\"${project.findProperty("TMDB_LANGUAGE") ?: "pt-BR"}\"")
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 200
+        versionName = (project.findProperty("versionName") as String?) ?: "2.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
     signingConfigs {
         create("release") {
-            // Set these in ~/.gradle/gradle.properties or via -P flags; never commit them.
-            // Aceita -P (local) ou variáveis de ambiente (CI). Nunca commite segredos.
-            fun secret(prop: String, env: String): String? =
-                (project.findProperty(prop) as String?)?.takeIf { it.isNotBlank() }
-                    ?: System.getenv(env)?.takeIf { it.isNotBlank() }
-
-            val store = secret("RELEASE_STORE_FILE", "RELEASE_STORE_FILE")
-            val storePasswordValue = secret("RELEASE_STORE_PASSWORD", "RELEASE_STORE_PASSWORD")
-            val keyAliasValue = secret("RELEASE_KEY_ALIAS", "RELEASE_KEY_ALIAS")
-            val keyPasswordValue = secret("RELEASE_KEY_PASSWORD", "RELEASE_KEY_PASSWORD")
-            if (store != null && storePasswordValue != null && keyAliasValue != null && keyPasswordValue != null) {
-                storeFile = file(store)
-                storePassword = storePasswordValue
-                keyAlias = keyAliasValue
-                keyPassword = keyPasswordValue
+            fun secret(name: String): String? = (project.findProperty(name) as String?)
+                ?.takeIf(String::isNotBlank) ?: System.getenv(name)?.takeIf(String::isNotBlank)
+            val keyPath = secret("RELEASE_STORE_FILE")
+            val storeSecret = secret("RELEASE_STORE_PASSWORD")
+            val alias = secret("RELEASE_KEY_ALIAS")
+            val keySecret = secret("RELEASE_KEY_PASSWORD")
+            if (listOf(keyPath, storeSecret, alias, keySecret).all { it != null }) {
+                storeFile = file(keyPath!!)
+                storePassword = storeSecret
+                keyAlias = alias
+                keyPassword = keySecret
             }
         }
     }
-
     buildTypes {
-        debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
-            isMinifyEnabled = false
-        }
+        debug { applicationIdSuffix = ".debug" }
         release {
-            // `-Pminify=false` gera um release sem R8 (diagnóstico no CI).
-            val minify = (project.findProperty("minify") as String?)?.toBoolean() ?: true
-            isMinifyEnabled = minify
-            isShrinkResources = minify
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            val releaseSigning = signingConfigs.getByName("release")
-            if (releaseSigning.storeFile != null) {
-                signingConfig = releaseSigning
-            }
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
         }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf("-opt-in=kotlin.RequiresOptIn")
+    buildFeatures { compose = true; buildConfig = true }
+    packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = true
+        disable += setOf("ObsoleteLintCustomCheck", "GradleDependency", "AndroidGradlePluginVersion")
     }
-
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
-    packaging {
-        jniLibs {
-            // Comprime as bibliotecas nativas: o download fica bem menor e a
-            // instalação é feita uma única vez.
-            useLegacyPackaging = true
-        }
-        resources {
-            excludes += setOf(
-                "/META-INF/{AL2.0,LGPL2.1}",
-                "/META-INF/DEPENDENCIES",
-                "/META-INF/LICENSE*",
-                "/META-INF/NOTICE*",
-                "META-INF/*.kotlin_module",
-            )
-        }
-    }
-
-    sourceSets["main"].assets.srcDirs("src/main/assets")
+    testOptions.unitTests.isReturnDefaultValues = true
 }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        allWarningsAsErrors.set(true)
+        freeCompilerArgs.add("-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi")
+    }
 }
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
-
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
-
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.navigation.compose)
-
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
-
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.exoplayer.hls)
-    implementation(libs.androidx.media3.exoplayer.dash)
-    implementation(libs.androidx.media3.ui)
-    implementation(libs.androidx.media3.datasource.okhttp)
-
+    implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.okhttp)
     implementation(libs.coil.compose)
-    // Player principal: libVLC (codecs + estabilidade em streams BR).
-    // ExoPlayer (media3) permanece como fallback para telas sem suporte a VLC.
-    implementation(libs.vlc.android)
-
-    implementation(libs.io.markwon.core)
-    implementation(libs.io.markwon.html)
-
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.hls)
+    implementation(libs.androidx.media3.dash)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.okhttp)
     debugImplementation(libs.androidx.compose.ui.tooling)
-
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
     testImplementation(libs.junit)
-    testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
 }

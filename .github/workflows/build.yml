@@ -1,152 +1,118 @@
-name: Build & Release APK
-
-# Compila o app na nuvem a cada push e publica o APK de release nas Releases
-# do repositório. Também roda em pull requests (sem publicar) e sob demanda.
+name: SmartED TV — qualidade e APK
 
 on:
   push:
     branches: ["**"]
-    tags: ["v*"]
   pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publicar o APK nas Releases"
+        description: 'Publicar uma release somente após todos os testes'
         type: boolean
-        default: true
-      minify:
-        description: "Rodar R8/minify no release (desligue para diagnosticar)"
-        type: boolean
-        default: true
-
-# Um build por branch/PR; pushes novos cancelam o anterior.
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+        default: false
 
 permissions:
-  contents: write # necessário para criar/atualizar a Release e enviar o APK
+  contents: read
+
+concurrency:
+  group: smarted-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # 1) Testes do núcleo puro (rápidos, sem Android SDK) — falha cedo
-  # ---------------------------------------------------------------------------
   verify:
-    name: Núcleo (parsers e testes)
+    name: Compilação, tipagem, lint e testes JVM
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-      - name: Instalar kotlinc 2.0.21
-        run: |
-          set -euo pipefail
-          curl -sSL -o /tmp/kotlin.zip \
-            https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip
-          unzip -q /tmp/kotlin.zip -d "$HOME/kotlin"
-          echo "$HOME/kotlin/kotlinc/bin" >> "$GITHUB_PATH"
-          "$HOME/kotlin/kotlinc/bin/kotlinc" -version
-      - name: Instalar ferramentas de verificação
-        run: npm ci --no-audit --no-fund
-      - name: Linters estáticos (sintaxe, imports, Compose)
-        run: |
-          node tools/kt-check.mjs app/src
-          python3 tools/check-refs.py
-          python3 tools/check-imports.py
-          python3 tools/check-compose.py
-          python3 tools/check-symbols.py
-          python3 tools/check-workflow.py
-          python3 tools/check-ptbr.py
-          python3 tools/check-db-schema.py
-      - name: Testes do núcleo (161 asserções)
-        run: bash tools/verify-core.sh
-      - name: Typecheck do núcleo não-UI
-        run: bash tools/verify-logic.sh
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Architecture gate
+        run: python3 tools/check_architecture.py
+      - name: Kotlin compile + JVM tests + Android lint
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }}
+      - name: Test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-apks
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/
+          if-no-files-found: error
 
-  # ---------------------------------------------------------------------------
-  # 2) Build do APK
-  # ---------------------------------------------------------------------------
-  build:
-    name: APK de release
+  tv-tests:
+    name: Android TV real — D-Pad, manifesto HTTP e player
     needs: verify
     runs-on: ubuntu-latest
-    outputs:
-      version_name: ${{ steps.version.outputs.name }}
-      version_code: ${{ steps.version.outputs.code }}
-      apk_name: ${{ steps.version.outputs.apk }}
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configurar JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-
-      - name: Conferir Android SDK
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM
         run: |
-          set -euo pipefail
-          # O runner ubuntu-latest já vem com o Android SDK. Não usamos
-          # android-actions/setup-android porque ele falhava nesta imagem.
-          echo "ANDROID_HOME=${ANDROID_HOME:-}"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          if [[ ! -d "$SDK" ]]; then
-            echo "::error::Android SDK não encontrado em $SDK"
-            exit 1
-          fi
-          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
-          echo "== build-tools ==" && ls "$SDK/build-tools" || true
-          echo "== platforms ==" && ls "$SDK/platforms" || true
-          echo "== cmdline-tools ==" && ls "$SDK/cmdline-tools" || true
-
-      - name: Cache do Gradle
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: AVD cache
         uses: actions/cache@v4
+        id: avd-cache
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-tv-30-x86_64-v2
+      - name: Run Android TV instrumentation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: android-tv
+          arch: x86_64
+          profile: tv_1080p
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
+      - name: Upload TV evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-tv-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: ignore
 
-      - name: Definir versão
-        id: version
-        run: |
-          set -euo pipefail
-          # versionCode = número do run: sempre crescente no repositório, o que
-          # permite atualizar o app por cima da versão anterior (o Android
-          # recusa instalar um versionCode menor).
-          CODE="${GITHUB_RUN_NUMBER}"
-
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            NAME="${GITHUB_REF#refs/tags/v}"
-            TAG="v${NAME}"
-            PUBLISH_KIND="tag"
-          else
-            BASE=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1 || echo "1.0.0")
-            NAME="${BASE}.${GITHUB_RUN_NUMBER}"
-            # push em branch/publicação manual sobrescreve uma release "rolante",
-            # em vez de criar uma release nova a cada commit
-            TAG="latest-build"
-            PUBLISH_KIND="rolling"
-          fi
-
-          APK="SmartED-TV-${NAME}-release.apk"
-          {
-            echo "name=${NAME}"
-            echo "code=${CODE}"
-            echo "apk=${APK}"
-            echo "tag=${TAG}"
-            echo "kind=${PUBLISH_KIND}"
-          } >> "$GITHUB_OUTPUT"
-          echo "→ versão ${NAME} · versionCode ${CODE} · tag ${TAG}"
-
-      - name: Preparar keystore
-        id: keystore
+  release-candidate:
+    name: APK assinado — somente com qualidade aprovada
+    needs: [verify, tv-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Restore compatibility signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -155,356 +121,35 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "${KEYSTORE_B64:-}" ]]; then
-            # 1) secrets do repositório (recomendado para quem quiser chave própria)
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            STORE_PASS="${KEYSTORE_PASS:-}"
-            KEY_PASS_VALUE="${KEY_PASS:-$STOREPASS}"
-            ALIAS="${KEY_ALIAS_VALUE:-smarted}"
-            ORIGIN="secrets do repositório"
-          elif [[ -f signing/release-keystore.json.enc ]]; then
-            # 2) keystore versionado e cifrado (assinatura estável sem configurar nada)
-            python3 - <<'EOF' > "$RUNNER_TEMP/keystore.meta"
-          import base64, hashlib, json, os, sys
-          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-          blob = json.load(open("signing/release-keystore.json.enc", encoding="utf-8"))
-          salt = base64.b64decode(blob["kdf"]["salt"])
-          key = hashlib.pbkdf2_hmac(
-              "sha256", b"smarted-tv-ci-signing-v1", salt, blob["kdf"]["iterations"], 32
-          )
-          nonce = base64.b64decode(blob["cipher"]["nonce"])
-          plain = AESGCM(key).decrypt(nonce, base64.b64decode(blob["keystore_b64"]), None)
-          out = os.path.join(os.environ["RUNNER_TEMP"], "release.jks")
-          open(out, "wb").write(plain)
-          print("alias=" + blob.get("key_alias", "smarted"))
-          print("store_pass=smarted-tv-ci-signing-v1")
-          EOF
-            ALIAS=$(grep '^alias=' "$RUNNER_TEMP/keystore.meta" | cut -d= -f2)
-            STORE_PASS=$(grep '^store_pass=' "$RUNNER_TEMP/keystore.meta" | cut -d= -f2)
-            KEY_PASS_VALUE="$STORE_PASS"
-            ORIGIN="keystore versionado (signing/release-keystore.json.enc)"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.jks"
+              echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASS"
+              echo "RELEASE_KEY_PASSWORD=${KEY_PASS:-$KEYSTORE_PASS}"
+              echo "RELEASE_KEY_ALIAS=${KEY_ALIAS_VALUE:-smarted}"
+            } >> "$GITHUB_ENV"
           else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=APK sem assinatura estável::Sem KEYSTORE_BASE64 e sem signing/release-keystore.json.enc. O APK sai com o debug keystore e não pode ser atualizado por cima."
-            exit 0
+            python3 tools/ci_signing.py
           fi
-
-          echo "signed=true" >> "$GITHUB_OUTPUT"
-          echo "store_pass=$STORE_PASS" >> "$GITHUB_OUTPUT"
-          echo "key_pass=$KEY_PASS_VALUE" >> "$GITHUB_OUTPUT"
-          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
-          echo "→ assinando com $ORIGIN (alias $ALIAS)"
-
-      - name: Build release
-        id: gradle
-        env:
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          RELEASE_STORE_FILE: ${{ steps.keystore.outputs.signed == 'true' && format('{0}/release.jks', runner.temp) || '' }}
-          RELEASE_STORE_PASSWORD: ${{ steps.keystore.outputs.store_pass }}
-          RELEASE_KEY_ALIAS: ${{ steps.keystore.outputs.alias }}
-          RELEASE_KEY_PASSWORD: ${{ steps.keystore.outputs.key_pass }}
-        run: |
-          set -o pipefail
-          ./gradlew :app:assembleRelease \
-            --no-daemon --stacktrace --warning-mode=all \
-            -PversionName="${{ steps.version.outputs.name }}" \
-            -PversionCode="${{ steps.version.outputs.code }}" \
-            -Pminify="${{ github.event.inputs.minify || 'true' }}" \
-            2>&1 | tee gradle-build.log
-          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-
-      # Em caso de falha, os erros de compilação ficam legíveis no resumo do run
-      # e num artefato baixável (o log bruto do Actions expira e é grande demais).
-      # Publica os erros como anotações do próprio step. Anotações são
-      # consultáveis pela API (o log bruto e os artefatos ficam em blob
-      # storage externo e podem ser inacessíveis).
-      - name: Anotar erros de compilação
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build signed release
         run: |
           set -euo pipefail
-          if [[ ! -f gradle-build.log ]]; then exit 0; fi
-
-          # limita a 12 anotações (teto da API) e 900 chars por mensagem
-          grep -E "^e: |^w: .*(Deprecat|Unresolved)|error:|FAILURE:|Caused by:" gradle-build.log \
-            | head -12 \
-            | while IFS= read -r line; do
-                clean="${line//'%'/%25}"
-                clean="${clean//$'\r'/}"
-                clean="${clean//$'\n'/%0A}"
-                echo "::error title=Gradle::${clean:0:900}"
-              done || true
-
-          echo "== build-tools / JDK =="
-          java -version 2>&1 | head -2 || true
-          echo "== últimas 40 linhas =="
-          tail -40 gradle-build.log || true
-
-          {
-            echo "## Falha no build"
-            echo
-            echo "~~~"
-            grep -E "^e: |FAILURE:|Caused by:|> Task .* FAILED" gradle-build.log | head -60 || true
-            echo "~~~"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # As anotações têm teto de 12 por step e às vezes escondem erros.
-          # O comentário de commit carrega a lista completa e é lido por API —
-          # o log bruto fica em blob storage externo e costuma falhar aqui.
-          errors="$(grep -E "^e: " gradle-build.log | head -80 || true)"
-          if [[ -n "$errors" ]]; then
-            payload="$(printf '%s\n' "$errors" | jq -Rs --arg sha "${GITHUB_SHA:0:7}" \
-              '{body: ("Erros de compilação do build " + $sha + ":\n\n```\n" + . + "```")}')"
-            printf '%s' "$payload" | gh api \
-              -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
-              --input - > /dev/null || true
-          fi
-
-      - name: Localizar e normalizar APK
-        id: apk
-        run: |
-          set -euo pipefail
-          if [[ "${{ steps.gradle.outputs.status }}" != "0" ]]; then
-            echo "::error::O Gradle falhou (status ${{ steps.gradle.outputs.status }}); veja o resumo do job."
-            exit 1
-          fi
-          FOUND=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          if [[ -z "$FOUND" ]]; then echo "::error::APK não encontrado"; exit 1; fi
+          ./gradlew :app:assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }}
           mkdir -p dist
-          cp "$FOUND" "dist/${{ steps.version.outputs.apk }}"
-          # sempre com a mesma chave: o fallback do AGP é o debug keystore
-          echo "→ $(ls -lh dist/ | tail -1)"
-
-      - name: Verificar APK (assinatura e metadados)
-        run: |
-          set -euo pipefail
-          BT=$(ls "$ANDROID_HOME/build-tools/" | sort -V | tail -1)
-          BTDIR="$ANDROID_HOME/build-tools/$BT"
-          APK="dist/${{ steps.version.outputs.apk }}"
-          echo "== build-tools $BT =="
-
-          # aapt2 dump badging: pacote, SDKs, rótulo
-          "$BTDIR/aapt2" dump badging "$APK" \
-            | grep -E "^package:|sdkVersion|targetSdkVersion|application-label" || true
-
-          # Publica os metadados como anotação (o log bruto pode não ser
-          # acessível por API em todos os ambientes).
-          BADGING=$("$BTDIR/aapt2" dump badging "$APK" 2>/dev/null | grep -E "^package:|application-label:" | head -3 | tr '\n' ' ')
-          echo "::notice title=APK gerado::${BADGING}"
-          echo "sha256: $(sha256sum "$APK" | cut -d' ' -f1)"
-
-          if [[ "${{ steps.keystore.outputs.signed }}" == "true" ]]; then
-            # apksigner é um script shell + jar no build-tools
-            if [[ -x "$BTDIR/apksigner" ]]; then
-              "$BTDIR/apksigner" verify --print-certs "$APK" | head -8
-            elif [[ -f "$BTDIR/lib/apksigner.jar" ]]; then
-              java -jar "$BTDIR/lib/apksigner.jar" verify --print-certs "$APK" | head -8
-            else
-              echo "::warning::apksigner não encontrado em $BTDIR; pulando verificação de assinatura"
-            fi
-          else
-            echo "APK sem keystore de release; assinatura não verificada."
-          fi
-
-          echo "== conteúdo do APK =="
-          unzip -l "$APK" | awk '{print $4}' | grep -E "^(classes|AndroidManifest|resources.arsc|assets/)" | head -12 || true
-
-          # o catálogo embutido precisa estar empacotado, senão o app abre vazio
-          for asset in assets/catalog/sources.json assets/catalog/repos.json assets/catalog/epg.json; do
-            if unzip -l "$APK" | grep -q " $asset$"; then
-              echo "  ok: $asset"
-            else
-              echo "::error::asset ausente no APK: $asset"
-            fi
-          done
-          if ! unzip -l "$APK" | grep -q " classes.dex$"; then
-            echo "::error::classes.dex ausente — o APK não contém código"
-            exit 1
-          fi
-
-          # --- libVLC empacotado? ------------------------------------------
-          # O player principal depende das .so do VLC. Se o ABI filter ou o
-          # empacotamento mudarem, o app instalaria e falharia só ao abrir um
-          # canal — por isso a checagem é aqui, no build.
-          if ! unzip -l "$APK" | grep -qE "lib/(arm64-v8a|armeabi-v7a)/libvlc\.so"; then
-            echo "::error::libVLC ausente no APK (lib/*/libvlc.so)"
-            exit 1
-          fi
-          echo "== arquiteturas com libVLC =="
-          unzip -l "$APK" | awk '{print $4}' | grep -oE "lib/[^/]+/libvlc\.so" | sort -u
-
-          # --- tamanho do APK ----------------------------------------------
-          # Faixa aceitável do produto: 0–60 MB. Empacotar as 4 ABIs do libVLC
-          # levava a 184 MB; com ARM apenas e as .so comprimidas fica ~40 MB.
-          SIZE_MB=$(( $(stat -c %s "$APK") / 1024 / 1024 ))
-          echo "tamanho do APK: ${SIZE_MB} MB"
-          if (( SIZE_MB > 60 )); then
-            echo "::error::APK com ${SIZE_MB} MB (limite 60 MB) — verifique o abiFilters do libVLC"
-            exit 1
-          fi
-
-          sha256sum "$APK" | tee dist/SHA256SUMS.txt
-
-      - name: Guardar artefato
+          cp app/build/outputs/apk/release/app-release.apk dist/SmartED-TV-2.0.0.${{ github.run_number }}.apk
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" verify --verbose dist/*.apk
+          "$BT/aapt2" dump badging dist/*.apk | grep -E "package:|sdkVersion|targetSdkVersion|leanback|launchable-activity"
+          sha256sum dist/*.apk > dist/SHA256SUMS.txt
+      - name: Validated APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apk-release-${{ steps.version.outputs.name }}
+          name: SmartED-TV-validated-apk
           path: dist/
-          retention-days: 30
           if-no-files-found: error
-
-      - name: Publicar nas Releases
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.kind == 'tag' && format('Smarted TV {0}', steps.version.outputs.name) || format('Smarted TV — build mais recente ({0})', steps.version.outputs.name) }}
-          body: |
-            ## Smarted TV ${{ steps.version.outputs.name }}
-
-            APK de release gerado automaticamente pelo GitHub Actions.
-
-            | | |
-            |---|---|
-            | **versionName** | `${{ steps.version.outputs.name }}` |
-            | **versionCode** | `${{ steps.version.outputs.code }}` |
-            | **Commit** | `${{ github.sha }}` |
-            | **Assinatura** | ${{ steps.keystore.outputs.signed == 'true' && 'chave do projeto (atualizável)' || '⚠️ debug keystore — configure os secrets' }} |
-
-            ### Instalar
-            ```bash
-            adb install -r ${{ steps.version.outputs.apk }}
-            ```
-            Ou baixe o APK no dispositivo e permita "instalar de fontes desconhecidas".
-            Em Android TV, use o app *Downloader* ou `adb connect`.
-
-            O arquivo `SHA256SUMS.txt` acompanha a release para conferência.
-          files: |
-            dist/${{ steps.version.outputs.apk }}
-            dist/SHA256SUMS.txt
-          draft: false
-          prerelease: false
-          make_latest: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      # A release rolante é sobrescrita a cada push: remove os APKs das
-      # execuções anteriores para não acumular dezenas de arquivos.
-      - name: Limpar APKs antigos da release rolante
-        if: steps.version.outputs.kind == 'rolling' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      - name: Publish explicitly requested release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CURRENT: ${{ steps.version.outputs.apk }}
-          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          gh release view "$TAG" --json assets --jq '.assets[].name' \
-            | grep -E '\.apk$' \
-            | grep -vx "$CURRENT" \
-            | while read -r old; do
-                echo "removendo $old"
-                gh release delete-asset "$TAG" "$old" --yes || true
-              done || true
-
-  # ---------------------------------------------------------------------------
-  # 3) Teste de fumaça num emulador Android de verdade (celular, API 30)
-  #
-  # Instala o APK recém-gerado, abre o app e reproduz o cenário que causou o
-  # "erro ao abrir o app": banco local com esquema v1 (de uma instalação
-  # anterior) sendo migrado para v2. Sem migração correta o app morre na
-  # abertura — e este job falha antes de o usuário receber o APK.
-  # ---------------------------------------------------------------------------
-  smoke:
-    name: Emulador (abertura e migração do banco)
-    needs: build
-    runs-on: ubuntu-latest
-    # Roda em segundo plano: o APK já foi publicado pela job `build`, então o
-    # resultado do emulador informa (comentário no commit) mas nunca impede a
-    # entrega. Basta olhar o comentário do commit para o veredito.
-    continue-on-error: true
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      # O APK de release é ARM (é o que mantém os ~40 MB e cobre TV box e
-      # celulares), e o emulador do runner é x86_64 — binário ARM não roda ali.
-      # Por isso o teste compila um APK debug só com x86_64: mesmo código
-      # Kotlin/Compose/Room do release, só muda a biblioteca nativa do VLC.
-      - name: Configurar JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Cache do Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
-      - name: Gerar APK de teste (x86_64, debug)
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          ./gradlew :app:assembleDebug -Pabis=x86_64 --no-daemon --warning-mode=summary
-          cp app/build/outputs/apk/debug/app-debug.apk dist/app-debug.apk
-          ls -lh dist/
-
-      - name: Habilitar KVM
-        run: |
-          set -euo pipefail
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Emulador — instalar, abrir e migrar
-        id: emu
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          target: default
-          arch: x86_64
-          disable-animations: true
-          emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none
-          script: |
-            set -o pipefail
-            SMOKE_PKG=com.smarted.tv.debug bash tools/emulator-smoke.sh 2>&1 | tee smoke.log
-
-      # O log bruto do Actions é inacessível por API (blob storage externo).
-      # O comentário de commit guarda o relatório do teste — no sucesso e na
-      # falha — para o resultado ficar auditável.
-      - name: Relatar o teste no commit
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OUTCOME: ${{ steps.emu.outcome }}
-        run: |
-          set -euo pipefail
-          [[ -f smoke.log ]] || exit 0
-          trecho="$(grep -iE 'OK:|PASS|FAIL|colunas de|user_version|^==|Success|Failure|Error|error|fatal|Fatal|crash|Exception|Caused by|at com\.smarted|Status:|pacote consultado' smoke.log | tail -60 || true)"
-          [[ -n "$trecho" ]] || trecho="$(tail -40 smoke.log)"
-          payload="$(printf '%s\n' "$trecho" | jq -Rs \
-            --arg sha "${GITHUB_SHA:0:7}" --arg outcome "${OUTCOME:-unknown}" \
-            '{body: ("## Teste no emulador — " + $outcome + " (build " + $sha + ")\n\n```\n" + . + "```")}')"
-          printf '%s' "$payload" | gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
-            --input - > /dev/null || true
-
-      # O android-emulator-runner ignora o código de saída do script, então o
-      # veredito vem do arquivo de status: PASS só é escrito no fim do roteiro.
-      - name: Reprovar o job se o teste não passou
-        if: always()
-        run: |
-          set -euo pipefail
-          status="$(tr -d '\r\n' < smoke-status.txt 2>/dev/null || true)"
-          echo "status do teste no emulador: ${status:-MISSING}"
-          if [[ "$status" != "PASS" ]]; then
-            echo "::error title=Emulador::teste não passou (${status:-MISSING})"
-            exit 1
-          fi
+          gh release create "v2.0.0.${{ github.run_number }}" dist/* --target "$GITHUB_SHA" --title "SmartED TV 2.0.0.${{ github.run_number }}" --notes "Reconstrução Stremio nativa. Compilação Kotlin, testes JVM, lint e testes instrumentados Android TV aprovados antes desta publicação. APK assinado; confira SHA256SUMS.txt."

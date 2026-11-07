@@ -1,32 +1,18 @@
 package com.smarted.tv.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.ui.composed
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,530 +20,102 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
-import com.smarted.tv.ui.theme.Ed
-import com.smarted.tv.ui.theme.EdEasing
+import com.smarted.tv.ui.theme.*
 
-/** Botão principal (fundo sólido). */
 @Composable
-fun EdPrimaryButton(
+fun TvAction(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
+    primary: Boolean = false,
+    selected: Boolean = false,
     enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
+    compact: Boolean = false,
 ) {
-    val palette = Ed.palette
-    val type = Ed.type
-    val interaction = edInteraction(onClick = onClick, enabled = enabled, focusRequester = focusRequester)
-    val shape = RoundedCornerShape(percent = 50)
-    val bg by animateColorAsState(
-        when {
-            !enabled -> palette.surface2
-            interaction.isFocused -> palette.accent
-            else -> palette.fg.copy(alpha = 0.94f)
-        },
-        tween(160, easing = EdEasing),
-        label = "btn-bg",
-    )
-    Row(
-        modifier = modifier
-            .height(46.dp)
-            .clip(shape)
-            .background(bg, shape)
-            .then(if (interaction.isFocused) Modifier.border(3.dp, palette.fg, shape) else Modifier)
-            .then(interaction.modifier)
-            .padding(horizontal = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        icon?.let {
-            Icon(
-                imageVector = it,
-                contentDescription = null,
-                tint = if (interaction.isFocused) palette.onAccent else palette.bg,
-                modifier = Modifier.size(17.dp),
-            )
-        }
-        Text(
-            text = label,
-            style = type.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-            color = if (interaction.isFocused) palette.onAccent else palette.bg,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/** Botão secundário (contorno). */
-@Composable
-fun EdSecondaryButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    enabled: Boolean = true,
-    focusRequester: FocusRequester? = null,
-) {
-    val palette = Ed.palette
-    val type = Ed.type
-    val interaction = edInteraction(onClick = onClick, enabled = enabled, focusRequester = focusRequester)
-    val shape = RoundedCornerShape(percent = 50)
-    Row(
-        modifier = modifier
-            .height(46.dp)
-            .clip(shape)
-            .background(if (interaction.isFocused) palette.surface3 else palette.surface, shape)
-            .then(
-                when {
-                    interaction.isFocused -> Modifier.border(3.dp, palette.accent, shape)
-                    else -> Modifier.border(1.dp, palette.line, shape)
-                },
-            )
-            .then(interaction.modifier)
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        icon?.let {
-            Icon(imageVector = it, contentDescription = null, tint = palette.fg2, modifier = Modifier.size(17.dp))
-        }
-        Text(
-            text = label,
-            style = type.bodySmall.copy(fontWeight = FontWeight.Medium),
-            color = if (enabled) palette.fg else palette.fg3,
-            maxLines = 1,
-        )
-    }
-}
-
-/** Pílula compacta (ações de card, "ver tudo"). */
-@Composable
-fun EdPill(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    active: Boolean = false,
-    focusRequester: FocusRequester? = null,
-) {
-    val palette = Ed.palette
-    val type = Ed.type
-    val interaction = edInteraction(onClick = onClick, focusRequester = focusRequester)
-    val shape = RoundedCornerShape(percent = 50)
-    Row(
-        modifier = modifier
-            .height(38.dp)
-            .clip(shape)
-            .background(
-                when {
-                    interaction.isFocused -> palette.surface3
-                    active -> palette.accentSoft
-                    else -> palette.surface
-                },
-                shape,
-            )
-            .then(
-                when {
-                    interaction.isFocused || active -> Modifier.border(2.dp, palette.accent, shape)
-                    else -> Modifier.border(1.dp, palette.lineSoft, shape)
-                },
-            )
-            .then(interaction.modifier)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        icon?.let {
-            Icon(it, contentDescription = null, tint = if (interaction.isFocused) palette.fg else palette.fg2, modifier = Modifier.size(15.dp))
-        }
-        Text(
-            text = label,
-            style = type.caption.copy(fontWeight = FontWeight.Medium),
-            color = if (interaction.isFocused || active) palette.fg else palette.fg2,
-            maxLines = 1,
-        )
-    }
-}
-
-/** Interruptor do design system (trilho branco puro quando ligado). */
-@Composable
-fun EdSwitch(
-    checked: Boolean,
-    onChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-    focusRequester: FocusRequester? = null,
-) {
-    val palette = Ed.palette
-    val interaction = edInteraction(onClick = { onChange(!checked) }, focusRequester = focusRequester)
-    val shape = RoundedCornerShape(percent = 50)
-    val track by animateColorAsState(
-        if (checked) palette.accent else palette.surface3,
-        tween(180, easing = EdEasing),
-        label = "switch-track",
-    )
-    Box(
-        modifier = modifier
-            .width(46.dp)
-            .height(26.dp)
-            .clip(shape)
-            .background(track, shape)
-            .then(if (interaction.isFocused) Modifier.border(3.dp, palette.fg, shape) else Modifier)
-            .then(interaction.modifier),
-        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
-    ) {
-        Box(
-            Modifier
-                .padding(horizontal = 3.dp)
-                .size(20.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(if (checked) palette.onAccent else palette.fg2),
-        )
-    }
-}
-
-/**
- * Campo de texto focado por D-pad. Em TV, o foco dá o anel e a digitação usa o
- * teclado virtual do sistema — o mesmo comportamento da referência.
- */
-@Composable
-fun EdTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    label: String? = null,
-    focusRequester: FocusRequester? = null,
-    trailing: (@Composable () -> Unit)? = null,
-    singleLine: Boolean = true,
-    minHeight: Dp = 48.dp,
-) {
-    val palette = Ed.palette
-    val type = Ed.type
     var focused by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(12.dp)
-
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        label?.let {
-            Text(it, style = type.label, color = palette.fg3)
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(minHeight)
-                .clip(shape)
-                .background(if (focused) palette.surface3 else palette.surface2, shape)
-                .then(if (focused) Modifier.border(2.dp, palette.accent, shape) else Modifier)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = singleLine,
-                textStyle = type.bodySmall.copy(color = palette.fg),
-                cursorBrush = SolidColor(palette.accent),
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { focused = it.isFocused }
-                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
-                decorationBox = { inner ->
-                    Box {
-                        if (value.isBlank()) {
-                            Text(placeholder, style = type.bodySmall, color = palette.fg3, maxLines = 1)
-                        }
-                        inner()
-                    }
-                },
-            )
-            trailing?.invoke()
+    Box(modifier
+        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+        .onFocusChanged { focused = it.isFocused }
+        .whiteFocus(focused, selected, 14.dp)
+        .padding(if (focused) 3.dp else 0.dp)
+        .clip(shape)
+        .background(if (primary) Color.White else if (focused || selected) Color(0xFF343538) else Color(0xFF1B1C1F))
+        .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
+        .semantics { contentDescription = label }
+        .defaultMinSize(minHeight = if (compact) 38.dp else 48.dp)
+        .padding(horizontal = if (compact) 12.dp else 18.dp, vertical = if (compact) 8.dp else 12.dp),
+        contentAlignment = Alignment.Center) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (icon != null) Icon(icon, null, Modifier.size(19.dp), tint = if (primary) Color.Black else Color.White)
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (primary) Color.Black else if (enabled) Color.White else TvColors.Muted)
         }
     }
 }
 
-/**
- * Linha de configuração: ícone em tile de acento, rótulo, valor à direita e
- * ação (toggle/chevron). Réplica exata de "Settings" da referência.
- */
 @Composable
-fun SettingRow(
-    icon: ImageVector,
-    title: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    value: String? = null,
-    subtitle: String? = null,
-    toggle: Boolean? = null,
-    onToggle: ((Boolean) -> Unit)? = null,
-    accent: Color? = null,
-    focusRequester: FocusRequester? = null,
-    danger: Boolean = false,
-) {
-    val palette = Ed.palette
-    val type = Ed.type
-    val interaction = edInteraction(onClick = onClick, focusRequester = focusRequester)
-    val shape = RoundedCornerShape(16.dp)
+fun SearchField(value: String, onChange: (String) -> Unit, hint: String, modifier: Modifier = Modifier, tag: String = "search", focusRequester: FocusRequester? = null) {
+    var focused by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    OutlinedTextField(value = value, onValueChange = onChange, modifier = modifier
+        .testTag(tag)
+        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+        .onFocusChanged { focused = it.isFocused }.whiteFocus(focused, radius = 12.dp),
+        placeholder = { Text(hint, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium) },
+        leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.White) },
+        singleLine = true, textStyle = MaterialTheme.typography.bodyMedium, shape = RoundedCornerShape(12.dp),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
+        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.White, unfocusedBorderColor = TvColors.Outline,
+            cursorColor = Color.White, focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+            focusedPlaceholderColor = TvColors.Muted, unfocusedPlaceholderColor = TvColors.Muted,
+            focusedContainerColor = Color(0xFF17181B), unfocusedContainerColor = Color(0xFF121315),
+            selectionColors = androidx.compose.foundation.text.selection.TextSelectionColors(Color(0x66FFFFFF), Color.White)))
+}
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(if (subtitle != null) 72.dp else 64.dp)
-            .clip(shape)
-            .background(
-                when {
-                    interaction.isFocused -> palette.surface3
-                    else -> Color.Transparent
-                },
-                shape,
-            )
-            .then(if (interaction.isFocused) Modifier.border(2.dp, palette.accent, shape) else Modifier)
-            .then(interaction.modifier)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        val tile = accent ?: palette.accent
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(tile.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = tile,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title,
-                style = type.rowTitle.copy(fontSize = type.rowTitle.fontSize * 0.92f),
-                color = if (danger) palette.bad else palette.fg,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = type.caption,
-                    color = palette.fg3,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (toggle != null && onToggle != null) {
-            EdSwitch(checked = toggle, onChange = onToggle)
-        } else {
-            value?.let {
-                Text(
-                    text = it,
-                    style = type.bodySmall,
-                    color = palette.fg3,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Icon(
-                imageVector = EdIcons.chevron,
-                contentDescription = null,
-                tint = palette.fg3,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+@Composable
+fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(text.uppercase(), modifier = modifier, style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
+}
+
+@Composable
+fun EmptyState(title: String, message: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+    Column(modifier.smokedGlass().padding(28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White)
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = TvColors.Muted)
+        action?.invoke()
     }
 }
 
-/** Chip selecionável (temporadas, gêneros, atalhos). */
 @Composable
-fun EdChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    focusRequester: FocusRequester? = null,
-) {
-    val palette = Ed.palette
-    val type = Ed.type
-    val interaction = edInteraction(onClick = onClick, focusRequester = focusRequester)
-    val shape = RoundedCornerShape(percent = 50)
-    Box(
-        modifier = modifier
-            .height(38.dp)
-            .clip(shape)
-            .background(
-                when {
-                    interaction.isFocused -> palette.surface3
-                    selected -> palette.accent
-                    else -> palette.surface
-                },
-                shape,
-            )
-            .then(
-                when {
-                    interaction.isFocused -> Modifier.border(2.dp, palette.accent, shape)
-                    selected -> Modifier
-                    else -> Modifier.border(1.dp, palette.lineSoft, shape)
-                },
-            )
-            .then(interaction.modifier)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = type.caption.copy(fontWeight = FontWeight.Medium),
-            color = when {
-                selected -> palette.onAccent
-                interaction.isFocused -> palette.fg
-                else -> palette.fg2
-            },
-            maxLines = 1,
-        )
-    }
-}
-
-/** Indicador de carregamento simples (barra indeterminada de acento). */
-@Composable
-fun EdLoadingBar(modifier: Modifier = Modifier) {
-    val palette = Ed.palette
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(2.dp)
-            .background(palette.surface2),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth(0.35f)
-                .height(2.dp)
-                .background(palette.accent),
-        )
-    }
-}
-
-/** Badge de status com cor semântica. */
-@Composable
-fun EdBadge(
-    text: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    filled: Boolean = false,
-) {
-    val type = Ed.type
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (filled) color.copy(alpha = 0.18f) else Color.Transparent)
-            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 7.dp, vertical = 3.dp),
-    ) {
-        Text(text, style = type.label, color = color, maxLines = 1)
-    }
-}
-
-/** Divisor com espaçamento usado entre grupos de configuração. */
-@Composable
-fun SettingsGroup(
-    title: String? = null,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    val palette = Ed.palette
-    val type = Ed.type
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        title?.let {
-            Text(
-                text = it.uppercase(),
-                style = type.label.copy(letterSpacing = 1.4.sp),
-                color = palette.fg3,
-                modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 6.dp),
-            )
-        }
-        content()
-    }
-}
-
-/** Borda com cantos arredondados (helper compartilhado). */
-fun Modifier.edBorder(
-    color: Color,
-    shape: androidx.compose.ui.graphics.Shape,
-    width: Dp = 1.dp,
-): Modifier = composed {
-    border(width, color, shape)
-}
-
-/**
- * Espaçador elástico para usar dentro de [Row]/[Column].
- * É `RowScope` porque `Modifier.weight` só existe nesse escopo.
- */
-@Composable
-fun RowScope.SpacerWeight() {
-    Spacer(Modifier.weight(1f))
+fun Notice(message: String, modifier: Modifier = Modifier) {
+    if (message.isNotBlank()) Text(message, modifier.padding(vertical = 6.dp), color = TvColors.Muted, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
-fun VGap(height: Dp) {
-    Box(Modifier.height(height))
+fun BackAction(onBack: () -> Unit, label: String = "Início") {
+    TvAction(label, onBack, icon = Icons.AutoMirrored.Filled.ArrowBack, compact = true)
 }
 
-/** Botão de ícone circular. */
 @Composable
-fun EdIconButton(
-    icon: ImageVector,
-    onClick: () -> Unit,
-    contentDescription: String? = null,
-    modifier: Modifier = Modifier,
-    size: Dp = 40.dp,
-    tint: Color = Ed.palette.fg2,
-    focusRequester: FocusRequester? = null,
-) {
-    val palette = Ed.palette
-    val interaction = edInteraction(onClick = onClick, focusRequester = focusRequester)
-    val circle = RoundedCornerShape(percent = 50)
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(circle)
-            .background(if (interaction.isFocused) palette.surface3 else Color.Transparent, circle)
-            .then(if (interaction.isFocused) Modifier.border(2.dp, palette.accent, circle) else Modifier)
-            .then(interaction.modifier),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
-    }
+fun Choice(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    TvAction(label, onClick, modifier, icon = if (selected) Icons.Default.Check else null, selected = selected, compact = true)
 }
 
-/** Pequena pílula de progresso (barra fina). */
 @Composable
-fun ThinProgress(
-    fraction: Float,
-    modifier: Modifier = Modifier,
-    color: Color = Ed.palette.accent,
-    track: Color = Ed.palette.fg3.copy(alpha = 0.25f),
-    height: Dp = 3.dp,
-) {
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(height)
-            .background(track),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(height)
-                .background(color),
-        )
-    }
+fun Panel(modifier: Modifier = Modifier, padding: Dp = 18.dp, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.smokedGlass().padding(padding), content = content)
 }
