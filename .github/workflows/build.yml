@@ -349,3 +349,21 @@ jobs:
           prerelease: false
           make_latest: true
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # A release rolante é sobrescrita a cada push: remove os APKs das
+      # execuções anteriores para não acumular dezenas de arquivos.
+      - name: Limpar APKs antigos da release rolante
+        if: steps.version.outputs.kind == 'rolling' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ steps.version.outputs.apk }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --json assets --jq '.assets[].name' \
+            | grep -E '\.apk$' \
+            | grep -vx "$CURRENT" \
+            | while read -r old; do
+                echo "removendo $old"
+                gh release delete-asset "$TAG" "$old" --yes || true
+              done || true
