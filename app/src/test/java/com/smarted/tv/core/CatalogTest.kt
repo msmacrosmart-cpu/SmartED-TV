@@ -55,7 +55,7 @@ class CatalogTest {
     }
     @Test fun sortIsStableAndExplicit() {
         val items = listOf(testItem(addon, "b", "Água").copy(rating = 9.0, releaseInfo = "2020"), testItem(addon, "a", "Amor").copy(rating = 7.0, releaseInfo = "2024"))
-        assertEquals(listOf("a", "b"), sortItems(items, Sort.AZ, Direction.ASC).map { it.id })
+        assertEquals("debug names=" + items.map { it.name to foldText(it.name) } + " sorted=" + sortItems(items, Sort.AZ, Direction.ASC).map { it.name to foldText(it.name) }, listOf("a", "b"), sortItems(items, Sort.AZ, Direction.ASC).map { it.id })
         assertEquals(listOf("b", "a"), sortItems(items, Sort.RATING, Direction.DESC).map { it.id })
         assertEquals(listOf("a", "b"), sortItems(items, Sort.YEAR, Direction.DESC).map { it.id })
         assertEquals(listOf("b", "a"), sortItems(items, Sort.AZ, Direction.DESC).map { it.id })
