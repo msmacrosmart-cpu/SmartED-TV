@@ -83,7 +83,7 @@ fun SearchScreen(
         when {
             state.loading -> EmptyState(
                 title = "Buscando…",
-                message = "Consultando o catálogo indexado do Brazuca Play.",
+                message = "Consultando o catálogo indexado dos seus repositórios.",
                 icon = EdIcons.search,
             )
             state.query.isBlank() -> EmptyState(

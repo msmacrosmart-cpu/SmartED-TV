@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Textos da interface do Smarted TV.
+
+  Todo texto visível ao usuário vive aqui, em português do Brasil. O gate
+  `tools/check-ptbr.py` impede que literais em inglês voltem para as telas, e a
+  Activity fixa o locale em pt-BR para que nenhum recurso apareça traduzido
+  pelo sistema.
+-->
 <resources>
-    <string name="app_name">SmartED TV</string>
+
+    <!-- ===== identidade ===== -->
+    <string name="app_name">Smarted TV</string>
+    <string name="app_tagline">central de mídia · canais, filmes e séries</string>
+    <string name="app_about_version">Smarted TV %1$s · addons estilo Kodi</string>
+
+    <!-- ===== navegação ===== -->
     <string name="nav_home">Início</string>
     <string name="nav_live">Canais</string>
     <string name="nav_movies">Filmes</string>
@@ -10,15 +24,107 @@
     <string name="nav_addons">Addons</string>
     <string name="nav_settings">Ajustes</string>
 
-    <string name="settings_repository">Trocar / Gerenciar Repositório</string>
-    <string name="settings_sources">Fontes públicas</string>
-    <string name="settings_epg">EPG / XMLTV</string>
-    <string name="settings_tmdb">Chave da API TMDB</string>
+    <!-- ===== ações ===== -->
     <string name="action_play">Assistir</string>
+    <string name="action_resume">Continuar</string>
     <string name="action_details">Detalhes</string>
     <string name="action_back">Voltar</string>
+    <string name="action_close">Fechar</string>
+    <string name="action_exit">Sair</string>
+    <string name="action_save">Salvar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_remove">Remover</string>
+    <string name="action_retry">Tentar de novo</string>
+    <string name="action_see_all">Ver tudo</string>
+    <string name="action_pause">Pausar</string>
+    <string name="action_resume_playback">Reproduzir</string>
     <string name="action_sync">Sincronizar</string>
-    <string name="action_refresh">Atualizar</string>
-    <string name="player_live">AO VIVO</string>
+    <string name="action_reload">Recarregar</string>
+
+    <!-- ===== home ===== -->
+    <string name="home_top_movies">Top 10 filmes</string>
+    <string name="home_top_movies_hint">mais votados</string>
+    <string name="home_top_series">Top 10 séries</string>
+    <string name="home_top_series_hint">mais votadas</string>
+    <string name="home_favorite_channels">Canais favoritos</string>
+    <string name="home_all_movies">Todos os filmes</string>
+    <string name="home_continue">Continuar assistindo</string>
+    <string name="home_favorites">Favoritos</string>
+    <string name="home_live_channels">Canais ao vivo</string>
+    <string name="home_all_series">Todas as séries</string>
+    <string name="home_ready">Catálogo pronto</string>
+    <string name="home_empty_title">Nenhum conteúdo indexado ainda</string>
+    <string name="home_empty_message">Confira sua conexão e os repositórios em Ajustes. Os repositórios configurados sincronizam automaticamente na abertura.</string>
+
+    <!-- ===== player ===== -->
+    <string name="player_live">Ao vivo</string>
+    <string name="player_live_badge">AO VIVO</string>
+    <string name="player_live_hint">Transmissão ao vivo</string>
     <string name="player_resolving">Resolvendo link…</string>
+    <string name="player_compatibility">compatibilidade</string>
+    <string name="player_audio">Áudio</string>
+    <string name="player_subtitles">Legendas</string>
+    <string name="player_channel_previous">Canal ◀</string>
+    <string name="player_channel_next">Canal ▶</string>
+    <string name="player_server">Servidor %1$d/%2$d</string>
+    <string name="player_chapter">Cap. %1$d%%</string>
+    <string name="player_start">Início</string>
+    <string name="player_back_10">−10s</string>
+    <string name="player_forward_30">+30s</string>
+    <string name="player_error_resolve">Não foi possível resolver o link deste item. Tente outra fonte ou atualize o catálogo.</string>
+    <string name="player_error_vlc">O VLC não conseguiu abrir este stream.</string>
+    <string name="player_vlc_unavailable">VLC indisponível neste aparelho.</string>
+
+    <!-- ===== ajustes ===== -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_subtitle">Smarted TV · central de mídia</string>
+    <string name="settings_group_addon_repo">Repositório de addons</string>
+    <string name="settings_group_content_repos">Repositórios de conteúdo (PT-BR)</string>
+    <string name="settings_repository">Trocar / Gerenciar Repositório</string>
+    <string name="settings_repo_active">Ativo: %1$s</string>
+    <string name="settings_repo_channels">Canais</string>
+    <string name="settings_repo_channels_hint">Canais abertos, esportes e notícias BR</string>
+    <string name="settings_repo_movies">Filmes</string>
+    <string name="settings_repo_movies_hint">Filmes dublados em português</string>
+    <string name="settings_repo_series">Séries</string>
+    <string name="settings_repo_series_hint">Séries dubladas/legendadas em português</string>
+    <string name="settings_repo_url_label">URL da lista M3U</string>
+    <string name="settings_repo_updated">Repositório atualizado. Reindexando…</string>
+    <string name="settings_portuguese_only">Somente conteúdo em português</string>
+    <string name="settings_portuguese_only_hint">Filtro rigoroso por idioma em todas as abas. Desligue para ver o catálogo bruto dos repositórios.</string>
+
+    <!-- ===== guia / EPG ===== -->
+    <string name="guide_title">Guia de programação</string>
+    <string name="guide_reload">Recarregar EPG</string>
+    <string name="guide_no_data">Sem dados de EPG</string>
+    <string name="guide_no_channels">Nenhum canal com tvg-id encontrado. Verifique se o XMLTV padrão está ativo em Ajustes.</string>
+    <string name="guide_no_information">Sem informação</string>
+
+    <!-- ===== fontes ===== -->
+    <string name="sources_public">Fontes públicas</string>
+    <string name="sources_scan">Varrer fontes</string>
+    <string name="sources_maintenance">Manutenção de links</string>
+    <string name="sources_reload_catalog">Recarregar catálogo</string>
+    <string name="sources_available">Disponível</string>
+    <string name="sources_failed">Falhou</string>
+    <string name="sources_epg_ok">grade disponível</string>
+    <string name="sources_epg_empty">sem programas</string>
+    <string name="sources_epg_error">falhou ao carregar</string>
+    <string name="sources_epg_pending">aguardando sincronização</string>
+
+    <!-- ===== estados ===== -->
+    <string name="state_loading">Carregando…</string>
+    <string name="state_searching">Buscando…</string>
+    <string name="state_empty_title">Nada por aqui ainda</string>
+    <string name="state_empty_category">Nenhum item em português nesta categoria. Confira os repositórios em Ajustes → Repositórios de conteúdo ou escolha outra categoria.</string>
+    <string name="state_error_prefix">Aviso: %1$s</string>
+
+    <!-- ===== repositório / addons ===== -->
+    <string name="repo_default_badge">PADRÃO</string>
+    <string name="repo_status_online">Online</string>
+    <string name="repo_status_offline">Offline</string>
+    <string name="repo_status_syncing">Sincronizando</string>
+    <string name="repo_status_unknown">Não sincronizado</string>
+    <string name="repo_use_default">Usar Vikings (padrão)</string>
+
 </resources>

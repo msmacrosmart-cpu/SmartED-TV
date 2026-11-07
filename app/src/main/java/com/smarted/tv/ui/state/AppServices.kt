@@ -19,10 +19,12 @@ interface SettingsStoreLike {
     val settings: Settings
     fun update(block: (Settings) -> Settings)
     fun setRepository(url: String, name: String)
+    /** Troca a URL de um dos três repositórios de conteúdo (canais/filmes/séries). */
+    fun setContentRepository(kind: com.smarted.tv.core.model.MediaKind, url: String)
     fun reload()
 }
 
-/** Resumo do catálogo do addon nativo (Brazuca Play). */
+/** Resumo do catálogo do addon nativo. */
 interface CatalogSnapshot {
     val live: List<MediaItem>
     val movies: List<MediaItem>

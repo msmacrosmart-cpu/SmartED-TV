@@ -84,13 +84,13 @@ fun SplashScreen(message: String) {
 
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "SmartED TV",
+                    text = "Smarted TV",
                     style = type.title.copy(fontSize = 26.sp, letterSpacing = 0.5.sp),
                     color = palette.fg,
                     modifier = Modifier.graphicsLayer { alpha = (progress.value * 1.8f).coerceIn(0f, 1f) },
                 )
                 Text(
-                    text = "media center modular · estilo Kodi",
+                    text = "central de mídia · canais, filmes e séries",
                     style = type.caption,
                     color = palette.fg3,
                     modifier = Modifier.graphicsLayer { alpha = (progress.value * 1.4f).coerceIn(0f, 1f) },

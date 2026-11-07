@@ -105,6 +105,18 @@ fun SmartEdRoot(graph: AppGraph) {
     }
 }
 
+/**
+ * Próximo canal na lista do zap. Envolve nas pontas (último → primeiro), como
+ * um controle remoto de TV de verdade. Devolve o item atual quando não há lista.
+ */
+private fun zapTarget(current: MediaItem, step: Int, channels: List<MediaItem>): MediaItem {
+    if (channels.size < 2) return current
+    val index = channels.indexOfFirst { it.ref.key == current.ref.key }
+    if (index < 0) return channels.first()
+    val next = (index + step + channels.size) % channels.size
+    return channels[next]
+}
+
 @Composable
 private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) {
     val palette = Ed.palette
@@ -116,6 +128,8 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
     var playerItem by remember { mutableStateOf<MediaItem?>(null) }
     var trailerId by remember { mutableStateOf<String?>(null) }
     var subScreen by remember { mutableStateOf<String?>(null) }
+    // Lista de canais em memória para o zap (◀ ▶ / CH+/CH- no player ao vivo).
+    var channelZapList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
     val current = EdDestination.entries.firstOrNull { it.name == destination } ?: EdDestination.HOME
     val navFocus = remember { FocusRequester() }
@@ -263,6 +277,7 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                 onPlay = { playerItem = it },
                                 onOpenDetails = { detailsItem = it },
                                 onOpenChannel = { playerItem = it },
+                                onChannelsLoaded = { channelZapList = it },
                                 onOpenDestination = { dest ->
                                     when (dest) {
                                         "live" -> destination = EdDestination.LIVE.name
@@ -357,6 +372,8 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                             viewModel = vm,
                             item = item,
                             onBack = { playerItem = null },
+                            onPreviousChannel = { playerItem = zapTarget(item, -1, channelZapList) },
+                            onNextChannel = { playerItem = zapTarget(item, +1, channelZapList) },
                         )
                     }
                 }

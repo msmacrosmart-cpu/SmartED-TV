@@ -39,6 +39,7 @@ class BrazucaCatalog(
     private val sources: SourceRepository,
     private val http: Http,
     private val cache: com.smarted.tv.core.data.db.CacheDao,
+    private val settings: com.smarted.tv.core.data.SettingsStore? = null,
 ) : com.smarted.tv.ui.state.CatalogGateway {
 
     data class Snapshot(
@@ -115,8 +116,15 @@ class BrazucaCatalog(
         _loading.value = true
         _status.value = "Sincronizando fontes…"
         try {
-            val enabled = sources.enabled()
-            sourceUrlsSignature = enabled.joinToString("|") { it.url }
+            // Os três repositórios de conteúdo configurados têm prioridade: cada
+            // um alimenta exclusivamente a sua aba (canais / filmes / séries).
+            val configured = contentSources()
+            // Fontes públicas do indexador continuam valendo como complemento,
+            // mas nunca em detrimento do acervo BR configurado.
+            val enabled = (configured + sources.enabled().filterNot { extra ->
+                configured.any { it.url == extra.url }
+            })
+            sourceUrlsSignature = enabled.joinToString("|") { "${it.kind}:${it.url}" }
             if (enabled.isEmpty()) {
                 _status.value = "Nenhuma fonte habilitada"
                 return@withContext _snapshot.value
@@ -140,9 +148,21 @@ class BrazucaCatalog(
             }
 
             val flat = results.flatten()
-            val live = dedupe(flat.filter { it.kind == MediaKind.LIVE })
-            val movies = dedupe(flat.filter { it.kind == MediaKind.MOVIE })
-            val series = dedupe(flat.filter { it.kind == MediaKind.SERIES })
+
+            // Filtro rigoroso de idioma (requisito de produto): as abas mostram
+            // apenas conteúdo em português. Itens sem evidência são descartados
+            // quando `portugueseOnly` está ligado (padrão).
+            val brOnly = settings?.settings?.portugueseOnly ?: true
+            val accepted = if (brOnly) flat.filter { item -> isPortuguese(item) } else flat
+            filterStats = FilterStats(
+                total = flat.size,
+                accepted = accepted.size,
+                rejected = flat.size - accepted.size,
+            )
+
+            val live = dedupe(accepted.filter { it.kind == MediaKind.LIVE })
+            val movies = dedupe(accepted.filter { it.kind == MediaKind.MOVIE })
+            val series = dedupe(accepted.filter { it.kind == MediaKind.SERIES })
 
             val snapshot = Snapshot(
                 live = live.sortedWith(compareBy({ it.group ?: "~" }, { TextUtils.titleKey(it.title) })),
@@ -156,6 +176,9 @@ class BrazucaCatalog(
             _snapshot.value = snapshot
             _status.value = buildString {
                 append("${snapshot.live.size} canais · ${snapshot.movies.size} filmes · ${snapshot.series.size} séries")
+                if (brOnly && filterStats.rejected > 0) {
+                    append(" · filtro PT-BR: ${filterStats.rejected} descartados")
+                }
                 if (errors.isNotEmpty()) append(" · ${errors.size} fonte(s) com erro")
             }
             persist(snapshot)
@@ -165,16 +188,70 @@ class BrazucaCatalog(
         }
     }
 
+
+    /** Contadores do filtro de idioma, para diagnóstico na UI/Ajustes. */
+    data class FilterStats(val total: Int = 0, val accepted: Int = 0, val rejected: Int = 0)
+
+    /** Cache curto do corpo baixado, para não repetir download da mesma lista. */
+    private val bodyCache = ConcurrentHashMap<String, String>()
+
+    @Volatile
+    var filterStats: FilterStats = FilterStats()
+        private set
+
+    /**
+     * Fontes derivadas dos três repositórios configurados em Ajustes.
+     * Cada URL é lida como M3U; o tipo esperado vem do campo, não do parser,
+     * para que a curadoria do usuário seja respeitada.
+     */
+    private fun contentSources(): List<PublicSource> {
+        val store = settings ?: return emptyList()
+        val current = store.settings
+        fun source(kind: MediaKind, url: String, label: String) = PublicSource(
+            id = "repo-" + kind.name.lowercase(),
+            name = label,
+            url = url,
+            kind = kind,
+            format = com.smarted.tv.core.model.SourceFormat.M3U,
+            priority = 1,
+            enabled = url.isNotBlank(),
+        )
+        return listOf(
+            source(MediaKind.LIVE, current.liveRepoUrl, "Repositório de Canais"),
+            source(MediaKind.MOVIE, current.moviesRepoUrl, "Repositório de Filmes"),
+            source(MediaKind.SERIES, current.seriesRepoUrl, "Repositório de Séries"),
+        ).filter { it.enabled }
+    }
+
+    private fun isPortuguese(item: MediaItem): Boolean =
+        com.smarted.tv.core.util.LanguageFilter.isPortuguese(
+            title = item.title,
+            group = item.group,
+            language = item.language,
+            country = item.country,
+        )
+
     private suspend fun fetchSource(source: PublicSource): List<MediaItem> {
         if (source.format == com.smarted.tv.core.model.SourceFormat.XMLTV) return emptyList()
-        val body = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
-            http.getText(source.url, cacheable = true, timeoutSeconds = 45)
-        } ?: throw IllegalStateException("timeout")
+        // Os três repositórios podem apontar para a mesma URL (ex.: só há uma
+        // lista PT disponível); o corpo é baixado uma vez e reaproveitado.
+        val body = bodyCache[source.url] ?: run {
+            val downloaded = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
+                http.getText(source.url, cacheable = true, timeoutSeconds = 45)
+            } ?: throw IllegalStateException("timeout")
+            bodyCache[source.url] = downloaded
+            downloaded
+        }
         val parsed = M3uParser.parse(body, addonId = ID, defaultKind = source.kind)
+        // Repositórios configurados são escopados: tudo que vem de "Filmes" é
+        // filme, tudo de "Séries" é série, tudo de "Canais" é canal. Sem isso,
+        // um `group-title` como "Cinema" jogaria um canal na aba de filmes.
+        val scoped = source.id.startsWith("repo-")
         val items = parsed.items.map { item ->
             val quality = item.quality ?: M3uParser.inferQuality(item.title)
             item.copy(
                 addonId = ID,
+                kind = if (scoped) source.kind else item.kind,
                 group = item.group ?: source.group ?: source.name,
                 quality = quality,
                 poster = item.poster?.takeIf { it.startsWith("http") },

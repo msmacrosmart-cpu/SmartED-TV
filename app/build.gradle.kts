@@ -77,6 +77,8 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // Interface e formatos 100% em português do Brasil.
+        resourceConfigurations += listOf("pt-rBR", "pt")
     }
 
     packaging {
@@ -132,6 +134,10 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.coil.compose)
+    // Player principal: libVLC (codecs + estabilidade em streams BR).
+    // ExoPlayer (media3) permanece como fallback para telas sem suporte a VLC.
+    implementation(libs.vlc.android)
+
     implementation(libs.io.markwon.core)
     implementation(libs.io.markwon.html)
 

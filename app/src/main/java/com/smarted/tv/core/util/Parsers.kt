@@ -188,6 +188,8 @@ object M3uParser {
                         }
                         val quality = inferQuality(title) ?: inferQuality(pendingGroup ?: "")
                         val logo = attrs["tvg-logo"] ?: attrs["logo"] ?: attrs["tvg-logo-small"]
+                        val language = attrs["tvg-language"] ?: attrs["language"]
+                        val country = attrs["tvg-country"] ?: attrs["country"]
                         val id = attrs["tvg-id"] ?: buildStableId(addonId, kind, title, url)
                         val episodeText = attrs["tvg-name"] ?: title
                         val se = if (kind == MediaKind.SERIES) parseSeasonEpisode(episodeText) else null
@@ -203,6 +205,8 @@ object M3uParser {
                                 tvgId = attrs["tvg-id"],
                                 streamUrl = url,
                                 quality = quality,
+                                language = language,
+                                country = country,
                                 number = se?.second,
                                 ext = url.substringAfterLast('.', "").substringBefore('?').ifBlank { null },
                             ),

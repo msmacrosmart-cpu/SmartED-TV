@@ -3,9 +3,8 @@ package com.smarted.tv.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,10 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -33,6 +35,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +60,8 @@ fun HeroBanner(
     modifier: Modifier = Modifier,
     playFocusRequester: FocusRequester? = null,
     progress: Float? = null,
+    backdrops: List<String> = emptyList(),
+    rotate: Boolean = true,
 ) {
     val palette = Ed.palette
     val type = Ed.type
@@ -64,6 +69,25 @@ fun HeroBanner(
     val playInteraction = edInteraction(onClick = onPlay, focusRequester = playFocusRequester)
     val detailsInteraction = edInteraction(onClick = onDetails)
     val focused = playInteraction.isFocused || detailsInteraction.isFocused
+
+    // Banner dinâmico: alterna entre backdrops do título/relacionados a cada 8s.
+    // O crossfade é feito por alpha animado, sem recompor a imagem inteira.
+    val artPool = remember(item.id, backdrops) {
+        (listOfNotNull(item.backdrop, item.poster) + backdrops).distinct().take(6)
+    }
+    var artIndex by remember(item.id) { mutableIntStateOf(0) }
+    LaunchedEffect(artPool, rotate) {
+        if (!rotate || artPool.size <= 1) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(8_000L)
+            artIndex = (artIndex + 1) % artPool.size
+        }
+    }
+    val artAlpha by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(900, easing = EdEasing),
+        label = "hero-art",
+    )
     val borderAlpha by animateFloatAsState(
         targetValue = if (focused) 1f else 0f,
         animationSpec = tween(200, easing = EdEasing),
@@ -77,12 +101,16 @@ fun HeroBanner(
             .clip(shape)
             .background(palette.surface),
     ) {
-        Artwork(
-            url = item.backdrop ?: item.poster,
-            title = item.title,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
+        androidx.compose.runtime.key(artIndex) {
+            Artwork(
+                url = artPool.getOrNull(artIndex) ?: item.backdrop ?: item.poster,
+                title = item.title,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(alpha = artAlpha),
+                contentScale = ContentScale.Crop,
+            )
+        }
         // escurecimento à esquerda + base (mantém o texto legível sobre qualquer arte)
         Box(
             Modifier
@@ -105,11 +133,13 @@ fun HeroBanner(
                     ),
                 ),
         )
+        // contorno de vidro permanente + anel branco quando em foco
+        Box(Modifier.fillMaxSize().border(1.dp, palette.glassBorder, shape))
         if (borderAlpha > 0f) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .border(3.dp, palette.accent.copy(alpha = borderAlpha), shape),
+                    .border(2.dp, palette.accent.copy(alpha = borderAlpha), shape),
             )
         }
 

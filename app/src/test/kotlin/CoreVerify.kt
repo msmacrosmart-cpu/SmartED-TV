@@ -9,6 +9,8 @@ import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.util.DecodeUtils
 import com.smarted.tv.core.util.M3uParser
 import com.smarted.tv.core.util.SourceDetector
+import com.smarted.tv.core.epg.EpgTimeline
+import com.smarted.tv.core.util.LanguageFilter
 import com.smarted.tv.core.util.TextUtils
 import com.smarted.tv.core.util.XmltvParser
 
@@ -29,6 +31,8 @@ private fun eq(name: String, expected: Any?, actual: Any?) =
     check(name, expected == actual, "esperado=<$expected> obtido=<$actual>")
 
 fun main() {
+    verifyLanguageFilter()
+    verifyEpgTimeline()
     println("== TextUtils ==")
     eq("acentos", "cancao", TextUtils.stripAccents("canção"))
     eq("normalize pontuação", "globo hd", TextUtils.normalize("Globo  HD!!!"))
@@ -194,4 +198,115 @@ fun main() {
     if (failed > 0) {
         throw AssertionError("$failed teste(s) falharam")
     }
+}
+
+// ---------------------------------------------------------------------------
+// Filtro de idioma (separação PT-BR dos repositórios públicos)
+// ---------------------------------------------------------------------------
+
+private fun verifyLanguageFilter() {
+    // Aceita: metadados explícitos
+    check(
+        "pt por tvg-language",
+        LanguageFilter.isPortuguese("Some Channel", language = "pt"),
+    )
+    check(
+        "pt por tvg-country BR",
+        LanguageFilter.isPortuguese("Some Channel", country = "BR"),
+    )
+    // Aceita: marcadores no título
+    check(
+        "pt por DUBLADO no título",
+        LanguageFilter.isPortuguese("Missão Impossível (Dublado)"),
+    )
+    check(
+        "pt por grupo Brasil",
+        LanguageFilter.isPortuguese("Globo SP", group = "Brasil"),
+    )
+    // Rejeita: idioma explícito estrangeiro
+    check(
+        "rejeita tvg-language en",
+        !LanguageFilter.isPortuguese("The Office", language = "en"),
+    )
+    check(
+        "rejeita tvg-country US",
+        !LanguageFilter.isPortuguese("NBC News", country = "US"),
+    )
+    check(
+        "rejeita marcador [EN]",
+        !LanguageFilter.isPortuguese("Breaking News [EN]"),
+    )
+    // Rejeita: título claramente espanhol
+    check(
+        "rejeita título em espanhol",
+        !LanguageFilter.isPortuguese("El Señor de los Cielos"),
+    )
+    // Aceita: título em português sem metadados
+    check(
+        "pt por palavras funcionais",
+        LanguageFilter.isPortuguese("A Guerra dos Mundos"),
+        "verdict=${LanguageFilter.verdict("A Guerra dos Mundos")}",
+    )
+    check(
+        "rejeita título sem evidência",
+        !LanguageFilter.isPortuguese("XYZ"),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Grade do EPG: mínimo de 12 horas contínuas (requisito de produto)
+// ---------------------------------------------------------------------------
+
+private fun verifyEpgTimeline() {
+    val hour = 60L * 60L * 1000L
+    val t0 = 1_700_000_000_000L
+    fun program(title: String, startHour: Int, durationHours: Int) = com.smarted.tv.core.model.EpgProgram(
+        channelId = "globo",
+        title = title,
+        startMs = t0 + startHour * hour,
+        endMs = t0 + (startHour + durationHours) * hour,
+    )
+
+    // Grade com buraco no meio: 0-2h e 6-8h preenchidas.
+    val sparse = listOf(
+        program("Manhã 1", 0, 2),
+        program("Manhã 2", 6, 2),
+    )
+    val padded = EpgTimeline.pad(sparse, t0, t0 + 12 * hour, "globo")
+
+    check("timeline cobre 12h mesmo com lacunas", EpgTimeline.hasMinimumWindow(padded, t0))
+    check(
+        "timeline começa exatamente na janela",
+        padded.first().startMs == t0,
+        "obtido=${padded.first().startMs}",
+    )
+    check(
+        "timeline termina na janela",
+        padded.last().endMs == t0 + 12 * hour,
+        "obtido=${padded.last().endMs}",
+    )
+    check(
+        "lacunas viraram blocos 'Sem informação'",
+        padded.count { it.title == EpgTimeline.GAP_TITLE } >= 2,
+        "blocos=${padded.count { it.title == EpgTimeline.GAP_TITLE }}",
+    )
+    check(
+        "grade preenchida não tem sobreposição",
+        padded.zipWithNext().all { (a, b) -> a.endMs <= b.startMs },
+    )
+    check(
+        "sem duplicar programas reais",
+        padded.count { it.title == "Manhã 1" } == 1,
+    )
+
+    // Grade vazia (canal sem EPG): a régua ainda precisa existir.
+    val empty = EpgTimeline.pad(emptyList(), t0, t0 + 12 * hour, "sbt")
+    check("canal sem grade recebe 12h contínuas", empty.size == 1 && EpgTimeline.hasMinimumWindow(empty, t0))
+
+    // Cobertura efetiva
+    check("cobertura de grade cheia", EpgTimeline.coverageMs(padded) >= 12 * hour - 1)
+    check("cobertura ignora sobreposição", EpgTimeline.coverageMs(listOf(program("A", 0, 3), program("B", 2, 3))) == 5 * hour)
+
+    // Janela mínima de 12h nunca é reduzida
+    check("MIN_HOURS é 12", EpgTimeline.MIN_HOURS == 12)
 }

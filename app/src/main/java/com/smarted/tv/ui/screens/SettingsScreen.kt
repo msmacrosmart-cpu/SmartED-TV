@@ -1,6 +1,7 @@
 package com.smarted.tv.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,10 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.smarted.tv.R
 import com.smarted.tv.core.data.Settings
 import com.smarted.tv.core.data.SettingsStore
 import com.smarted.tv.core.model.MediaKind
@@ -81,8 +85,8 @@ fun SettingsScreen(
         modifier = Modifier.fillMaxSize().background(palette.bg).padding(horizontal = 32.dp, vertical = 18.dp),
     ) {
         ScreenTitle(
-            title = "Ajustes",
-            subtitle = "SmartED TV · Kotlin + Compose",
+            title = stringResource(R.string.settings_title),
+            subtitle = stringResource(R.string.settings_subtitle),
         )
 
         LazyColumn(
@@ -91,7 +95,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             item("group-repo") {
-                SettingsGroup("Repositório de addons") {
+                SettingsGroup(stringResource(R.string.settings_group_addon_repo)) {
                     SettingRow(
                         icon = EdIcons.addon,
                         title = "Trocar / Gerenciar Repositório",
@@ -111,6 +115,43 @@ fun SettingsScreen(
                         title = "Sincronizar repositório agora",
                         value = if (state.busy) "…" else null,
                         onClick = { viewModel.setRepo(state.repoUrl, state.repoName) },
+                    )
+                }
+            }
+
+            item("group-content-repos") {
+                SettingsGroup(stringResource(R.string.settings_group_content_repos)) {
+                    // Cada aba busca no seu próprio repositório — nada de lista única
+                    // misturando idiomas.
+                    RepoField(
+                        icon = EdIcons.live,
+                        title = stringResource(R.string.settings_repo_channels),
+                        hint = stringResource(R.string.settings_repo_channels_hint),
+                        current = state.settings.liveRepoUrl,
+                        onSave = { viewModel.setContentRepo(MediaKind.LIVE, it) },
+                    )
+                    RepoField(
+                        icon = EdIcons.movies,
+                        title = stringResource(R.string.settings_repo_movies),
+                        hint = stringResource(R.string.settings_repo_movies_hint),
+                        current = state.settings.moviesRepoUrl,
+                        onSave = { viewModel.setContentRepo(MediaKind.MOVIE, it) },
+                    )
+                    RepoField(
+                        icon = EdIcons.series,
+                        title = stringResource(R.string.settings_repo_series),
+                        hint = stringResource(R.string.settings_repo_series_hint),
+                        current = state.settings.seriesRepoUrl,
+                        onSave = { viewModel.setContentRepo(MediaKind.SERIES, it) },
+                    )
+                    SettingRow(
+                        icon = EdIcons.language,
+                        title = stringResource(R.string.settings_portuguese_only),
+                        subtitle = "Filtro rigoroso por idioma em todas as abas. " +
+                            "Desligue para ver o catálogo bruto dos repositórios.",
+                        toggle = state.settings.portugueseOnly,
+                        onToggle = { viewModel.togglePortugueseOnly(it) },
+                        onClick = { viewModel.togglePortugueseOnly(!state.settings.portugueseOnly) },
                     )
                 }
             }
@@ -287,7 +328,7 @@ fun SettingsScreen(
                 Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     DividerLine()
                     Text(
-                        text = "SmartED TV 1.0.0 · Brazuca Play 2.4.0 · Addons estilo Kodi",
+                        text = "Smarted TV ${com.smarted.tv.BuildConfig.VERSION_NAME} · addons estilo Kodi",
                         style = type.caption,
                         color = palette.fg3,
                     )
@@ -310,6 +351,83 @@ fun SettingsScreen(
                     .padding(12.dp),
             ) {
                 Text(msg, style = type.bodySmall, color = palette.fg)
+            }
+        }
+    }
+}
+
+/**
+ * Campo de repositório: mostra a URL atual e abre um diálogo de edição.
+ * Um campo por tipo de mídia é o que garante a separação canais/filmes/séries.
+ */
+@Composable
+private fun RepoField(
+    icon: ImageVector,
+    title: String,
+    hint: String,
+    current: String,
+    onSave: (String) -> Unit,
+) {
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember(current) { mutableStateOf(current) }
+
+    SettingRow(
+        icon = icon,
+        title = title,
+        subtitle = hint,
+        value = current.removePrefix("https://").removeSuffix("/").take(42),
+        onClick = {
+            draft = current
+            editing = true
+        },
+    )
+
+    if (editing) {
+        RepoDialog(
+            title = "Repositório de $title",
+            initial = draft,
+            hint = hint,
+            onDismiss = { editing = false },
+            onConfirm = { url ->
+                editing = false
+                if (url.isNotBlank()) onSave(url)
+            },
+        )
+    }
+}
+
+@Composable
+private fun RepoDialog(
+    title: String,
+    initial: String,
+    hint: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val palette = Ed.palette
+    var value by remember { mutableStateOf(initial) }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(palette.surface)
+                .border(1.dp, palette.glassBorder, RoundedCornerShape(18.dp))
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(title, style = Ed.type.title, color = palette.fg)
+            Text(hint, style = Ed.type.caption, color = palette.fg2)
+            androidx.compose.material3.OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.settings_repo_url_label)) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                EdPill(label = "Salvar", onClick = { onConfirm(value.trim()) }, icon = EdIcons.check)
+                EdPill(label = "Cancelar", onClick = onDismiss, icon = EdIcons.close)
             }
         }
     }

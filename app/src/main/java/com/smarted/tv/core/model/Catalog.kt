@@ -56,6 +56,10 @@ data class MediaItem(
     val details: ItemDetails? = null,
     /** Pista de qualidade detectada no nome, ex.: "4K", "1080p", "HD". */
     val quality: String? = null,
+    /** `tvg-language` ou idioma inferido (pt, en, es…). */
+    val language: String? = null,
+    /** `tvg-country` (BR, PT, US…). */
+    val country: String? = null,
     val ext: String? = null,
 ) {
     val ref: ItemRef get() = ItemRef(addonId, kind, id)

@@ -43,6 +43,8 @@ copy() {
 copy core/model/Catalog.kt core/model
 copy core/util/TextUtils.kt core/util
 copy core/util/Parsers.kt core/util
+copy core/util/LanguageFilter.kt core/util
+copy core/epg/EpgTimeline.kt core/epg
 copy core/addons/Addon.kt core/addons
 copy core/addons/KodiRepo.kt core/addons
 

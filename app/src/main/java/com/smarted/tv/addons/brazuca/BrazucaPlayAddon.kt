@@ -39,10 +39,10 @@ class BrazucaPlayAddon(
         name = "Brazuca Play",
         version = "2.4.0",
         summary = "Canais ao vivo, filmes e séries em português",
-        description = "Addon oficial e padrão do SmartED TV. Agrega as fontes do " +
+        description = "Addon nativo do Smarted TV. Agrega as fontes do " +
             "repositório ativo (padrão: vkodi.net/repo), indexa os links, " +
             "resolve EPG por tvg-id e enriquece o catálogo com TMDB.",
-        author = "SmartED TV",
+        author = "Smarted TV",
         icon = "https://vkodi.net/repo/icon.png",
         repoUrl = "https://vkodi.net/repo",
         types = setOf(MediaKind.LIVE, MediaKind.MOVIE, MediaKind.SERIES),

@@ -83,7 +83,7 @@ class AddonManager(
     suspend fun bootstrap() = withContext(Dispatchers.IO) {
         mutex.withLock {
             val configuredUrl = settings.settings.activeRepoUrl.ifBlank { SettingsStore.DEFAULT_REPO_URL }
-            val configuredName = settings.settings.activeRepoName.ifBlank { "Brazuca Play" }
+            val configuredName = settings.settings.activeRepoName.ifBlank { SettingsStore.DEFAULT_REPO_NAME }
 
             var active = repositoryDao.byUrl(configuredUrl)
             if (active == null) {
@@ -226,20 +226,45 @@ class AddonManager(
             } else {
                 KodiRepoParser.parseHtmlIndex(body, repo.url)
             }
-            if (parsed.isNotEmpty()) return parsed
+            val content = parsed.filter { isContentAddon(it) }
+            if (content.isNotEmpty()) return content
         }
         return emptyList()
     }
 
+    /**
+     * Ordem de descoberta. Além do layout clássico (`addons.xml` na raiz),
+     * cobre repositórios do tipo GitHub Pages que guardam os zips em um
+     * subdiretório de versão (ex.: Vikings → `/matrix/`).
+     */
     private fun indexCandidatesFor(repoUrl: String): List<String> {
         val base = repoUrl.trimEnd('/')
-        return listOf(
-            "$base/addons.xml",
-            "$base/repo/addons.xml",
-            "$base/zips/addons.xml",
-            "$base/index.html",
-            "$base/",
-        ).distinct()
+        val subdirs = listOf("matrix", "leia", "omega", "repo", "zips")
+        val candidates = ArrayList<String>()
+        candidates += listOf("$base/addons.xml", "$base/repo/addons.xml", "$base/zips/addons.xml")
+        subdirs.forEach { dir ->
+            candidates += "$base/$dir/addons.xml"
+            candidates += "$base/$dir/"
+        }
+        candidates += "$base/index.html"
+        candidates += "$base/"
+        return candidates.distinct()
+    }
+
+    /**
+     * Zips que são infraestrutura do repositório (o próprio repositório,
+     * módulos de input e wizards de instalação) não são addons de conteúdo.
+     * Sem esse filtro, um repositório como o Vikings devolveria 100+ entradas
+     * de manutenção e o catálogo ficaria poluído.
+     */
+    private fun isContentAddon(info: KodiRepoParser.RepoInfo): Boolean {
+        val id = info.id.lowercase()
+        val maintenance = listOf(
+            ".repo", "repository", "inputstream.", "plugin.program.",
+            "script.module.", "script.skin.", "resource.", "skin.",
+            "service.", "webinterface.", "context.", "plugin.audio.",
+        )
+        return maintenance.none { id.contains(it) }
     }
 
     private fun looksLikeMarkup(body: String): Boolean =
@@ -352,7 +377,7 @@ class AddonManager(
 
     suspend fun ensureDefaultRepository(): Repository = withContext(Dispatchers.IO) {
         repositoryDao.byUrl(SettingsStore.DEFAULT_REPO_URL)?.toDomain()
-            ?: addRepository(SettingsStore.DEFAULT_REPO_URL, "Brazuca Play")
+            ?: addRepository(SettingsStore.DEFAULT_REPO_URL, SettingsStore.DEFAULT_REPO_NAME)
     }
 
     private fun guessRepoName(url: String): String {

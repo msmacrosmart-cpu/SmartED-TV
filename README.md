@@ -189,13 +189,14 @@ compilado e testado de verdade com o compilador Kotlin:
 npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
-./tools/verify-core.sh           # 67 asserções reais (M3U, XMLTV, addons.xml, textos)
-./tools/verify-logic.sh          # typecheck de 28 arquivos (rede, TMDB, EPG, DB, VMs)
-python3 tools/kt-check.mjs       # sintaxe de todos os .kt
+./tools/verify-core.sh           # 87 asserções reais (M3U, XMLTV, EPG 12h, filtro PT-BR, addons.xml, textos)
+./tools/verify-logic.sh          # typecheck de 29 arquivos (rede, TMDB, EPG, DB, VMs)
+node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
 python3 tools/check-compose.py   # lint de padrões Compose
-python3 tools/check-symbols.py    # símbolo usado → import presente
-python3 tools/check-workflow.py   # consistência do próprio CI
+python3 tools/check-symbols.py   # símbolo usado → import presente
+python3 tools/check-workflow.py  # consistência do próprio CI
+python3 tools/check-ptbr.py      # interface 100% pt-BR + R.string existentes
 ```
 
 Todos esses passos rodam no CI antes do build do APK.
@@ -204,6 +205,41 @@ Todos esses passos rodam no CI antes do build do APK.
 
 ## 📄 Fontes de conteúdo
 
-O app **não hospeda mídia**. Ele indexa fontes públicas e o repositório configurado
-pelo usuário. O catálogo embutido usa listas públicas (iptv-org) e o EPG
-`epg.best/brazil.xml` como fallback. Respeite os termos de cada provedor.
+O app **não hospeda mídia**. Ele indexa fontes públicas e os repositórios que o
+usuário configurar. Respeite os termos de cada provedor.
+
+### Três repositórios independentes
+
+Em **Ajustes → Repositórios de conteúdo (PT-BR)** há um campo por tipo de mídia:
+
+| Aba | Padrão | Para que serve |
+| --- | --- | --- |
+| Canais | lista pública BR (iptv-org `countries/br`) | canais abertos, esportes, notícias |
+| Filmes | lista pública PT (iptv-org `languages/por`) | filmes dublados em português |
+| Séries | lista pública PT (iptv-org `languages/por`) | séries dubladas/legendadas |
+
+Cada URL alimenta **somente a sua aba**: o tipo vem do campo, não do nome do
+grupo na lista. Assim um `group-title` "Cinema" não joga canal na aba de filmes.
+
+O repositório de **addons** padrão é o [Vikings](https://vikingskoditeam.github.io)
+(indicado pelo usuário) — um repositório Kodi com addons BR/PT. Ele é catálogo de
+addons, não de streams; por isso as três listas acima continuam sendo M3U.
+
+### Filtro de português
+
+Com **Somente conteúdo em português** ligado (padrão), todo item passa por
+`LanguageFilter`, que aceita o conteúdo por evidência decrescente:
+
+1. `tvg-language` / `tvg-country` explícitos no M3U;
+2. `group-title` nacional (Brasil, Nacional, Dublado…);
+3. marcadores no título (`[BR]`, `(Dublado)`, `PT-BR`…);
+4. palavras funcionais do português no título, desempatando contra espanhol.
+
+O rodapé da Home mostra quantos itens foram descartados pelo filtro.
+
+### EPG
+
+A grade vem de XMLTV e é sempre exibida com **no mínimo 12 horas contínuas**:
+`EpgTimeline.pad` preenche buracos com blocos "Sem informação", então a régua de
+horários nunca quebra. Fontes de fallback gratuitas ficam em
+`app/src/assets/catalog/epg.json` e são registradas automaticamente.

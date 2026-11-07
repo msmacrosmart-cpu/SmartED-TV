@@ -10,7 +10,7 @@ push / tag / PR / manual
         │
         ├─ job "Núcleo"  (rápido, ~40s)
         │    linters: kt-check · refs · imports · compose · symbols · workflow
-        │    testes:  67 asserções dos parsers (kotlinc real)
+        │    testes:  87 asserções dos parsers (kotlinc real)
         │    typecheck de 28 arquivos do núcleo
         │
         └─ job "APK de release"  (~4min)
@@ -50,4 +50,5 @@ Para diagnosticar problemas de R8/minificação, rode manualmente com
 
 ```bash
 python3 tools/check-workflow.py   # outputs, needs, sintaxe dos run:, versões de actions
+python3 tools/check-ptbr.py       # interface 100% pt-BR + todo R.string existe
 ```

@@ -16,9 +16,12 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FastForward
+import androidx.compose.material.icons.outlined.FastRewind
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Forward30
 import androidx.compose.material.icons.outlined.Hd
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
@@ -32,8 +35,11 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Replay10
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -86,4 +92,12 @@ object EdIcons {
     val subtitles: ImageVector = Icons.Outlined.Subtitles
     val mute: ImageVector = Icons.Outlined.VolumeOff
     val volume: ImageVector = Icons.Outlined.VolumeUp
+
+    // --- player: navegação de mídia ---
+    val skipPrev: ImageVector = Icons.Outlined.SkipPrevious
+    val skipNext: ImageVector = Icons.Outlined.SkipNext
+    val back10: ImageVector = Icons.Outlined.Replay10
+    val forward30: ImageVector = Icons.Outlined.Forward30
+    val rewind: ImageVector = Icons.Outlined.FastRewind
+    val fastForward: ImageVector = Icons.Outlined.FastForward
 }

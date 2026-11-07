@@ -59,7 +59,8 @@ jobs:
           python3 tools/check-compose.py
           python3 tools/check-symbols.py
           python3 tools/check-workflow.py
-      - name: Testes do núcleo (67 asserções)
+          python3 tools/check-ptbr.py
+      - name: Testes do núcleo (87 asserções)
         run: bash tools/verify-core.sh
       - name: Typecheck do núcleo não-UI
         run: bash tools/verify-logic.sh

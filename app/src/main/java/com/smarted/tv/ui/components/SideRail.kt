@@ -1,5 +1,6 @@
 package com.smarted.tv.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -23,7 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.smarted.tv.R
 import com.smarted.tv.ui.theme.Ed
 import com.smarted.tv.ui.theme.EdEasing
 
@@ -33,15 +36,19 @@ import com.smarted.tv.ui.theme.EdEasing
  *  - item ativo: pílula `surface-2` + barra de acento à esquerda,
  *  - foco D-pad: preenchimento `surface-3` + anel de acento de 3dp.
  */
-enum class EdDestination(val label: String, val icon: ImageVector, val route: String) {
-    HOME("Início", EdIcons.home, "home"),
-    LIVE("Canais", EdIcons.live, "live"),
-    MOVIES("Filmes", EdIcons.movies, "movies"),
-    SERIES("Séries", EdIcons.series, "series"),
-    GUIDE("Guia", EdIcons.guide, "guide"),
-    SEARCH("Buscar", EdIcons.search, "search"),
-    ADDONS("Addons", EdIcons.addon, "addons"),
-    SETTINGS("Ajustes", EdIcons.settings, "settings"),
+enum class EdDestination(
+    @StringRes val labelRes: Int,
+    val icon: ImageVector,
+    val route: String,
+) {
+    HOME(R.string.nav_home, EdIcons.home, "home"),
+    LIVE(R.string.nav_live, EdIcons.live, "live"),
+    MOVIES(R.string.nav_movies, EdIcons.movies, "movies"),
+    SERIES(R.string.nav_series, EdIcons.series, "series"),
+    GUIDE(R.string.nav_guide, EdIcons.guide, "guide"),
+    SEARCH(R.string.nav_search, EdIcons.search, "search"),
+    ADDONS(R.string.nav_addons, EdIcons.addon, "addons"),
+    SETTINGS(R.string.nav_settings, EdIcons.settings, "settings"),
 }
 
 @Composable
@@ -141,7 +148,7 @@ private fun RailItem(
         ) {
             Icon(
                 imageVector = destination.icon,
-                contentDescription = destination.label,
+                contentDescription = stringResource(destination.labelRes),
                 tint = iconColor,
                 modifier = Modifier.size(if (compact) 21.dp else 23.dp),
             )

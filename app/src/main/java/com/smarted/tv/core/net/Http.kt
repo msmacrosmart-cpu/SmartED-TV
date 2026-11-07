@@ -163,7 +163,7 @@ class Http(
 
     companion object {
         const val DEFAULT_UA =
-            "Mozilla/5.0 (Linux; Android 12; SmartED TV) AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Mozilla/5.0 (Linux; Android 12; Smarted TV) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/120.0.0.0 Safari/537.36 SmartEdTV/1.0"
 
         // Espelhado de BuildConfig.DEBUG sem depender do módulo app.

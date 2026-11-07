@@ -1,5 +1,6 @@
 package com.smarted.tv
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -10,6 +11,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.smarted.tv.ui.SmartEdRoot
+import java.util.Locale
 
 /**
  * Única Activity do app.
@@ -17,8 +19,26 @@ import com.smarted.tv.ui.SmartEdRoot
  * - Orientação travada em `sensorLandscape` no manifest (requisito).
  * - Tela sempre ligada durante a reprodução (FLAG_KEEP_SCREEN_ON).
  * - Modo imersivo (esconde barras), como um media center de TV.
+ * - Idioma fixo em **português do Brasil**: o app é 100% pt-BR por decisão de
+ *   produto. Forçar via `createConfigurationContext` garante que formatação de
+ *   datas/números e qualquer recurso localizado nunca apareçam em inglês,
+ *   mesmo em TV box com o sistema em outro idioma.
  */
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(withPortuguese(newBase))
+    }
+
+    /** Devolve um Context com locale pt-BR fixo. */
+    private fun withPortuguese(base: android.content.Context): android.content.Context {
+        val locale = Locale.forLanguageTag("pt-BR")
+        Locale.setDefault(locale)
+        val config = Configuration(base.resources.configuration)
+        config.setLocale(locale)
+        config.setLayoutDirection(locale)
+        return base.createConfigurationContext(config)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

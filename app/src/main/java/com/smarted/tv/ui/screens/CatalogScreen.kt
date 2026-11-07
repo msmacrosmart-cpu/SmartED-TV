@@ -140,8 +140,8 @@ fun CatalogScreen(
                 state.loading && state.items.isEmpty() -> GridSkeleton()
                 state.items.isEmpty() -> EmptyState(
                     title = "Nada por aqui ainda",
-                    message = "Nenhum item nesta categoria. Sincronize o Brazuca Play em Ajustes " +
-                        "ou escolha outra categoria.",
+                    message = "Nenhum item nesta categoria em português. Confira os repositórios " +
+                        "em Ajustes → Repositórios de conteúdo ou escolha outra categoria.",
                 )
                 kind == MediaKind.LIVE -> LiveList(
                     items = state.items,

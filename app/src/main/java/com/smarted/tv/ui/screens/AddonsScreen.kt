@@ -41,7 +41,7 @@ import com.smarted.tv.ui.theme.Ed
 
 /**
  * Addons instalados no repositório ativo (arquitetura estilo Kodi).
- * O Brazuca Play é nativo, sempre habilitado e não pode ser removido.
+ * O addon nativo é sempre habilitado e não pode ser removido.
  */
 @Composable
 fun AddonsScreen(
@@ -71,7 +71,7 @@ fun AddonsScreen(
         if (state.addons.isEmpty()) {
             EmptyState(
                 title = "Nenhum addon instalado",
-                message = "Sincronize o repositório ativo ou restaure o Brazuca Play em Ajustes → Repositório.",
+                message = "Sincronize o repositório ativo ou restaure o padrão (Vikings) em Ajustes → Repositório.",
                 icon = EdIcons.addon,
             )
         } else {

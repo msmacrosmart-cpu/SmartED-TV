@@ -2,7 +2,7 @@
   "version": 3,
   "updated": "2026-11-07",
   "channel": "stable",
-  "note": "Catálogo de fontes públicas do SmartED TV. Este arquivo é o mesmo consumido pela atualização remota em nuvem (Settings → Indexador → URL do catálogo).",
+  "note": "Catálogo de fontes públicas do Smarted TV. Este arquivo é o mesmo consumido pela atualização remota em nuvem (Ajustes → Indexador → URL do catálogo).",
   "sources": [
     {
       "id": "iptv-org-br",

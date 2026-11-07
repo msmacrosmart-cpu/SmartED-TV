@@ -182,9 +182,41 @@ class EpgService(
         return current to next
     }
 
-    /** Grade completa de um canal para a tela de EPG. */
-    suspend fun timeline(channel: MediaItem, fromMs: Long, hours: Int = 12): List<EpgProgram> =
-        programsFor(channel, fromMs, fromMs + hours * 60L * 60L * 1000L)
+    /**
+     * Grade completa de um canal para a tela de EPG.
+     *
+     * Contrato de produto: a linha do tempo tem **no mínimo 12 horas contínuas**
+     * a partir de agora. Muitas fontes públicas entregam blocos com buracos
+     * (ex.: 18h–20h sem dado). Aqui as lacunas são preenchidas com blocos
+     * sintéticos ("Sem informação") para que a régua de horários nunca quebre
+     * e o usuário consiga navegar/clicar em qualquer ponto da faixa.
+     *
+     * @param hours janela pedida; valores abaixo de 12 são elevados a 12.
+     * @param fillGaps preenche buracos com blocos sintéticos
+     */
+    suspend fun timeline(
+        channel: MediaItem,
+        fromMs: Long,
+        hours: Int = 12,
+        fillGaps: Boolean = true,
+    ): List<EpgProgram> {
+        val span = hours.coerceAtLeast(EpgTimeline.MIN_HOURS)
+        val toMs = fromMs + span * 60L * 60L * 1000L
+        val real = programsFor(channel, fromMs, toMs)
+        if (!fillGaps) return real
+        return padTimeline(channel, real, fromMs, toMs)
+    }
+
+    /**
+     * Completa a grade com blocos de "Sem informação" nos vãos entre programas.
+     * Delega para [EpgTimeline] (lógica pura, testada no `verify-core`).
+     */
+    fun padTimeline(
+        channel: MediaItem,
+        programs: List<EpgProgram>,
+        fromMs: Long,
+        toMs: Long,
+    ): List<EpgProgram> = EpgTimeline.pad(programs, fromMs, toMs, channel.tvgId ?: channel.id)
 
     suspend fun sources(): List<EpgSourceEntity> = withContext(Dispatchers.IO) { dao.enabledSources() }
 

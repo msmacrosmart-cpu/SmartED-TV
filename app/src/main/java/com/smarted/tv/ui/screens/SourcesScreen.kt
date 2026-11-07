@@ -216,7 +216,7 @@ private fun SourceRow(
         }
         if (source.lastCheckedMs > 0) {
             Text(
-                text = if (source.healthy) "OK" else "falha",
+                text = if (source.healthy) "Disponível" else "Falhou",
                 style = type.label,
                 color = if (source.healthy) palette.ok else palette.bad,
             )
@@ -315,13 +315,15 @@ fun EpgScreen(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(source.label, style = type.rowTitle, color = palette.fg, maxLines = 1)
                     Text(source.url, style = type.caption, color = palette.fg3, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (source.programCount > 0) {
-                        Text(
-                            "${source.channelCount} canais · ${source.programCount} programas",
-                            style = type.caption,
-                            color = palette.fg3,
-                        )
-                    }
+                    Text(
+                        text = if (source.programCount > 0) {
+                            "${source.channelCount} canais · ${source.programCount} programas · " + epgStatusLabel(source.status)
+                        } else {
+                            epgStatusLabel(source.status)
+                        },
+                        style = type.caption,
+                        color = palette.fg3,
+                    )
                 }
                 EdChip(label = "Remover", selected = false, onClick = { viewModel.removeEpgSource(source.url) })
             }
@@ -362,4 +364,13 @@ fun EpgScreen(
             EdSecondaryButton(label = "Voltar", onClick = onBack, icon = EdIcons.back)
         }
     }
+}
+
+/** Rótulo em português para o estado de uma fonte de EPG. */
+private fun epgStatusLabel(status: String?): String = when (status) {
+    "OK" -> "grade disponível"
+    "EMPTY" -> "sem programas"
+    "ERROR" -> "falhou ao carregar"
+    "UNKNOWN", null -> "aguardando sincronização"
+    else -> "aguardando sincronização"
 }

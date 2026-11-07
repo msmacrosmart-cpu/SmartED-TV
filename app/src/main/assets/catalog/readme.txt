@@ -1,1 +1,1 @@
-catálogo de fontes e repositórios do SmartED TV
+catálogo de fontes e repositórios do Smarted TV

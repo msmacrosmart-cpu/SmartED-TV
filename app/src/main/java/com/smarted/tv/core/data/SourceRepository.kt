@@ -53,21 +53,50 @@ class SourceRepository(
         }
     }
 
+    /**
+     * Garante que o EPG tenha fontes. Registra a padrão **e** todas as fontes
+     * gratuitas de fallback de `assets/catalog/epg.json` — assim, se a grade
+     * principal não responder (comum fora do ar), o guia ainda carrega de uma
+     * alternativa e o usuário continua vendo 12h de programação.
+     */
     suspend fun ensureEpgSource(daoEpg: com.smarted.tv.core.data.db.EpgDao, defaultUrl: String) {
         withContext(Dispatchers.IO) {
-            val existing = daoEpg.source(defaultUrl)
-            if (existing == null) {
-                daoEpg.upsertSource(
-                    com.smarted.tv.core.data.db.EpgSourceEntity(
-                        url = defaultUrl,
-                        label = "EPG Brasil (padrão)",
-                        enabled = true,
-                        priority = 10,
-                        status = "UNKNOWN",
-                        fromAddonId = "brazuca.play",
-                    ),
-                )
+            val entries = LinkedHashMap<String, Pair<String, Int>>()
+            entries[defaultUrl] = "EPG Brasil (padrão)" to 10
+            readEpgSources().forEach { (url, label, priority) ->
+                if (url !in entries) entries[url] = label to priority
             }
+            entries.forEach { (url, pair) ->
+                if (daoEpg.source(url) == null) {
+                    daoEpg.upsertSource(
+                        com.smarted.tv.core.data.db.EpgSourceEntity(
+                            url = url,
+                            label = pair.first,
+                            enabled = true,
+                            priority = pair.second,
+                            status = "UNKNOWN",
+                            fromAddonId = "brazuca.play",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Lê `assets/catalog/epg.json` → (url, label, prioridade). */
+    fun readEpgSources(): List<Triple<String, String, Int>> {
+        val raw = assets.read("catalog/epg.json") ?: return emptyList()
+        return try {
+            val root = json.parseToJsonElement(raw).jsonObject
+            root["sources"]?.jsonArray?.mapNotNull { el ->
+                val o = el.jsonObject
+                val url = o["url"]?.jsonPrimitive?.content?.takeIf { it.startsWith("http") } ?: return@mapNotNull null
+                val label = o["label"]?.jsonPrimitive?.content ?: url.substringAfterLast('/')
+                val priority = o["priority"]?.jsonPrimitive?.intOrNull ?: 100
+                Triple(url, label, priority)
+            } ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 

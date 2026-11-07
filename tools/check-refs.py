@@ -104,6 +104,9 @@ def main():
             if not fq.startswith("com.smarted."):
                 continue
             last = fq.split(".")[-1]
+            # `R` e `BuildConfig` são gerados pelo AGP, não existem no fonte.
+            if last in ("R", "BuildConfig"):
+                continue
             if last in all_names or last == "*":
                 continue
             # pode ser pacote

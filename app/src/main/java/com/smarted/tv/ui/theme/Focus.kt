@@ -34,9 +34,24 @@ fun Modifier.edFocusRing(
     focused: Boolean,
     shape: Shape,
     color: Color = EdColors.Accent,
-    width: Dp = 3.dp,
+    width: Dp = 2.dp,
 ): Modifier = if (focused) {
     this.border(BorderStroke(width, color), shape)
+} else {
+    this
+}
+
+/**
+ * Anel de foco + halo externo — o realce branco do D-pad sobre imagens escuras.
+ * O halo é um segundo contorno translúcido por dentro do card, garantindo
+ * visibilidade mesmo quando a arte por baixo é clara.
+ */
+fun Modifier.edFocusGlow(
+    focused: Boolean,
+    shape: Shape,
+    color: Color = EdColors.Accent,
+): Modifier = if (focused) {
+    this.border(BorderStroke(2.dp, color), shape)
 } else {
     this
 }
@@ -49,7 +64,7 @@ fun Modifier.edFocusSurface(
 ): Modifier = if (focused) {
     this
         .background(palette.surface3, shape)
-        .border(BorderStroke(3.dp, palette.accent), shape)
+        .border(BorderStroke(2.dp, palette.accent), shape)
 } else {
     this
 }

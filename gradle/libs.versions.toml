@@ -15,6 +15,7 @@ media3 = "1.5.0"
 coil = "2.7.0"
 datastore = "1.1.1"
 markwon = "4.6.2"
+libvlc = "3.5.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +48,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 io-markwon-core = { group = "io.noties.markwon", name = "core", version.ref = "markwon" }
 io-markwon-html = { group = "io.noties.markwon", name = "html", version.ref = "markwon" }
+vlc-android = { group = "org.videolan.android", name = "libvlc-all", version.ref = "libvlc" }
 junit = { group = "junit", name = "junit", version = "4.13.2" }
 kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
 

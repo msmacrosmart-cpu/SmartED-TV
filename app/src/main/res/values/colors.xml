@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ed_bg">#FF0B0F14</color>
-    <color name="ed_accent">#FFEC92E5</color>
-    <color name="ed_surface">#FF151A1F</color>
-    <color name="ed_fg">#FFF3F5F8</color>
+    <!-- Fundação neutra. O acento da interface é BRANCO PURO (#FFFFFF). -->
+    <color name="ed_bg">#FF0A0C10</color>
+    <color name="ed_accent">#FFFFFFFF</color>
+    <color name="ed_surface">#FF12151B</color>
+    <color name="ed_surface2">#FF1A1E26</color>
+    <color name="ed_fg">#FFF7F8FA</color>
+    <color name="ed_fg2">#FFAFB6C0</color>
+    <color name="ed_fg3">#FF77808D</color>
+    <color name="ed_glass">#14FFFFFF</color>
+    <color name="ed_line">#FF313845</color>
+    <color name="ed_live">#FFE5484D</color>
 </resources>

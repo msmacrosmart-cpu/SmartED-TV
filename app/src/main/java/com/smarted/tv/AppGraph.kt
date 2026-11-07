@@ -51,6 +51,7 @@ class AppGraph(context: Context) : com.smarted.tv.ui.state.AppServices {
         sources = sources,
         http = http,
         cache = db.cacheDao(),
+        settings = settings,
     )
 
     override val trailerFinder = com.smarted.tv.core.trailer.TrailerFinder(http)
@@ -93,7 +94,7 @@ class AppGraph(context: Context) : com.smarted.tv.ui.state.AppServices {
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
-    private val _bootMessage = MutableStateFlow("Iniciando SmartED TV…")
+    private val _bootMessage = MutableStateFlow("Iniciando o Smarted TV…")
     val bootMessage: StateFlow<String> = _bootMessage.asStateFlow()
 
     /**

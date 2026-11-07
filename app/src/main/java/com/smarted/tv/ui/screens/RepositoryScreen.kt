@@ -56,7 +56,7 @@ import com.smarted.tv.ui.theme.Ed
  * - Permite trocar com um clique (grava em SharedPreferences + Room e já
  *   sincroniza em background).
  * - Permite adicionar um repositório por URL e remover os não-ativos.
- * - Sempre abre com o Brazuca Play disponível como padrão.
+ * - Sempre abre com o repositório Vikings disponível como padrão.
  */
 @Composable
 fun RepositoryScreen(
@@ -132,7 +132,7 @@ fun RepositoryScreen(
             item("empty") {
                 EmptyState(
                     title = "Nenhum repositório cadastrado",
-                    message = "Adicione uma URL abaixo. O Brazuca Play já vem embutido como padrão.",
+                    message = "Adicione uma URL abaixo. O repositório Vikings já vem embutido como padrão.",
                     icon = EdIcons.cloud,
                 )
             }
@@ -183,12 +183,12 @@ fun RepositoryScreen(
                         },
                     )
                     EdSecondaryButton(
-                        label = "Usar Brazuca Play (padrão)",
+                        label = "Usar Vikings (padrão)",
                         icon = EdIcons.cloud,
                         onClick = {
                             val defaultUrl = SettingsStore.DEFAULT_REPO_URL
-                            addonsViewModel.switchRepository(defaultUrl, "Brazuca Play")
-                            settingsViewModel.setRepo(defaultUrl, "Brazuca Play")
+                            addonsViewModel.switchRepository(defaultUrl, SettingsStore.DEFAULT_REPO_NAME)
+                            settingsViewModel.setRepo(defaultUrl, SettingsStore.DEFAULT_REPO_NAME)
                             message = "Repositório padrão restaurado"
                         },
                     )
@@ -306,10 +306,11 @@ private fun RepositoryRow(
                 if (repo.isDefault) EdBadge("PADRÃO", palette.accent, filled = true)
                 EdBadge(
                     text = when (repo.status.name) {
-                        "ONLINE" -> "ONLINE"
-                        "OFFLINE" -> "OFFLINE"
-                        "SYNCING" -> "SINCronizando"
-                        else -> repo.status.name
+                        "ONLINE" -> "Online"
+                        "OFFLINE" -> "Offline"
+                        "SYNCING" -> "Sincronizando"
+                        "UNKNOWN" -> "Não sincronizado"
+                        else -> "Desconhecido"
                     },
                     color = when (repo.status.name) {
                         "ONLINE" -> palette.ok

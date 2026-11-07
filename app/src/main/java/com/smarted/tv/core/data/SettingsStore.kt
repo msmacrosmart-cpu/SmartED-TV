@@ -25,12 +25,16 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
 
     private fun readAll(): Settings = Settings(
         activeRepoUrl = prefs.getString(KEY_REPO_URL, DEFAULT_REPO_URL) ?: DEFAULT_REPO_URL,
-        activeRepoName = prefs.getString(KEY_REPO_NAME, "Brazuca Play") ?: "Brazuca Play",
+        activeRepoName = prefs.getString(KEY_REPO_NAME, DEFAULT_REPO_NAME) ?: DEFAULT_REPO_NAME,
+        liveRepoUrl = prefs.getString(KEY_REPO_LIVE, DEFAULT_LIVE_REPO) ?: DEFAULT_LIVE_REPO,
+        moviesRepoUrl = prefs.getString(KEY_REPO_MOVIES, DEFAULT_MOVIES_REPO) ?: DEFAULT_MOVIES_REPO,
+        seriesRepoUrl = prefs.getString(KEY_REPO_SERIES, DEFAULT_SERIES_REPO) ?: DEFAULT_SERIES_REPO,
+        portugueseOnly = prefs.getBoolean(KEY_BR_ONLY, true),
         brazucaEnabled = prefs.getBoolean(KEY_BRAZUCA_ENABLED, true),
         tmdbKey = prefs.getString(KEY_TMDB_KEY, "") ?: "",
         tmdbLanguage = prefs.getString(KEY_TMDB_LANG, "pt-BR") ?: "pt-BR",
         themeDark = prefs.getBoolean(KEY_THEME_DARK, true),
-        accentId = prefs.getString(KEY_ACCENT, "fuchsia") ?: "fuchsia",
+        accentId = prefs.getString(KEY_ACCENT, "white") ?: "white",
         fontScale = prefs.getFloat(KEY_FONT_SCALE, 1f),
         overscanPercent = prefs.getFloat(KEY_OVERSCAN, 1.5f),
         epgUrl = prefs.getString(KEY_EPG_URL, DEFAULT_EPG_URL) ?: DEFAULT_EPG_URL,
@@ -61,10 +65,34 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
     override fun setRepository(url: String, name: String) =
         update { it.copy(activeRepoUrl = url.trim(), activeRepoName = name.trim()) }
 
+    /** Grava a URL de um dos três repositórios de conteúdo (LIVE/MOVIE/SERIES). */
+    override fun setContentRepository(kind: com.smarted.tv.core.model.MediaKind, url: String) {
+        val normalized = url.trim().ifBlank { return }
+        update {
+            when (kind) {
+                com.smarted.tv.core.model.MediaKind.LIVE -> it.copy(liveRepoUrl = normalized)
+                com.smarted.tv.core.model.MediaKind.MOVIE -> it.copy(moviesRepoUrl = normalized)
+                com.smarted.tv.core.model.MediaKind.SERIES -> it.copy(seriesRepoUrl = normalized)
+                else -> it
+            }
+        }
+    }
+
+    /** Fontes do catálogo com base nos três repositórios configurados. */
+    fun contentRepositories(): List<Pair<com.smarted.tv.core.model.MediaKind, String>> = listOf(
+        com.smarted.tv.core.model.MediaKind.LIVE to settings.liveRepoUrl,
+        com.smarted.tv.core.model.MediaKind.MOVIE to settings.moviesRepoUrl,
+        com.smarted.tv.core.model.MediaKind.SERIES to settings.seriesRepoUrl,
+    )
+
     private fun write(s: Settings) {
         prefs.edit()
             .putString(KEY_REPO_URL, s.activeRepoUrl)
             .putString(KEY_REPO_NAME, s.activeRepoName)
+            .putString(KEY_REPO_LIVE, s.liveRepoUrl)
+            .putString(KEY_REPO_MOVIES, s.moviesRepoUrl)
+            .putString(KEY_REPO_SERIES, s.seriesRepoUrl)
+            .putBoolean(KEY_BR_ONLY, s.portugueseOnly)
             .putBoolean(KEY_BRAZUCA_ENABLED, s.brazucaEnabled)
             .putString(KEY_TMDB_KEY, s.tmdbKey)
             .putString(KEY_TMDB_LANG, s.tmdbLanguage)
@@ -100,11 +128,36 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
     companion object {
         private const val PREFS = "smarted_settings"
 
-        const val DEFAULT_REPO_URL = "https://vkodi.net/repo"
+        /**
+         * Repositório de addons padrão.
+         *
+         * Vikings Koditeam: repositório Kodi com addons em português (BR/PT),
+         * indicado pelo usuário. É catálogo de **addons**, não lista M3U — por
+         * isso os três repositórios de conteúdo abaixo continuam apontando para
+         * listas públicas, e o Vikings entra como fonte de addons/curadoria.
+         */
+        const val DEFAULT_REPO_URL = "https://vikingskoditeam.github.io"
+        const val DEFAULT_REPO_NAME = "Vikings"
+
+        // --- Três repositórios de conteúdo independentes (foco BR) ---
+        // Canais: lista pública brasileira (canais abertos, esportes, notícias).
+        const val DEFAULT_LIVE_REPO = "https://iptv-org.github.io/iptv/countries/br.m3u"
+        // Filmes: catálogo público em português (dublados/legendados PT-BR).
+        const val DEFAULT_MOVIES_REPO = "https://iptv-org.github.io/iptv/languages/por.m3u"
+        // Séries: catálogo público em português.
+        const val DEFAULT_SERIES_REPO = "https://iptv-org.github.io/iptv/languages/por.m3u"
+
         const val DEFAULT_EPG_URL = "https://epg.best/brazil.xml"
+
+        /** Mínimo de horas de grade exibidas no guia (requisito de produto). */
+        const val EPG_MIN_HOURS = 12
 
         private const val KEY_REPO_URL = "repo.url"
         private const val KEY_REPO_NAME = "repo.name"
+        private const val KEY_REPO_LIVE = "content.repo.live"
+        private const val KEY_REPO_MOVIES = "content.repo.movies"
+        private const val KEY_REPO_SERIES = "content.repo.series"
+        private const val KEY_BR_ONLY = "content.brOnly"
         private const val KEY_BRAZUCA_ENABLED = "brazuca.enabled"
         private const val KEY_TMDB_KEY = "tmdb.key"
         private const val KEY_TMDB_LANG = "tmdb.lang"
@@ -135,12 +188,17 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
 /** Snapshot imutável das configurações. */
 data class Settings(
     val activeRepoUrl: String = SettingsStore.DEFAULT_REPO_URL,
-    val activeRepoName: String = "Brazuca Play",
+    val activeRepoName: String = SettingsStore.DEFAULT_REPO_NAME,
+    // --- repositórios de conteúdo dedicados (BR) ---
+    val liveRepoUrl: String = SettingsStore.DEFAULT_LIVE_REPO,
+    val moviesRepoUrl: String = SettingsStore.DEFAULT_MOVIES_REPO,
+    val seriesRepoUrl: String = SettingsStore.DEFAULT_SERIES_REPO,
+    val portugueseOnly: Boolean = true,
     val brazucaEnabled: Boolean = true,
     val tmdbKey: String = "",
     val tmdbLanguage: String = "pt-BR",
     val themeDark: Boolean = true,
-    val accentId: String = "fuchsia",
+    val accentId: String = "white",
     val fontScale: Float = 1f,
     val overscanPercent: Float = 1.5f,
     val epgUrl: String = SettingsStore.DEFAULT_EPG_URL,

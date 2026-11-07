@@ -26,43 +26,52 @@ import androidx.compose.ui.unit.sp
  * de OKLCH para sRGB para que o resultado em Compose seja idêntico ao original.
  */
 object EdColors {
-    // superfícies (tema escuro — padrão de um media center)
-    val Bg = Color(0xFF0B0F14)
-    val Surface = Color(0xFF151A1F)
-    val Surface2 = Color(0xFF21262C)
-    val Surface3 = Color(0xFF2E333A)
-    val Line = Color(0xFF33383F)
-    val LineSoft = Color(0xFF22272D)
+    // ---- fundação escura (base das camadas de vidro) ----
+    val Bg = Color(0xFF0A0C10)
+    val BgDeep = Color(0xFF06080B)
+
+    // ---- superfícies (glassmorphism: mais claras e translúcidas em camadas) ----
+    val Surface = Color(0xFF12151B)
+    val Surface2 = Color(0xFF1A1E26)
+    val Surface3 = Color(0xFF252B35)
+    val Line = Color(0xFF313845)
+    val LineSoft = Color(0xFF20252E)
+
+    // vidro: preenchimentos translúcidos para empilhar sobre backdrops
+    val Glass = Color(0x14FFFFFF)      // 8%  — cartões sobre imagem
+    val GlassStrong = Color(0x1FFFFFFF) // 12% — painéis/barras
+    val GlassBorder = Color(0x1AFFFFFF) // 10% — contorno de 1px
+    val GlassBorderStrong = Color(0x33FFFFFF)
 
     // primeiro plano
-    val Fg = Color(0xFFF3F5F8)
-    val Fg2 = Color(0xFFB2B8BE)
-    val Fg3 = Color(0xFF7B8187)
+    val Fg = Color(0xFFF7F8FA)
+    val Fg2 = Color(0xFFAFB6C0)
+    val Fg3 = Color(0xFF77808D)
 
-    // acento único (fúcsia suave)
-    val Accent = Color(0xFFEC92E5)
-    val AccentSoft = Color(0x2EEC92E5)
-    val OnAccent = Color(0xFF0B0F14)
+    // ---- acento único: BRANCO PURO (foco/seleção de D-pad) ----
+    val Accent = Color(0xFFFFFFFF)
+    val AccentSoft = Color(0x1FFFFFFF)
+    val OnAccent = Color(0xFF0A0C10)
 
     // estados
-    val Ok = Color(0xFF65D49E)
-    val Warn = Color(0xFFF7C15F)
-    val Bad = Color(0xFFFF756F)
+    val Ok = Color(0xFF5FD3A0)
+    val Warn = Color(0xFFF2C14E)
+    val Bad = Color(0xFFF0736E)
 
     // tons de imagem
-    val Scrim = Color(0xE60B0F14)
-    val ScrimSoft = Color(0x990B0F14)
+    val Scrim = Color(0xE60A0C10)
+    val ScrimSoft = Color(0x990A0C10)
 
-    // tema claro (o app abre escuro; a opção existe para paridade com a referência)
-    val LightBg = Color(0xFFF2DFF0)
-    val LightSurface = Color(0xFFFAF5F9)
-    val LightSurface2 = Color(0xFFE9DBE7)
-    val LightSurface3 = Color(0xFFDFCDDC)
-    val LightLine = Color(0xFFCDB6C9)
-    val LightFg = Color(0xFF241722)
-    val LightFg2 = Color(0xFF6B5A68)
-    val LightFg3 = Color(0xFF7C6C79)
-    val LightAccent = Color(0xFFC21FAB)
+    // tema claro (secundário; o app abre escuro)
+    val LightBg = Color(0xFFF4F5F7)
+    val LightSurface = Color(0xFFFFFFFF)
+    val LightSurface2 = Color(0xFFEBEDF1)
+    val LightSurface3 = Color(0xFFDFE3E9)
+    val LightLine = Color(0xFFC9CFD8)
+    val LightFg = Color(0xFF12151B)
+    val LightFg2 = Color(0xFF5A6270)
+    val LightFg3 = Color(0xFF6B7280)
+    val LightAccent = Color(0xFF12151B)
 }
 
 /** Paletas de acento suportadas (idênticas às da referência). */
@@ -77,22 +86,20 @@ data class AccentSwatch(
 )
 
 object Accents {
+    /**
+     * O foco do D-pad é BRANCO PURO por decisão de produto. Mantemos apenas
+     * variações neutras para não introduzir matiz na interface.
+     */
     val all = listOf(
-        AccentSwatch("fuchsia", "Fúcsia", Color(0xFFEC92E5), Color(0xFFC21FAB)),
-        AccentSwatch("rose", "Rosé", Color(0xFFFF8D8F), Color(0xFFC21F41)),
-        AccentSwatch("ember", "Âmbar", Color(0xFFFF9B50), Color(0xFFC25212)),
-        AccentSwatch("emerald", "Esmeralda", Color(0xFF4AD496), Color(0xFF12804F)),
-        AccentSwatch("cyan", "Ciano", Color(0xFF00D0EC), Color(0xFF00738A)),
-        AccentSwatch("blue", "Azul", Color(0xFF65BDFF), Color(0xFF1667A8)),
-        AccentSwatch("violet", "Violeta", Color(0xFFBFA2FF), Color(0xFF5B32B8)),
-        AccentSwatch("gold", "Ouro", Color(0xFFFDC436), Color(0xFF8A6100), Color(0xFF0B0F14), Color(0xFF0B0F14)),
-        AccentSwatch("lime", "Lima", Color(0xFF98DC38), Color(0xFF4B7A00), Color(0xFF0B0F14), Color(0xFFFFFFFF)),
-        AccentSwatch("teal", "Verde-água", Color(0xFF37D8C9), Color(0xFF0A7A72), Color(0xFF0B0F14), Color.White),
-        AccentSwatch("silver", "Prata", Color(0xFFBABEC4), Color(0xFF5A606A), Color(0xFF0B0F14), Color.White),
-        AccentSwatch("white", "Branco", Color(0xFFF5F5F5), Color(0xFF3B3B3B), Color(0xFF0B0F14), Color.White),
+        AccentSwatch("white", "Branco", Color(0xFFFFFFFF), Color(0xFF12151B)),
+        AccentSwatch("silver", "Prata", Color(0xFFE6E9EE), Color(0xFF2B3038)),
+        AccentSwatch("ash", "Cinza", Color(0xFFC3C9D2), Color(0xFF3A4048)),
     )
 
     fun byId(id: String?): AccentSwatch = all.firstOrNull { it.id == id } ?: all.first()
+
+    /** Acento efetivo: branco. Ignora configuração antiga com matiz. */
+    val Focus: Color = EdColors.Accent
 }
 
 /** Escalas de espaçamento, raios e tipos do design de referência. */
@@ -135,6 +142,11 @@ data class EdPalette(
     val ok: Color,
     val warn: Color,
     val bad: Color,
+    // ---- glassmorphism ----
+    val glass: Color = Color(0x14FFFFFF),
+    val glassStrong: Color = Color(0x1FFFFFFF),
+    val glassBorder: Color = Color(0x1AFFFFFF),
+    val glassHighlight: Color = Color(0x0DFFFFFF),
 )
 
 fun paletteFor(dark: Boolean, accent: AccentSwatch): EdPalette = if (dark) {
@@ -149,9 +161,10 @@ fun paletteFor(dark: Boolean, accent: AccentSwatch): EdPalette = if (dark) {
         fg = EdColors.Fg,
         fg2 = EdColors.Fg2,
         fg3 = EdColors.Fg3,
-        accent = accent.dark,
-        accentSoft = accent.dark.copy(alpha = 0.18f),
-        onAccent = accent.onAccentDark,
+        // foco/seleção é sempre branco puro, independente do swatch
+        accent = EdColors.Accent,
+        accentSoft = EdColors.AccentSoft,
+        onAccent = EdColors.OnAccent,
         ok = EdColors.Ok,
         warn = EdColors.Warn,
         bad = EdColors.Bad,
@@ -168,12 +181,12 @@ fun paletteFor(dark: Boolean, accent: AccentSwatch): EdPalette = if (dark) {
         fg = EdColors.LightFg,
         fg2 = EdColors.LightFg2,
         fg3 = EdColors.LightFg3,
-        accent = accent.light,
-        accentSoft = accent.light.copy(alpha = 0.14f),
-        onAccent = accent.onAccentLight,
+        accent = EdColors.LightAccent,
+        accentSoft = EdColors.LightAccent.copy(alpha = 0.14f),
+        onAccent = Color.White,
         ok = Color(0xFF1D7A50),
-        warn = Color(0xFF92600A),
-        bad = Color(0xFFB32E28),
+        warn = Color(0xFF8A5A08),
+        bad = Color(0xFFB3352F),
     )
 }
 
@@ -282,7 +295,7 @@ object EdShapes {
 @Composable
 fun SmartEdTheme(
     darkTheme: Boolean = true,
-    accentId: String? = "fuchsia",
+    accentId: String? = "white",
     fontScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {

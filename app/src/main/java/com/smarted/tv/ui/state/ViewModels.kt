@@ -41,8 +41,15 @@ data class HomeUiState(
     val hero: MediaItem? = null,
     val heroEyebrow: String = "Destaque",
     val heroProgress: Float? = null,
+    val heroBackdrops: List<String> = emptyList(),
     val continueWatching: List<WatchProgress> = emptyList(),
     val favorites: List<MediaItem> = emptyList(),
+    /** Top 10 filmes por nota (votos ponderados). */
+    val topMovies: List<MediaItem> = emptyList(),
+    /** Top 10 séries por nota. */
+    val topSeries: List<MediaItem> = emptyList(),
+    /** Canais marcados como favorito pelo usuário. */
+    val favoriteChannels: List<MediaItem> = emptyList(),
     val channelRows: List<Pair<String, List<MediaItem>>> = emptyList(),
     val movies: List<MediaItem> = emptyList(),
     val series: List<MediaItem> = emptyList(),
@@ -73,7 +80,10 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
         }
         viewModelScope.launch {
             graph.library.observeFavorites().collect { favs ->
-                _state.value = _state.value.copy(favorites = favs)
+                _state.value = _state.value.copy(
+                    favorites = favs,
+                    favoriteChannels = favs.filter { it.kind == MediaKind.LIVE },
+                )
             }
         }
         viewModelScope.launch {
@@ -98,6 +108,7 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
     }
 
     private fun applySnapshot(snap: CatalogSnapshot) {
+        // O hero dá preferência a itens com backdrop: o banner é uma arte larga.
         val hero = pickHero(snap)
         val channelRows = snap.live.groupBy { it.group ?: "Sem categoria" }
             .entries
@@ -115,6 +126,10 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
             },
             continueWatching = _state.value.continueWatching,
             channelRows = channelRows,
+            heroBackdrops = hero?.let { backdropsFor(it, snap) } ?: _state.value.heroBackdrops,
+            topMovies = topRated(snap.movies, 10),
+            topSeries = topRated(snap.series, 10),
+            favoriteChannels = _state.value.favoriteChannels,
             movies = snap.movies.take(30),
             series = snap.series.take(30),
             liveCount = snap.live.size,
@@ -128,10 +143,37 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
         startEpgTicker()
     }
 
+    /**
+     * Ranking dos "Top 10": usa a nota quando existe; sem nota, cai para uma
+     * pontuação de popularidade estável (ano + presença de arte) para que a
+     * lista nunca fique vazia nem mude de ordem a cada atualização.
+     */
+    private fun topRated(items: List<MediaItem>, limit: Int): List<MediaItem> = items
+        .sortedWith(
+            compareByDescending<MediaItem> { it.rating ?: 0.0 }
+                .thenByDescending { it.details?.votes ?: 0 }
+                .thenByDescending { it.year ?: 0 }
+                .thenByDescending { (if (it.backdrop != null) 1 else 0) + (if (it.poster != null) 1 else 0) }
+                .thenBy { TextUtils.titleKey(it.title) },
+        )
+        .take(limit)
+
     private fun pickHero(snap: CatalogSnapshot): MediaItem? {
+        // Banner precisa de arte larga: backdrop tem prioridade sobre poster.
+        snap.movies.firstOrNull { it.backdrop != null }?.let { return it }
+        snap.series.firstOrNull { it.backdrop != null }?.let { return it }
+        snap.live.firstOrNull { it.backdrop != null }?.let { return it }
         snap.movies.firstOrNull { it.poster != null }?.let { return it }
         snap.series.firstOrNull { it.poster != null }?.let { return it }
         return snap.live.firstOrNull { it.poster != null } ?: snap.live.firstOrNull()
+    }
+
+    /** Backdrops para o banner rotativo (hero + vizinhos com arte larga). */
+    private fun backdropsFor(hero: MediaItem, snap: CatalogSnapshot): List<String> {
+        val pool = (listOf(hero) + snap.movies + snap.series + snap.live)
+            .mapNotNull { it.backdrop ?: it.poster }
+            .distinct()
+        return pool.take(6)
     }
 
     private fun loadHeroExtras(hero: MediaItem) {
@@ -600,8 +642,9 @@ class GuideViewModel(private val graph: AppServices) : ViewModel() {
     fun selectChannel(channel: MediaItem) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
+            // 12h contínuas a partir de agora (lacunas preenchidas pelo serviço).
             val programs = runCatching {
-                graph.epg.timeline(channel, now - 30 * 60 * 1000L, hours = 18)
+                graph.epg.timeline(channel, now, hours = 12)
             }.getOrDefault(emptyList())
             _state.value = _state.value.copy(
                 selectedChannel = channel,
@@ -626,7 +669,7 @@ class GuideViewModel(private val graph: AppServices) : ViewModel() {
 // ---------------------------------------------------------------- ADDONS
 
 data class AddonsUiState(
-    val repositoryName: String = "Brazuca Play",
+    val repositoryName: String = com.smarted.tv.core.data.SettingsStore.DEFAULT_REPO_NAME,
     val repositoryUrl: String = "",
     val repositories: List<com.smarted.tv.core.addons.Repository> = emptyList(),
     val addons: List<com.smarted.tv.core.addons.InstalledAddon> = emptyList(),
@@ -702,7 +745,7 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
 
 data class SettingsUiState(
     val settings: Settings = Settings(),
-    val repoName: String = "Brazuca Play",
+    val repoName: String = com.smarted.tv.core.data.SettingsStore.DEFAULT_REPO_NAME,
     val repoUrl: String = "",
     val tmdbConfigured: Boolean = false,
     val indexerSummary: String = "",
@@ -778,6 +821,25 @@ class SettingsViewModel(private val graph: AppServices) : ViewModel() {
 
     fun update(block: (Settings) -> Settings) {
         graph.settings.update(block)
+    }
+
+    /** Troca um dos três repositórios de conteúdo e força a reindexação. */
+    fun setContentRepo(kind: MediaKind, url: String) {
+        graph.settings.setContentRepository(kind, url)
+        _state.value = _state.value.copy(message = "Repositório atualizado. Reindexando…")
+        viewModelScope.launch {
+            graph.catalog.invalidate()
+            runCatching { graph.catalog.snapshot(force = true) }
+            _state.value = _state.value.copy(message = null)
+        }
+    }
+
+    fun togglePortugueseOnly(enabled: Boolean) {
+        graph.settings.update { it.copy(portugueseOnly = enabled) }
+        viewModelScope.launch {
+            graph.catalog.invalidate()
+            runCatching { graph.catalog.snapshot(force = true) }
+        }
     }
 
     fun setRepo(url: String, name: String) {
