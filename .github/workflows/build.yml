@@ -24,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -35,7 +35,7 @@ jobs:
       - name: Kotlin compile + JVM tests + Android lint
         run: |
           set -o pipefail
-          ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }} 2>&1 | tee build.log
+          ./gradlew --max-workers=2 :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }} 2>&1 | tee build.log
       - name: Annotate compiler/test failures
         if: failure()
         run: python3 tools/ci_report.py build.log
@@ -64,8 +64,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -118,8 +118,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'

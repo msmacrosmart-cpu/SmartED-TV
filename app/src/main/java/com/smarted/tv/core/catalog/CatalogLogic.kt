@@ -66,10 +66,11 @@ class CatalogPager(private val api: com.smarted.tv.core.protocol.StremioApi) {
         return CatalogPage(unique.values.toList(), next, warnings.distinct())
     }
 
-    private fun matches(item: MediaItem, query: CatalogQuery): Boolean =
-        item.scope == (Scope.fromWire(item.type) ?: return false) &&
-        (query.search.isBlank() || foldText(item.name).contains(foldText(query.search))) &&
-        (query.category in setOf("Todos", "Favoritos") || item.genres.any { foldText(it) == foldText(query.category) } || item.catalogName == query.category)
+    private fun matches(item: MediaItem, query: CatalogQuery): Boolean {
+        return item.scope == Scope.fromWire(item.type) &&
+            (query.search.isBlank() || foldText(item.name).contains(foldText(query.search))) &&
+            (query.category in setOf("Todos", "Favoritos") || item.genres.any { foldText(it) == foldText(query.category) } || item.catalogName == query.category)
+    }
 }
 
 /** Sorts the loaded window. The protocol has no universal server-side sort or vote-count field. */

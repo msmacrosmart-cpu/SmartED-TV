@@ -135,6 +135,7 @@ object ProtocolJson {
         ?.takeIf { it.isFinite() && it >= Int.MIN_VALUE.toDouble() && it <= Int.MAX_VALUE.toDouble() }?.toInt()
     private fun JsonElement?.text(): String? = (this as? JsonPrimitive)
         ?.takeIf { it !is JsonNull && (it.isString || it.content.toDoubleOrNull() != null || it.content in setOf("true", "false")) }?.content
+    private fun JsonElement?.strings(key: String): List<String> = (this as? JsonObject)?.get(key).strings()
     private fun JsonElement?.strings(): List<String> = when (this) {
         is JsonArray -> mapNotNull { it.text() }.filter(String::isNotBlank)
         is JsonPrimitive -> text()?.split(',')?.map(String::trim)?.filter(String::isNotBlank).orEmpty()
