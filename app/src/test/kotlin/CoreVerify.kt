@@ -48,6 +48,10 @@ fun main() {
     check("sameTitle tolerante", TextUtils.sameTitle("Globo HD", "Globo"))
     check("similarity alta", TextUtils.similarity("A Era do Gelo", "A Era do Gelo 2") > 0.5f)
     eq("initials", "GE", TextUtils.initials("Globo Esporte"))
+    // EPG chega em UTC: formatTime puro é UTC, formatLocalTime aplica o fuso.
+    // 1700000000000 = 14/11/2023 22:13 UTC
+    eq("hora UTC", "22:13", TextUtils.formatTime(1_700_000_000_000L))
+    eq("hora local aplica deslocamento", "19:13", TextUtils.formatLocalTime(1_700_000_000_000L, -3 * 60 * 60 * 1000))
     eq("youtube watch", "dQw4w9WgXcQ", TextUtils.youtubeId("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
     eq("youtube short", "dQw4w9WgXcQ", TextUtils.youtubeId("https://youtu.be/dQw4w9WgXcQ?t=10"))
     eq("youtube embed", "dQw4w9WgXcQ", TextUtils.youtubeId("https://www.youtube.com/embed/dQw4w9WgXcQ"))

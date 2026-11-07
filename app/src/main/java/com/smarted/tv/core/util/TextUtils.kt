@@ -141,6 +141,19 @@ object TextUtils {
         return "%02d:%02d".format(h, m)
     }
 
+    /**
+     * Hora "HH:mm" no fuso do aparelho.
+     *
+     * O EPG chega em epoch UTC; exibir com deslocamento zero (o padrão de
+     * [formatTime]) mostrava a grade 3 horas adiantada no Brasil. Aqui o
+     * deslocamento do fuso local — já considerando horário de verão — é
+     * aplicado automaticamente para o instante informado.
+     */
+    fun formatLocalTime(
+        epochMs: Long,
+        zoneOffsetMs: Int = java.util.TimeZone.getDefault().getOffset(epochMs),
+    ): String = formatTime(epochMs, zoneOffsetMs)
+
     /** Trunca preservando palavras. */
     fun ellipsize(input: String?, max: Int): String {
         if (input.isNullOrBlank()) return ""

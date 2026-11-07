@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.smarted.tv.core.epg.EpgTimeline
 import com.smarted.tv.core.model.EpgProgram
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.util.TextUtils
@@ -134,6 +135,7 @@ fun GuideScreen(
                                 "Isso é comum em canais sem correspondência no XMLTV.",
                         )
                     } else {
+                        GuideRuler(programs = state.programs, nowMs = state.nowMs)
                         LazyColumn(
                             state = rememberLazyListState(),
                             modifier = Modifier.fillMaxSize(),
@@ -203,6 +205,51 @@ private fun ChannelPickerRow(channel: MediaItem, selected: Boolean, onClick: () 
     }
 }
 
+/**
+ * Régua de 12 horas da grade, como nos guias de TV da referência.
+ *
+ * Cada célula representa 1 hora a partir do início da janela; a hora atual fica
+ * em branco (acento) e as demais em cinza. Serve também de prova visual do
+ * contrato de produto: a janela tem sempre [EpgTimeline.MIN_HOURS] horas.
+ */
+@Composable
+private fun GuideRuler(programs: List<EpgProgram>, nowMs: Long) {
+    val palette = Ed.palette
+    val type = Ed.type
+    if (programs.isEmpty()) return
+    val start = programs.first().startMs
+    val hourMs = 60L * 60L * 1000L
+    val currentHour = (nowMs - start) / hourMs
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            repeat(EpgTimeline.MIN_HOURS) { index ->
+                Text(
+                    text = TextUtils.formatLocalTime(start + index * hourMs),
+                    style = type.caption,
+                    color = if (index == currentHour) palette.accent else palette.fg3,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        // Linha divisória com marcação do horário atual.
+        Row(Modifier.fillMaxWidth().height(2.dp)) {
+            repeat(EpgTimeline.MIN_HOURS) { index ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(
+                            if (index == currentHour) palette.accent
+                            else palette.line.copy(alpha = 0.6f),
+                        ),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ProgramRow(program: EpgProgram, now: Long) {
     val palette = Ed.palette
@@ -221,12 +268,18 @@ private fun ProgramRow(program: EpgProgram, now: Long) {
     ) {
         Column(Modifier.width(96.dp)) {
             Text(
-                text = TextUtils.formatTime(program.startMs),
+                text = TextUtils.formatLocalTime(program.startMs),
                 style = type.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                 color = if (isNow) palette.accent else palette.fg2,
             )
             Text(
-                text = TextUtils.formatTime(program.endMs),
+                text = TextUtils.formatLocalTime(program.endMs),
+                style = type.caption,
+                color = palette.fg3,
+            )
+            // Duração explícita: é o dado que o usuário procura no guia.
+            Text(
+                text = TextUtils.formatMinutes((program.durationMs / 60_000L).toInt()),
                 style = type.caption,
                 color = palette.fg3,
             )
