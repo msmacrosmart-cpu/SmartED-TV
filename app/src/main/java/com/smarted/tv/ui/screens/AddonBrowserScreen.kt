@@ -37,6 +37,10 @@ import com.smarted.tv.ui.components.Artwork
 import com.smarted.tv.ui.components.EdBadge
 import com.smarted.tv.ui.components.EdIcons
 import com.smarted.tv.ui.components.EdPrimaryButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.smarted.tv.ui.components.EdTextField
 import com.smarted.tv.ui.components.EdSecondaryButton
 import com.smarted.tv.ui.components.EmptyState
 import com.smarted.tv.ui.components.ScreenTitle
@@ -59,6 +63,7 @@ import com.smarted.tv.ui.theme.Ed
 @Composable
 fun AddonBrowserScreen(
     viewModel: AddonsViewModel,
+    onPlay: (BrowserEntry) -> Unit,
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -66,6 +71,9 @@ fun AddonBrowserScreen(
     val type = Ed.type
     val repo = state.browserRepository
     val openKind = state.browserKind
+    val external = state.browserExternal
+    // Termo de busca do Elementum (o daemon não tem catálogo: busca por texto).
+    var query by remember { mutableStateOf(state.elementumQuery) }
 
     Column(
         modifier = Modifier
@@ -75,13 +83,39 @@ fun AddonBrowserScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ScreenTitle(
-            title = if (openKind == null) "Repositório ${repo?.name ?: ""}".trim() else AddonBrowser.titleFor(openKind),
+            title = when {
+                openKind != null -> AddonBrowser.titleFor(openKind)
+                external -> state.browserTitle.ifBlank { "Elementum" }
+                else -> "Repositório ${repo?.name ?: ""}".trim()
+            },
             subtitle = when {
                 openKind != null -> AddonBrowser.descriptionFor(openKind) + " · ${state.browserEntries.size} itens"
+                external -> "Torrentes · daemon local 127.0.0.1:65220"
                 repo == null -> "Nenhum repositório ativo"
                 else -> repo.url
             },
         )
+
+        // Busca no Elementum: sem catálogo, o caminho é digitar o título.
+        if (external) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                EdTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = "Buscar filme ou série no Elementum",
+                    modifier = Modifier.weight(1f),
+                )
+                EdPrimaryButton(
+                    label = if (state.elementumBusy) "Buscando…" else "Buscar",
+                    onClick = { viewModel.searchElementum(query) },
+                    icon = EdIcons.search,
+                )
+            }
+        }
 
         state.browserMessage?.let { message ->
             Text(message, style = type.caption, color = palette.fg2)
@@ -89,7 +123,7 @@ fun AddonBrowserScreen(
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
-                repo == null -> EmptyState(
+                repo == null && !external -> EmptyState(
                     title = "Sem repositório",
                     message = "Adicione um repositório em Addons → Repositório. O padrão é o Vikings.",
                     icon = EdIcons.cloud,
@@ -107,13 +141,23 @@ fun AddonBrowserScreen(
                     entries = state.browserEntries,
                     kind = openKind,
                     bound = openKind in state.browserBound,
+                    onPlay = onPlay,
                 )
             }
         }
 
         // Barra de ações do nível atual.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (openKind != null) {
+            if (external) {
+                EdSecondaryButton(
+                    label = "Verificar daemon",
+                    onClick = { viewModel.openElementum() },
+                    icon = EdIcons.refresh,
+                )
+                if (openKind != null) {
+                    EdSecondaryButton(label = "Pastas", onClick = { viewModel.closeFolder() }, icon = EdIcons.folder)
+                }
+            } else if (openKind != null) {
                 val bound = openKind in state.browserBound
                 EdPrimaryButton(
                     label = if (bound) "Conectado à aba" else "Conectar à aba ${AddonBrowser.titleFor(openKind)}",
@@ -212,7 +256,12 @@ private fun FolderCard(folder: RepositoryFolder, bound: Boolean, onOpen: () -> U
 }
 
 @Composable
-private fun EntryList(entries: List<BrowserEntry>, kind: MediaKind, bound: Boolean) {
+private fun EntryList(
+    entries: List<BrowserEntry>,
+    kind: MediaKind,
+    bound: Boolean,
+    onPlay: (BrowserEntry) -> Unit,
+) {
     val palette = Ed.palette
     val type = Ed.type
 
@@ -232,21 +281,24 @@ private fun EntryList(entries: List<BrowserEntry>, kind: MediaKind, bound: Boole
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(entries, key = { it.id }) { entry ->
-            EntryCard(entry = entry, bound = bound)
+            EntryCard(entry = entry, bound = bound, onPlay = onPlay)
         }
     }
 }
 
 @Composable
-private fun EntryCard(entry: BrowserEntry, bound: Boolean) {
+private fun EntryCard(entry: BrowserEntry, bound: Boolean, onPlay: (BrowserEntry) -> Unit) {
     val palette = Ed.palette
     val type = Ed.type
     val shape = RoundedCornerShape(14.dp)
+    // Item com stream direto abre no player; o resto é só catálogo.
+    val interaction = edInteraction(onClick = { if (entry.playable) onPlay(entry) })
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(96.dp)
+            .then(interaction.modifier)
             .clip(shape)
             .background(palette.surface, shape)
             .then(if (bound) Modifier.border(1.dp, palette.accent.copy(alpha = 0.45f), shape) else Modifier)

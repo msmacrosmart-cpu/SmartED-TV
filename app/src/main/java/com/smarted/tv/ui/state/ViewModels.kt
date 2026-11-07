@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.smarted.tv.core.addons.AddonBrowser
 import com.smarted.tv.core.addons.AddonManager
 import com.smarted.tv.core.addons.BrowserEntry
+import com.smarted.tv.core.addons.Elementum
 import com.smarted.tv.core.addons.RepositoryFolder
 import com.smarted.tv.core.data.Settings
 import com.smarted.tv.core.model.CatalogPage
@@ -693,6 +694,15 @@ data class AddonsUiState(
     val browserEntries: List<BrowserEntry> = emptyList(),
     val browserLoading: Boolean = false,
     val browserMessage: String? = null,
+    /** Título do navegador quando a origem não é um repositório (Elementum). */
+    val browserTitle: String = "",
+    /** Navegador aberto num serviço local em vez de um repositório. */
+    val browserExternal: Boolean = false,
+    /** Estado do daemon do Elementum (null = ainda não verificado). */
+    val elementum: Elementum.Status? = null,
+    /** Último termo buscado no Elementum. */
+    val elementumQuery: String = "",
+    val elementumBusy: Boolean = false,
 )
 
 class AddonsViewModel(private val graph: AppServices) : ViewModel() {
@@ -784,6 +794,9 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
                 browserLoading = true,
                 browserKind = null,
                 browserMessage = null,
+                // Sair do modo Elementum: agora a origem é um repositório.
+                browserExternal = false,
+                browserTitle = "",
             )
             val folders = runCatching { graph.addons.browseRepository(repositoryId) }
                 .getOrDefault(emptyList())
@@ -808,6 +821,82 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
                 ?: _state.value.repositories.firstOrNull()
             val repo = current ?: runCatching { graph.addons.ensureDefaultRepository() }.getOrNull()
             repo?.let { openBrowser(it.id) }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Elementum (torrentes do repositório Vikings)
+    // -----------------------------------------------------------------
+
+    /** Verifica se o daemon do Elementum está no ar e guarda o estado. */
+    fun checkElementum() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(elementumBusy = true)
+            runCatching { graph.addons.ensureElementum() }
+            val status = runCatching { graph.elementum.status() }
+                .getOrElse { Elementum.Status(online = false, message = "Sem resposta do Elementum") }
+            _state.value = _state.value.copy(elementum = status, elementumBusy = false)
+        }
+    }
+
+    /**
+     * Abre o navegador no Elementum.
+     *
+     * O daemon não tem catálogo: o caminho é buscar um termo. A tela mostra as
+     * pastas Filmes/Séries já filtradas a partir do resultado.
+     */
+    fun openElementum() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                browserTitle = "Elementum",
+                browserExternal = true,
+                browserKind = null,
+                browserRepository = null,
+                browserFolders = emptyList(),
+                browserEntries = emptyList(),
+                browserLoading = true,
+                browserMessage = null,
+            )
+            runCatching { graph.addons.ensureElementum() }
+            val status = runCatching { graph.elementum.status() }
+                .getOrElse { Elementum.Status(online = false, message = "Sem resposta do Elementum") }
+            _state.value = _state.value.copy(
+                elementum = status,
+                browserLoading = false,
+                browserMessage = if (status.online) {
+                    "Elementum ligado" + status.version.ifBlank { "" }.let { if (it.isBlank()) "" else " · v$it" } +
+                        " — busque um filme ou série"
+                } else {
+                    status.message.ifBlank { "Elementum desligado: abra o daemon e tente de novo" }
+                },
+            )
+        }
+    }
+
+    /** Busca torrentes e monta as pastas Filmes/Séries com o resultado. */
+    fun searchElementum(query: String) {
+        val term = query.trim()
+        if (term.isEmpty()) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                elementumQuery = term,
+                elementumBusy = true,
+                browserLoading = true,
+                browserKind = null,
+                browserMessage = null,
+            )
+            val items = runCatching { graph.elementum.search(term) }.getOrDefault(emptyList())
+            val entries = Elementum.toEntries(items)
+            _state.value = _state.value.copy(
+                browserFolders = AddonBrowser.folders(entries),
+                browserLoading = false,
+                elementumBusy = false,
+                browserMessage = if (items.isEmpty()) {
+                    "Nenhum torrente encontrado para \"$term\""
+                } else {
+                    "${items.size} torrente(s) para \"$term\""
+                },
+            )
         }
     }
 

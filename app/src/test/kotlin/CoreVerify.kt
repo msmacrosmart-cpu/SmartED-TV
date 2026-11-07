@@ -6,6 +6,7 @@
  */
 import com.smarted.tv.core.addons.AddonBrowser
 import com.smarted.tv.core.addons.BrowserEntry
+import com.smarted.tv.core.addons.Elementum
 import com.smarted.tv.core.addons.KodiRepoParser
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.util.DecodeUtils
@@ -45,6 +46,7 @@ fun main() {
     verifySeriesGrouper()
     verifySourceTargeting()
     verifyAddonBrowser()
+    verifyElementum()
     println("== TextUtils ==")
     eq("acentos", "cancao", TextUtils.stripAccents("canção"))
     eq("normalize pontuação", "globo hd", TextUtils.normalize("Globo  HD!!!"))
@@ -611,4 +613,94 @@ private fun verifyAddonBrowser() {
         author = "Vikings", version = "1.2.3")
     eq("linha de metadados", "Vikings · v1.2.3", entry.metaLine)
     check("entrada sem stream não é reproduzível", !entry.playable)
+}
+
+/**
+ * Elementum: o addon de torrentes do repositório Vikings fala com o daemon
+ * local (`127.0.0.1:65220`). Aqui ficam a detecção, a leitura do JSON e o link
+ * de reprodução — sem Android e sem rede.
+ */
+private fun verifyElementum() {
+    println("== Elementum (addon de torrentes do Vikings) ==")
+
+    // ---- detecção do addon no repositório ----
+    check("reconhece pelo id", Elementum.isElementum("plugin.video.elementum"))
+    check("reconhece pelo nome", Elementum.isElementum("outro.id", "Elementum"))
+    check("reconhece o script do daemon", Elementum.isElementum("script.elementum.burst"))
+    check("não confunde com outro addon", !Elementum.isElementum("plugin.video.filmeshd", "Filmes HD"))
+
+    // ---- endpoints do daemon ----
+    eq("base do daemon", "http://127.0.0.1:65220", Elementum.baseUrl())
+    eq("endpoint de status", "http://127.0.0.1:65220/status", Elementum.statusUrl())
+    eq("porta inválida cai no padrão", "http://127.0.0.1:65220", Elementum.baseUrl(0))
+    eq("porta alternativa", "http://127.0.0.1:6809", Elementum.baseUrl(6809))
+    eq(
+        "busca com termo escapado",
+        "http://127.0.0.1:65220/search?q=a%20volta%20do%20grande%20trem",
+        Elementum.searchUrl("a volta do grande trem"),
+    )
+
+    // ---- status ----
+    val ligado = Elementum.parseStatus("{\"status\":\"ok\",\"version\":\"2.0.11\"}")
+    check("status online", ligado.online)
+    eq("versão lida", "2.0.11", ligado.version)
+    eq("rótulo ligado", "Elementum ligado", ligado.label)
+    check("status vazio é offline", !Elementum.parseStatus(null).online)
+    eq("rótulo desligado", "Elementum desligado", Elementum.parseStatus("").label)
+    check("resposta sem corpo ainda é tolerada", Elementum.parseStatus("{}").online)
+
+    // ---- busca: array de objetos ----
+    val json = """
+        [
+          {"title":"O Auto da Compadecida 1080p","torrent":"magnet:?xt=urn:btih:AAA&dn=Auto",
+           "size":1572864000,"seeds":320,"peers":12},
+          {"title":"Cidade de Deus 720p","magnet":"magnet:?xt=urn:btih:BBB&dn=Cidade","size_bytes":734003200},
+          {"name":"Breaking Bad S01E01","torrent":"magnet:?xt=urn:btih:CCC","size":524288000,"seeders":88}
+        ]
+    """.trimIndent()
+    val itens = Elementum.parseItems(json)
+    eq("três resultados lidos", 3, itens.size)
+    eq("título do primeiro", "O Auto da Compadecida 1080p", itens[0].title)
+    eq("tamanho do primeiro", 1572864000L, itens[0].sizeBytes)
+    eq("seeds do primeiro", 320, itens[0].seeds)
+    eq("qualidade detectada", "1080p", itens[0].quality)
+    eq("tamanho legível", "1,4 GB", Elementum.humanSize(itens[0].sizeBytes))
+    eq("qualidade do segundo", "720p", itens[1].quality)
+    eq("seeds ausentes valem zero", 0, itens[1].seeds)
+    eq("série reconhecida", MediaKind.SERIES, itens[2].kind)
+    eq("filme reconhecido", MediaKind.MOVIE, itens[0].kind)
+
+    // ---- busca: objeto com lista dentro ----
+    val aninhado = """{"items":[{"title":"Matrix","torrent":"magnet:?xt=urn:btih:DDD"}]}"""
+    eq("lista aninhada lida", 1, Elementum.parseItems(aninhado).size)
+    eq("resposta vazia devolve nada", 0, Elementum.parseItems("").size)
+    eq("resposta inválida devolve nada", 0, Elementum.parseItems("nao e json").size)
+
+    // ---- link de reprodução ----
+    val auto = itens[0]
+    val play = Elementum.playUrl(auto)
+    check("play no daemon", play.startsWith("http://127.0.0.1:65220/play?torrent="))
+    check("play carrega o magnet", play.contains("torrent=magnet%3A"), play)
+    check("play leva o título", play.contains("title=O%20Auto"))
+    eq("sem magnet não há link", "", Elementum.playUrl(Elementum.Item(title = "solto")))
+
+    // ---- itens de pasta: VOD, nunca canal ----
+    val entries = Elementum.toEntries(itens)
+    eq("todos viram entrada", 3, entries.size)
+    check("nenhum item é canal ao vivo", entries.none { it.kind == MediaKind.LIVE })
+    check("todos reproduzíveis", entries.all { it.playable })
+    check("link do daemon local é aceito em Filmes", AddonBrowser.accepts(MediaKind.MOVIE, play))
+    check("link do daemon local é aceito em Séries", AddonBrowser.accepts(MediaKind.SERIES, play))
+    check("magnet cru é recusado em Filmes", !AddonBrowser.accepts(MediaKind.MOVIE, "magnet:?xt=urn:btih:AAA"))
+    check("link do daemon não vira canal", !AddonBrowser.accepts(MediaKind.LIVE, play))
+    eq("pasta da série", MediaKind.SERIES, entries[2].kind)
+    check("resumo traz tamanho e seeds", entries[0].summary.contains("1,4 GB") && entries[0].summary.contains("320 seeds"))
+    check("autor é o addon", entries[0].author == "Elementum")
+    check("item sem magnet não é reproduzível", Elementum.toEntries(listOf(Elementum.Item(title = "x"))).first().playable.not())
+
+    // ---- magnet a partir do info hash ----
+    val magnet = Elementum.magnet("ABC123", "Filme")
+    check("magnet montado", magnet.startsWith("magnet:?xt=urn:btih:ABC123&dn=Filme"))
+    check("magnet traz trackers", magnet.contains("tr=udp%3A%2F%2F"))
+    eq("hash vazio não gera magnet", "", Elementum.magnet(""))
 }

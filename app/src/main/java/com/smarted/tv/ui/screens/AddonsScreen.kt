@@ -57,9 +57,13 @@ fun AddonsScreen(
     viewModel: AddonsViewModel,
     onOpenRepository: () -> Unit,
     onOpenBrowser: () -> Unit,
+    onOpenElementum: () -> Unit,
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // O daemon do Elementum é local: uma consulta rápida na abertura já
+    // mostra se ele está ligado, sem o usuário pedir.
+    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.checkElementum() }
     val palette = Ed.palette
     val type = Ed.type
     // Addon cujas abas estão sendo reconfiguradas (null = painel fechado).
@@ -92,6 +96,14 @@ fun AddonsScreen(
             Box(Modifier.size(10.dp))
             EdSecondaryButton(label = "Sincronizar", onClick = { viewModel.sync() }, icon = EdIcons.refresh)
         }
+
+        // Elementum: addon de torrentes do Vikings, servido pelo daemon local.
+        ElementumCard(
+            status = state.elementum,
+            busy = state.elementumBusy,
+            onOpen = onOpenElementum,
+            onCheck = { viewModel.checkElementum() },
+        )
 
         if (state.addons.isEmpty()) {
             EmptyState(
@@ -235,4 +247,84 @@ private fun kindLabel(kind: com.smarted.tv.core.model.MediaKind): String = when 
     com.smarted.tv.core.model.MediaKind.SERIES -> "séries"
     com.smarted.tv.core.model.MediaKind.EPISODE -> "episódios"
     com.smarted.tv.core.model.MediaKind.UNKNOWN -> "—"
+}
+
+/**
+ * Cartão do Elementum.
+ *
+ * O addon vem do repositório Vikings, mas quem entrega o vídeo é o **daemon
+ * local** (`127.0.0.1:65220`): o app não executa plugin Python. O cartão mostra
+ * o estado real desse serviço e o caminho para abrir a busca.
+ */
+@Composable
+private fun ElementumCard(
+    status: com.smarted.tv.core.addons.Elementum.Status?,
+    busy: Boolean,
+    onOpen: () -> Unit,
+    onCheck: () -> Unit,
+) {
+    val palette = Ed.palette
+    val type = Ed.type
+    val shape = RoundedCornerShape(16.dp)
+    val online = status?.online == true
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(92.dp)
+            .clip(shape)
+            .background(palette.surface, shape)
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Box(
+            Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)).background(palette.surface2),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(EdIcons.addon, contentDescription = null, tint = palette.accent, modifier = Modifier.size(26.dp))
+        }
+
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Elementum",
+                    style = type.rowTitle.copy(fontWeight = FontWeight.SemiBold),
+                    color = palette.fg,
+                )
+                EdBadge("TORRENTES", palette.accent, filled = true)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AccentDot(
+                    color = when {
+                        busy -> palette.warn
+                        online -> palette.ok
+                        status == null -> palette.fg3
+                        else -> palette.bad
+                    },
+                    size = 6.dp,
+                )
+                Text(
+                    text = when {
+                        busy -> "verificando o daemon…"
+                        online -> "ligado · daemon 127.0.0.1:65220"
+                        else -> "desligado · abra o daemon do Elementum"
+                    },
+                    style = type.label,
+                    color = palette.fg3,
+                )
+            }
+            Text(
+                text = "Filmes e séries por torrente — nunca canais ao vivo",
+                style = type.caption,
+                color = palette.fg3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        EdSecondaryButton(label = "Verificar", onClick = onCheck, icon = EdIcons.refresh)
+        Box(Modifier.size(8.dp))
+        EdPrimaryButton(label = "Abrir", onClick = onOpen, icon = EdIcons.play)
+    }
 }

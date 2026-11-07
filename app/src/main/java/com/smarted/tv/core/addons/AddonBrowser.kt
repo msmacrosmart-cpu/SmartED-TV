@@ -118,9 +118,25 @@ object AddonBrowser {
         if (!clean.startsWith("http")) return false
         return when (kind) {
             MediaKind.LIVE -> ContentClassifier.isStream(clean)
-            MediaKind.MOVIE, MediaKind.SERIES -> ContentClassifier.isStaticFile(clean)
+            // Filmes/Séries aceitam arquivo estático **ou** o link de um
+            // daemon local que já resolveu o arquivo (Elementum serve o vídeo
+            // em `127.0.0.1:65220/play`). O magnet cru continua recusado.
+            MediaKind.MOVIE, MediaKind.SERIES ->
+                ContentClassifier.isStaticFile(clean) || isLocalPlayerLink(clean)
             else -> false
         }
+    }
+
+    /**
+     * Link de reprodução de um serviço local de mídia (Elementum e afins).
+     *
+     * Só loopback conta: é o daemon que entrega o arquivo, não um site externo
+     * disfarçado de `.mp4`. Assim a separação Canais × Filmes continua de pé.
+     */
+    fun isLocalPlayerLink(url: String): Boolean {
+        val clean = url.trim().lowercase()
+        val loopback = clean.startsWith("http://127.0.0.1:") || clean.startsWith("http://localhost:")
+        return loopback && clean.contains("/play")
     }
 
     /** Primeiro link de mídia direto entre os candidatos (ou null). */

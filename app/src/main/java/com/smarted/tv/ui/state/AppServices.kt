@@ -77,6 +77,9 @@ interface AppServices {
     val trailerFinder: com.smarted.tv.core.trailer.TrailerFinder
     val db: SmartEdDatabase
 
+    /** Cliente do daemon local do Elementum (torrentes). */
+    val elementum: com.smarted.tv.core.net.ElementumClient
+
     var playerRequest: MediaItem?
     var trailerRequest: String?
 

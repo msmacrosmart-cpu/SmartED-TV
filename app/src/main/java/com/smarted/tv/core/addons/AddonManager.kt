@@ -211,6 +211,61 @@ class AddonManager(
             }
         }
 
+    // -----------------------------------------------------------------
+    // Elementum (torrentes)
+    // -----------------------------------------------------------------
+
+    /** O addon Elementum já está na lista instalada? */
+    fun elementumAddon(): InstalledAddon? =
+        _addons.value.firstOrNull { Elementum.isElementum(it.id, it.name) }
+
+    /**
+     * Garante o addon **Elementum** na lista, mesmo antes de sincronizar o
+     * repositório.
+     *
+     * Ele é publicado pelo Vikings; se a sincronização ainda não rodou (ou o
+     * índice não expôs o addon), o app cria o registro local — assim o usuário
+     * vê o Elementum em Addons e pode usar o daemon que já tenha instalado no
+     * aparelho. Os streams continuam vindo do daemon local
+     * ([com.smarted.tv.core.net.ElementumClient]), nunca de um plugin Python.
+     */
+    suspend fun ensureElementum(): InstalledAddon = withContext(Dispatchers.IO) {
+        elementumAddon()?.let { return@withContext it }
+        if (_active.value == null) runCatching { bootstrap() }
+        val repositoryId = _active.value?.id.orEmpty()
+        val now = System.currentTimeMillis()
+        val existing = addonDao.byId(Elementum.ADDON_ID)
+        addonDao.upsert(
+            InstalledAddonEntity(
+                id = Elementum.ADDON_ID,
+                repositoryId = repositoryId,
+                name = Elementum.ADDON_NAME,
+                version = "1.0.0",
+                summary = "Filmes e séries por torrentes",
+                summaryLong = "Busca torrentes no daemon local do Elementum " +
+                    "(127.0.0.1:${Elementum.DEFAULT_PORT}) e reproduz no player do app.",
+                author = "Vikings",
+                icon = null,
+                enabled = true,
+                installedAt = existing?.installedAt ?: now,
+                updatedAt = now,
+                kind = AddonKind.REMOTE.name,
+                // Elementum é VOD: nunca aparece em Canais.
+                types = "${MediaKind.MOVIE.name},${MediaKind.SERIES.name}",
+                sortOrder = 1,
+            ),
+        )
+        _addons.value = addonDao.all().map { it.toDomain() }
+        addonDao.byId(Elementum.ADDON_ID)?.toDomain()
+            ?: InstalledAddon(
+                id = Elementum.ADDON_ID,
+                repositoryId = repositoryId,
+                name = Elementum.ADDON_NAME,
+                version = "1.0.0",
+                summary = "Filmes e séries por torrentes",
+            )
+    }
+
     /**
      * Descobre addons no repositório:
      *  1. `addons.xml` / `addons.xml.gz` / `repo/addons.xml`

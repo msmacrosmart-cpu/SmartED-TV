@@ -58,6 +58,13 @@ class AppGraph(context: Context) : com.smarted.tv.ui.state.AppServices {
 
     override val epg = EpgService(http = http, dao = db.epgDao())
 
+    /**
+     * Elementum: o addon do Vikings entrega torrentes pelo daemon local
+     * (`127.0.0.1:65220`). O app nunca executa plugin Python — fala HTTP com
+     * o daemon que o usuário já tenha no aparelho.
+     */
+    override val elementum = com.smarted.tv.core.net.ElementumClient(http = http)
+
     override val indexer = Indexer(sources = sources, publicSourceDao = db.publicSourceDao(), http = http)
 
     val brazuca = BrazucaPlayAddon(catalog = catalog, tmdb = tmdb, epg = epg)

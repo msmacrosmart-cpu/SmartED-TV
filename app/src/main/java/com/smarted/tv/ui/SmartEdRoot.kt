@@ -256,6 +256,10 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                     viewModel = addonsVm,
                                     onOpenRepository = { subScreen = "repository" },
                                     onOpenBrowser = { subScreen = "browser" },
+                                    onOpenElementum = {
+                                        addonsVm.openElementum()
+                                        subScreen = "browser"
+                                    },
                                     onBack = { subScreen = null },
                                 )
                             }
@@ -265,10 +269,30 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                             "browser" -> {
                                 val addonsVm: AddonsViewModel = viewModel(factory = factory)
                                 androidx.compose.runtime.LaunchedEffect(Unit) {
-                                    addonsVm.openBrowserActive()
+                                    // Se a navegação veio do Elementum, mantém a
+                                    // origem escolhida em vez de abrir o repositório.
+                                    if (!addonsVm.state.value.browserExternal) {
+                                        addonsVm.openBrowserActive()
+                                    }
                                 }
                                 AddonBrowserScreen(
                                     viewModel = addonsVm,
+                                    // Item de pasta com stream direto abre no
+                                    // player em tela cheia (Elementum incluso).
+                                    onPlay = { entry ->
+                                        entry.streamUrl?.let { url ->
+                                            playerItem = com.smarted.tv.core.model.MediaItem(
+                                                id = entry.id,
+                                                addonId = com.smarted.tv.core.addons.Elementum.ADDON_ID,
+                                                kind = entry.kind,
+                                                title = entry.title,
+                                                subtitle = entry.summary.ifBlank { null },
+                                                poster = entry.poster,
+                                                backdrop = entry.fanart,
+                                                streamUrl = url,
+                                            )
+                                        }
+                                    },
                                     onBack = { subScreen = "addons" },
                                 )
                             }
@@ -366,6 +390,10 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                 viewModel = vm,
                                 onOpenRepository = { subScreen = "repository" },
                                 onOpenBrowser = { subScreen = "browser" },
+                                onOpenElementum = {
+                                    vm.openElementum()
+                                    subScreen = "browser"
+                                },
                                 onBack = { destination = EdDestination.SETTINGS.name },
                             )
                         }

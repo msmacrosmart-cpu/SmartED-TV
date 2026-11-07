@@ -5,6 +5,19 @@ verificado. Atualizada a cada rodada.
 
 Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelho · ⏳ pendente
 
+## Rodada 6 — addon Elementum (torrentes do Vikings)
+
+| # | Pedido | Status | Onde | Verificação |
+|---|--------|--------|------|-------------|
+| 1 | Reconhecer o addon `plugin.video.elementum` do repositório Vikings e garanti-lo na lista, mesmo antes de sincronizar | ✅ | `Elementum.isElementum`, `AddonManager.ensureElementum/elementumAddon` | `verify-core.sh` (detecção por id/nome/script) |
+| 2 | Falar com o daemon local (`127.0.0.1:65220`) em vez de tentar rodar o plugin Python: status, busca e link de reprodução | ✅ | `core/addons/Elementum.kt`, `core/net/ElementumClient.kt` | 46 asserções (status, JSON, magnet, play) |
+| 3 | Resultado do Elementum entra em **Filmes/Séries**, nunca em Canais, e abre no player em tela cheia | ✅ | `Elementum.toEntries`, `AddonBrowser.isLocalPlayerLink`, `AddonBrowserScreen(onPlay)`, rota `browser` | `verify-core.sh` + emulador |
+| 4 | Estado do daemon visível (ligado/desligado) e busca por título na UI | ✅ | cartão `ElementumCard` em Addons, campo de busca no navegador, `AddonsViewModel.openElementum/searchElementum/checkElementum` | gates + emulador |
+
+**Limite conhecido:** sem o daemon instalado no aparelho o Elementum fica
+"desligado" — o app informa isso e o restante da navegação (repositório) segue
+funcionando. O addon Python em si nunca é executado.
+
 ## Rodada 5 — arquitetura de repositórios e addons (M3U desativado)
 
 | # | Pedido | Status | Onde | Verificação |

@@ -35,6 +35,7 @@ texto em **português do Brasil**.
 | Player em tela cheia absoluta | Vídeo em `MATCH_PARENT`/`FILL_BOUNDS`, fora do overscan e da rail; `IVLCVout.setWindowSize` informa o tamanho real da janela ao libVLC (sem isso o vout desenha num viewport minúsculo no canto); controles glassmorphism com foco branco |
 | Arquitetura de addons estilo Kodi | `Addon`, `AddonManager`, `KodiRepoParser` (addons.xml + índice HTML) e persistência em Room |
 | Repositório de addons padrão | **Vikings** (`vikingskoditeam.github.io`), com addons BR/PT |
+| Elementum (torrentes) | Addon `plugin.video.elementum` do Vikings reconhecido como provedor de **Filmes/Séries**; o app conversa com o **daemon local** (`127.0.0.1:65220`) em vez de tentar rodar o plugin Python — busca, pastas e reprodução pelo player |
 | Canais / Filmes / Séries | Abas dedicadas com sidebar de categorias, contagem por grupo e EPG "agora" nos canais |
 | Indexador + manutenção de links | `Indexer` (varredura paralela, saúde por fonte, probe de links, lista de bloqueio) |
 | Atualização remota via nuvem | `SourceRepository.syncFromCloud()` lê catálogo JSON remoto e faz merge |
@@ -206,7 +207,7 @@ compilado e testado de verdade com o compilador Kotlin:
 npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
-./tools/verify-core.sh           # 185 asserções reais (EPG 12h, cruzamento de canais, separação de acervo, séries, navegador de repositório)
+./tools/verify-core.sh           # 231 asserções reais (EPG 12h, cruzamento de canais, separação de acervo, séries, navegador de repositório)
 ./tools/verify-logic.sh          # typecheck de 35 arquivos (rede, TMDB, EPG, DB, VMs)
 node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
@@ -257,6 +258,27 @@ O repositório entrega a estrutura e os metadados; os streams vêm do addon
 embutido do app (`plugin.video.smarted`, sempre instalado). Itens de addon que
 declaram link direto de vídeo viram cards reproduzíveis; os demais aparecem no
 navegador marcados como **catálogo**.
+
+### Elementum (torrentes)
+
+O repositório Vikings publica o **Elementum** (`plugin.video.elementum`). Ele não
+é um catálogo: é um cliente de torrentes com **daemon nativo**. No Android esse
+daemon é um serviço local que responde em `127.0.0.1:65220`, e é com ele que o
+SmartED TV conversa — plugin Python continua não executando no app.
+
+| Passo | O que acontece |
+| --- | --- |
+| **Addons → Elementum → Abrir** | o app garante o addon na lista, consulta `/status` e mostra se o daemon está ligado |
+| Digitar um título e **Buscar** | `GET /search?q=…`; o JSON é lido por um parser tolerante (`Elementum.parseItems`) |
+| Resultado | vira pasta **Filmes** ou **Séries** (episódio/temporada detectado pelo título) — **nunca Canais** |
+| Assistir | o player recebe `http://127.0.0.1:65220/play?torrent=<magnet>`, e o daemon serve o arquivo |
+
+Se o daemon estiver desligado, a tela diz exatamente isso em vez de dar erro: o
+cartão em **Addons** mostra o estado real (`ligado`/`desligado`) e o botão
+**Verificar** refaz a consulta. O vínculo entre pasta e aba continua valendo: um
+item do Elementum só entra em Filmes/Séries se o link for um arquivo estático ou
+o `/play` de um serviço em loopback (`AddonBrowser.isLocalPlayerLink`) — magnet
+cru é recusado.
 
 ### Filtro de português
 
