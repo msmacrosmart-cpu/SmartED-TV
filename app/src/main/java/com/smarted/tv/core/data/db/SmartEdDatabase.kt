@@ -71,23 +71,45 @@ abstract class SmartEdDatabase : RoomDatabase() {
          * v2 → v3: `saved_items`, a lista do usuário montada navegando a árvore
          * dos addons (pastas como "Lançamentos", "Ação", "Aventura").
          */
+        /**
+         * v2 → v3: `saved_items`, a lista do usuário montada navegando a árvore
+         * dos addons (pastas como "Lançamentos", "Ação", "Aventura").
+         *
+         * O SQL não declara `DEFAULT`: o Room compara os valores padrão do
+         * arquivo com os das entidades, e a entidade não declara nenhum (os
+         * valores iniciais são do Kotlin, não do esquema). Criar com `DEFAULT`
+         * aqui faz o app recriar o banco na abertura.
+         */
+        /**
+         * v2 -> v3: `saved_items`, a lista do usuario montada navegando a arvore
+         * dos addons (pastas como "Lancamentos", "Acao", "Aventura").
+         *
+         * O SQL nao declara DEFAULT: o Room compara os valores padrao do arquivo
+         * com os das entidades, e a entidade nao declara nenhum (os valores
+         * iniciais sao do Kotlin). Criar com DEFAULT faz o app recriar o banco.
+         */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Esquema exatamente como em [SavedItemEntity]. O SQL fica num
-                // único literal porque `tools/check-db-schema.py` o extrai do
-                // fonte e o executa num SQLite real antes de aprovar o build.
                 db.execSQL("CREATE TABLE IF NOT EXISTS `saved_items` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `playUrl` TEXT NOT NULL, `folder` TEXT NOT NULL, `folderRoute` TEXT NOT NULL, `kind` TEXT NOT NULL, `meta` TEXT NOT NULL, `poster` TEXT, `addonId` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`id`))")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_items_playUrl` ON `saved_items` (`playUrl`)")
             }
         }
 
         /**
-         * v3 → v4: `saved_items.shelf`, a aba (Canais/Filmes/Séries) que o
-         * usuário escolheu ao salvar o item na lista dele.
+         * v3 -> v4: `saved_items.shelf`, a aba (Canais/Filmes/Series) escolhida
+         * pelo usuario ao salvar.
+         *
+         * ADD COLUMN NOT NULL exigiria DEFAULT, que voltaria a divergir do
+         * esquema da entidade; por isso a tabela e recriada com o esquema final
+         * e os dados sao copiados.
          */
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `saved_items` ADD COLUMN `shelf` TEXT NOT NULL DEFAULT 'MOVIE'")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `saved_items_new` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `playUrl` TEXT NOT NULL, `folder` TEXT NOT NULL, `folderRoute` TEXT NOT NULL, `kind` TEXT NOT NULL, `shelf` TEXT NOT NULL, `meta` TEXT NOT NULL, `poster` TEXT, `addonId` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("INSERT INTO `saved_items_new` (`id`, `title`, `playUrl`, `folder`, `folderRoute`, `kind`, `shelf`, `meta`, `poster`, `addonId`, `addedAt`, `position`) SELECT `id`, `title`, `playUrl`, `folder`, `folderRoute`, `kind`, 'MOVIE', `meta`, `poster`, `addonId`, `addedAt`, `position` FROM `saved_items`")
+                db.execSQL("DROP TABLE `saved_items`")
+                db.execSQL("ALTER TABLE `saved_items_new` RENAME TO `saved_items`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_items_playUrl` ON `saved_items` (`playUrl`)")
             }
         }
 

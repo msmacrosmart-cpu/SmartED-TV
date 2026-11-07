@@ -136,7 +136,13 @@ data class SearchHistoryEntity(
  * "Lançamentos", "Ação", "Aventura" e salva o que quer assistir. [folder] e
  * [folderRoute] guardam a pasta de origem, para a tela agrupar a lista.
  */
-@Entity(tableName = "saved_items")
+@Entity(
+    tableName = "saved_items",
+    // O índice precisa estar declarado aqui: o Room compara o esquema do
+    // arquivo com o das entidades e uma migração que crie índice não declarado
+    // (ou deixe de criar um declarado) faz a validação falhar em runtime.
+    indices = [Index("playUrl")],
+)
 data class SavedItemEntity(
     @PrimaryKey val id: String,
     val title: String,
