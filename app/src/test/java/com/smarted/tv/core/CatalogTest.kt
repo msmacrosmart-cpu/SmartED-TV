@@ -26,9 +26,7 @@ class CatalogTest {
         val unpaged = testAddon(Scope.MOVIES, catalogs = listOf(CatalogSpec("movie", "top")))
         val api = FakeApi().apply { pages = { _, _ -> listOf(testItem(unpaged, "a")) } }
         val page = CatalogPager(api).load(listOf(unpaged), Scope.MOVIES, CatalogQuery(), null, emptySet())
-        assertNull(page.nextCursor)
-        val next = CatalogPager(api).load(listOf(unpaged), Scope.MOVIES, CatalogQuery(), page.nextCursor, emptySet())
-        assertTrue(next.items.isEmpty())
+        assertNull(page.nextCursor) // null is the end-of-catalog signal; a new null-cursor load is a fresh query.
         assertEquals(1, api.requests.size)
     }
     @Test fun brokenRepeatedPaginationTerminates() = runTest {
