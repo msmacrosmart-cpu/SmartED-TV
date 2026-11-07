@@ -181,6 +181,20 @@ jobs:
           set +e
           mkdir -p app/build/tvevidence
           cp tv-build.log app/build/tvevidence/ 2>/dev/null
+          python3 - <<'PY3'
+          import glob, pathlib, subprocess
+          def enc(s): return s.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          def emit(name, body):
+              body = body.strip()
+              if not body: return
+              for i in range(0, min(len(body), 13000), 3400):
+                  print(f'::error title=TVlog {name} [{i//3400}]::' + enc(body[i:i+3400]))
+          emit('tv-build', pathlib.Path('tv-build.log').read_text(errors='replace')[-13000:] if pathlib.Path('tv-build.log').exists() else '')
+          emit('runner-temp', subprocess.run(
+              'find "$RUNNER_TEMP" -maxdepth 2 -name *.log -size +0c -exec tail -c 13000 {} ;',
+              shell=True, capture_output=True, text=True).stdout[-13000:])
+          emit('avd-dir', subprocess.run('ls -la ~/.android/avd 2>/dev/null; tail -c 9000 ~/.android/emulator-debug.log 2>/dev/null; tail -c 9000 ~/.android/avd/*/*log 2>/dev/null', shell=True, capture_output=True, text=True).stdout[-13000:])
+          PY3
           find "$RUNNER_TEMP" -maxdepth 2 -name '*.log' -size +0c -exec head -c 200000 {} ';' > app/build/tvevidence/runner-temp-logs.txt 2>/dev/null
           find "$HOME/.android" -maxdepth 3 -type f \( -name '*.log' -o -name '*.txt' \) -exec sh -c 'echo "== $1"; tail -c 4000 "$1"' _ {} ';' > app/build/tvevidence/android-dir-logs.txt 2>/dev/null
           ls -la "$HOME/.android/avd" >> app/build/tvevidence/android-dir-logs.txt 2>/dev/null
