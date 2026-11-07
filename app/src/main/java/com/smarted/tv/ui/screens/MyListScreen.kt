@@ -62,7 +62,6 @@ fun MyListScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val palette = Ed.palette
     val type = Ed.type
-    val groups = AddonTree.groupSaved(state.saved)
 
     // Uma aba por destino escolhido: Canais, Filmes e Séries.
     var shelf by remember { mutableStateOf(AddonTree.Shelf.MOVIES) }

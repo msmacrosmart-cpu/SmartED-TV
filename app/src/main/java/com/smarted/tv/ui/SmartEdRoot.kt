@@ -43,6 +43,7 @@ import com.smarted.tv.ui.screens.EpgScreen
 import com.smarted.tv.ui.screens.GuideScreen
 import com.smarted.tv.ui.screens.LibraryMode
 import com.smarted.tv.ui.screens.LibraryScreen
+import com.smarted.tv.ui.screens.MyListScreen
 import com.smarted.tv.ui.screens.HomeScreen
 import com.smarted.tv.ui.screens.PlayerScreen
 import com.smarted.tv.ui.screens.RepositoryScreen
