@@ -51,6 +51,7 @@ copy core/epg/EpgTimeline.kt core/epg
 copy core/epg/EpgMatcher.kt core/epg
 copy core/addons/Addon.kt core/addons
 copy core/addons/KodiRepo.kt core/addons
+copy core/addons/AddonBrowser.kt core/addons
 
 # Arquivo de teste (main com asserções) --------------------------------------
 cp "$ROOT/app/src/test/kotlin/CoreVerify.kt" "$WORK/src/CoreVerify.kt"

@@ -3,10 +3,10 @@ package com.smarted.tv.addons.brazuca
 import com.smarted.tv.addons.brazuca.BrazucaPlayAddon.Companion.ID
 import com.smarted.tv.core.data.SourceRepository
 import com.smarted.tv.core.model.CatalogRow
-import com.smarted.tv.core.model.ContentMode
 import com.smarted.tv.core.model.DemoVod
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
+import com.smarted.tv.core.util.SourceTargeting
 import com.smarted.tv.core.model.PublicSource
 import com.smarted.tv.core.model.StreamSource
 import com.smarted.tv.core.net.Http
@@ -228,93 +228,23 @@ class BrazucaCatalog(
     /** Abas de conteúdo do app (a "Biblioteca" não tem acervo próprio). */
     private val KINDS = listOf(MediaKind.LIVE, MediaKind.MOVIE, MediaKind.SERIES)
 
-    /** Modo configurado para cada aba. */
-    fun modeFor(kind: MediaKind): ContentMode {
-        val current = settings?.settings ?: return ContentMode.SMARTED
-        return when (kind) {
-            MediaKind.LIVE -> current.modeChannels
-            MediaKind.MOVIE -> current.modeMovies
-            MediaKind.SERIES -> current.modeSeries
-            else -> ContentMode.SMARTED
-        }
-    }
-
-    /** URL pública configurada para cada tipo (modos Normal e SmartED). */
-    private fun publicUrlFor(kind: MediaKind): String {
-        val current = settings?.settings ?: return ""
-        return when (kind) {
-            MediaKind.LIVE -> current.publicLiveUrl
-            MediaKind.MOVIE -> current.publicMoviesUrl
-            MediaKind.SERIES -> current.publicSeriesUrl
-            else -> ""
-        }
-    }
-
-    /** URL do repositório do usuário para cada tipo (modos Repo e SmartED). */
-    private fun repositoryUrlFor(kind: MediaKind): String {
-        val current = settings?.settings ?: return ""
-        return when (kind) {
-            MediaKind.LIVE -> current.liveRepoUrl
-            MediaKind.MOVIE -> current.moviesRepoUrl
-            MediaKind.SERIES -> current.seriesRepoUrl
-            else -> ""
-        }
-    }
-
     /**
-     * Todas as fontes ativas, com os **destinos marcados pelo usuário**.
+     * Fontes do catálogo — **somente repositórios e addons**.
      *
-     * Cada fonte carrega [PublicSource.targets]: as abas em que ela foi marcada
-     * no painel de configuração (Canais/Filmes/Séries). Uma lista mista pode
-     * alimentar mais de uma aba — e o [ContentClassifier] continua filtrando
-     * item a item, então canal ao vivo nunca entra em Filmes mesmo vindo de uma
-     * fonte marcada para todas as abas.
+     * A arquitetura mudou: listas M3U avulsas saíram de cena. Cada aba é
+     * alimentada pelo addon embutido do app (que carrega o catálogo que
+     * acompanha os assets) e pelos repositórios cujas pastas o usuário
+     * conectou no navegador. Addons Kodi são Python e não executam no Android:
+     * o repositório entrega a **estrutura** (TV ao Vivo, Filmes, Séries) e o
+     * addon embutido entrega os streams.
      */
     private suspend fun configuredSources(): List<PublicSource> {
-        val out = ArrayList<PublicSource>(8)
-
-        KINDS.forEach { kind ->
-            val mode = modeFor(kind)
-            if (ContentMode.includesPublic(mode)) {
-                val url = publicUrlFor(kind)
-                if (url.isNotBlank()) {
-                    out.add(
-                        PublicSource(
-                            id = "public-" + kind.name.lowercase(),
-                            name = "Lista pública · ${kindLabel(kind)}",
-                            url = url.trim(),
-                            kind = kind,
-                            kinds = listOf(kind),
-                            format = com.smarted.tv.core.model.SourceFormat.M3U,
-                            priority = 5,
-                        ),
-                    )
-                }
-            }
-            if (ContentMode.includesRepository(mode)) {
-                val url = repositoryUrlFor(kind)
-                if (url.isNotBlank()) {
-                    out.add(
-                        PublicSource(
-                            id = "repo-" + kind.name.lowercase(),
-                            name = "Repositório · ${kindLabel(kind)}",
-                            url = url.trim(),
-                            kind = kind,
-                            kinds = listOf(kind),
-                            format = com.smarted.tv.core.model.SourceFormat.M3U,
-                            priority = 1,
-                        ),
-                    )
-                }
-            }
-        }
-
-        // Fontes cadastradas pelo usuário: valem exatamente nas abas marcadas.
-        sources.enabled()
+        val bundled = sources.enabled()
             .filter { it.targets.isNotEmpty() }
-            .filterNot { extra -> out.any { it.url == extra.url } }
-            .forEach { out.add(it) }
-        return out
+            // Fontes cadastradas como lista avulsa (M3U/XTREAM) não entram mais.
+            .filterNot { it.discoveredFrom.equals("user", ignoreCase = true) }
+            .sortedBy { it.priority }
+        return bundled.distinctBy { "${it.url}|${SourceTargeting.encode(it.targets)}" }
     }
 
     private fun kindLabel(kind: MediaKind): String = when (kind) {
@@ -345,13 +275,12 @@ class BrazucaCatalog(
     }
 
     /**
-     * Rede de segurança da primeira execução: sem lista de VOD configurada, a
-     * aba Filmes ficaria vazia. Entram então os filmes de domínio público do
-     * [DemoVod] — sempre com arquivo estático, nunca canal ao vivo.
+     * Rede de segurança: sem nada vindo dos repositórios, a aba Filmes ficaria
+     * vazia. Entram então os filmes de domínio público do [DemoVod] — sempre com
+     * arquivo estático, nunca canal ao vivo.
      */
     private fun applyDemoFallback(snapshot: Snapshot): Snapshot {
         if (snapshot.movies.isNotEmpty() || snapshot.series.isNotEmpty()) return snapshot
-        if (!ContentMode.includesPublic(modeFor(MediaKind.MOVIE))) return snapshot
         if (DemoVod.movies.isEmpty()) return snapshot
         return snapshot.copy(movies = DemoVod.movies.sortedBy { TextUtils.titleKey(it.title) })
     }

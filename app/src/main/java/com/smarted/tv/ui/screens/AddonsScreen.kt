@@ -56,6 +56,7 @@ import com.smarted.tv.ui.theme.Ed
 fun AddonsScreen(
     viewModel: AddonsViewModel,
     onOpenRepository: () -> Unit,
+    onOpenBrowser: () -> Unit,
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -85,6 +86,8 @@ fun AddonsScreen(
                 subtitle = "${state.addons.size} instalados · ${state.repositoryName}",
                 modifier = Modifier.weight(1f),
             )
+            EdPrimaryButton(label = "Explorar", onClick = onOpenBrowser, icon = EdIcons.folder)
+            Box(Modifier.size(10.dp))
             EdSecondaryButton(label = "Repositório", onClick = onOpenRepository, icon = EdIcons.cloud)
             Box(Modifier.size(10.dp))
             EdSecondaryButton(label = "Sincronizar", onClick = { viewModel.sync() }, icon = EdIcons.refresh)

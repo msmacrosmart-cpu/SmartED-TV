@@ -22,9 +22,9 @@ texto em **português do Brasil**.
 | App 100% pt-BR | `strings.xml` como fonte única, locale fixo em `MainActivity`, gate `tools/check-ptbr.py` no CI |
 | Player VLC | `VlcEngine` sobre `libvlc-all` 3.5.1 (codecs + reconexão), fallback automático para ExoPlayer |
 | Layouts por tipo de mídia | **Ao vivo**: zap ◀ ▶ / CH±, áudio, legendas, badge AO VIVO, resolução. **Filmes/Séries**: linha do tempo, capítulos, ±10s/+30s, áudio e legendas |
-| Navegador com seleção manual | Ao adicionar URL M3U, repositório ou addon, um painel de checkboxes define onde o conteúdo entra: **Usar para Canais / Filmes / Séries**. A marcação é editável depois e persiste no banco |
-| Três modos de conteúdo por aba | **Normal** (listas públicas), **SmartED** (pública + repositórios) e **Repo** (só repositórios), escolhidos separadamente em Canais, Filmes e Séries |
-| Repositórios independentes | Canais, Filmes e Séries com URL própria; cada um alimenta só a sua aba |
+| Navegador de repositório (Kodi) | Tela dedicada que abre o repositório nas pastas **TV ao Vivo**, **Filmes** e **Séries**, com pôster, título e metadados de cada item (`AddonBrowser`, `AddonBrowserScreen`) |
+| Pasta do repositório → aba do app | Cada pasta conecta na sua aba (`AddonManager.bindFolder`), gravando a escolha no repositório e nos addons; **Filmes/Séries só aceitam MP4/MKV**, canais só transmissão |
+| Somente repositórios e addons | Listas M3U avulsas **desativadas** nesta versão: o conteúdo vem do repositório (padrão Vikings) e do addon embutido |
 | Separação rigorosa de acervo | `ContentClassifier` recusa canal ao vivo em Filmes e exige MP4/MKV/VOD; Canais só recebem transmissão; Séries exigem estrutura de temporada |
 | Séries com temporadas | `SeriesGrouper` transforma episódios soltos (`S01E02`, `1x02`) em séries com temporadas e episódios, persistidas no cache |
 | EPG inteligente por nome | `EpgMatcher` normaliza o nome (remove HD/FHD/SD, `|`, `[tags]`) e cruza com o XMLTV por similaridade quando o `tvg-id` falta ou está errado |
@@ -206,7 +206,7 @@ compilado e testado de verdade com o compilador Kotlin:
 npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
-./tools/verify-core.sh           # 161 asserções reais (M3U, XMLTV, EPG 12h, cruzamento de canais, separação de acervo, séries)
+./tools/verify-core.sh           # 185 asserções reais (EPG 12h, cruzamento de canais, separação de acervo, séries, navegador de repositório)
 ./tools/verify-logic.sh          # typecheck de 35 arquivos (rede, TMDB, EPG, DB, VMs)
 node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
@@ -229,25 +229,34 @@ O acompanhamento de tudo (pedidos, correções e pendências) fica em
 
 ## 📄 Fontes de conteúdo
 
-O app **não hospeda mídia**. Ele indexa fontes públicas e os repositórios que o
-usuário configurar. Respeite os termos de cada provedor.
+O app **não hospeda mídia** e, nesta versão, **não aceita listas M3U avulsas**.
+O modelo é o do Kodi: repositórios de addons.
 
-### Três repositórios independentes
+### Repositório padrão: Vikings
 
-Em **Ajustes → Repositórios de conteúdo (PT-BR)** há um campo por tipo de mídia:
+`https://vikingskoditeam.github.io` já vem cadastrado e ativo
+(`SettingsStore.DEFAULT_REPO_URL`). O app lê o índice do repositório
+(`addons.xml` ou a listagem de diretórios) e classifica cada addon de conteúdo
+em três pastas:
 
-| Aba | Padrão | Para que serve |
+| Pasta | Aba do app | Regra |
 | --- | --- | --- |
-| Canais | lista pública BR (iptv-org `countries/br`) | canais abertos, esportes, notícias |
-| Filmes | lista pública PT (iptv-org `languages/por`) | filmes dublados em português |
-| Séries | lista pública PT (iptv-org `languages/por`) | séries dubladas/legendadas |
+| TV ao Vivo | Canais | aceita apenas transmissão (HLS/TS/RTMP) e mostra EPG |
+| Filmes | Filmes | aceita apenas arquivo estático (MP4, MKV…) |
+| Séries | Séries | idem Filmes, com estrutura de temporada/episódio |
 
-Cada URL alimenta **somente a sua aba**: o tipo vem do campo, não do nome do
-grupo na lista. Assim um `group-title` "Cinema" não joga canal na aba de filmes.
+**Addons → Explorar** abre o navegador: primeiro as pastas, depois os itens com
+pôster, título e metadados. Em qualquer nível dá para conectar/desconectar a
+pasta da aba correspondente (`AddonManager.bindFolder` /
+`unbindFolder`).
 
-O repositório de **addons** padrão é o [Vikings](https://vikingskoditeam.github.io)
-(indicado pelo usuário) — um repositório Kodi com addons BR/PT. Ele é catálogo de
-addons, não de streams; por isso as três listas acima continuam sendo M3U.
+### Por que o addon embutido entrega os streams
+
+Addons de repositório Kodi são plugins **Python** e não executam no Android.
+O repositório entrega a estrutura e os metadados; os streams vêm do addon
+embutido do app (`plugin.video.smarted`, sempre instalado). Itens de addon que
+declaram link direto de vídeo viram cards reproduzíveis; os demais aparecem no
+navegador marcados como **catálogo**.
 
 ### Filtro de português
 

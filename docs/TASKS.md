@@ -5,6 +5,16 @@ verificado. Atualizada a cada rodada.
 
 Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelho · ⏳ pendente
 
+## Rodada 5 — arquitetura de repositórios e addons (M3U desativado)
+
+| # | Pedido | Status | Onde | Verificação |
+|---|--------|--------|------|-------------|
+| 1 | Repositório **Vikings** como padrão, lendo o índice estilo Kodi e separando em TV ao Vivo / Filmes / Séries | ✅ | `SettingsStore.DEFAULT_REPO_URL`, `KodiRepoParser`, `AddonManager.discoverAddons` | Sincronização real no app + `verify-core.sh` |
+| 2 | **Navegador de addons**: pastas e itens com pôster, título e metadados em dark mode/glassmorphism | ✅ | `core/addons/AddonBrowser.kt`, `ui/screens/AddonBrowserScreen.kt`, rota `browser` em `SmartEdRoot` | 24 asserções novas + revisão visual |
+| 3 | Pasta do repositório **vinculada à aba** (Filmes/Séries só MP4/MKV, canais só stream) | ✅ | `AddonManager.bindFolder/unbindFolder`, `AddonBrowser.accepts`, `ContentClassifier` | `verify-core.sh` (barreira de formato por pasta) |
+| 4 | Player em tela cheia absoluta + foco/seleção/bordas em **branco puro #FFFFFF** | ✅ | `PlayerScreen` (`fillMaxSize` + `setWindowSize` do vout), `EdColors.Accent = 0xFFFFFFFF` | Emulador (abertura) + revisão |
+| 5 | Remover listas **M3U** da arquitetura | ✅ | `SourcesScreen` reescrita, `BrazucaCatalog.configuredSources()` só com repositórios/addon embutido, seletor de modos removido de Catálogo/Ajustes | gates + CI |
+
 ## Rodada 4 — navegador com seleção manual de mídia
 
 | # | Pedido | Status | Onde | Verificação |

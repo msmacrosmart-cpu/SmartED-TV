@@ -8,6 +8,7 @@ import com.smarted.tv.core.data.db.RepositoryDao
 import com.smarted.tv.core.data.db.RepositoryEntity
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.net.Http
+import com.smarted.tv.core.util.SourceTargeting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -403,6 +404,98 @@ class AddonManager(
 
     suspend fun installedFor(repoId: String): List<InstalledAddon> = withContext(Dispatchers.IO) {
         addonDao.byRepository(repoId).map { it.toDomain() }
+    }
+
+    // ------------------------------------------- navegador de repositório
+
+    /**
+     * Pastas do repositório prontas para a tela de navegação (TV ao Vivo,
+     * Filmes, Séries) — o menu que o Kodi mostra ao entrar no repositório.
+     *
+     * A classificação vem dos metadados do addon (id, nome, resumo); a marcação
+     * explícita do usuário, quando existe e é específica, tem prioridade.
+     */
+    suspend fun browseRepository(repositoryId: String): List<RepositoryFolder> =
+        withContext(Dispatchers.IO) {
+            val entries = ArrayList<BrowserEntry>()
+            for (entity in addonDao.byRepository(repositoryId)) {
+                if (entity.kind == AddonKind.BUILTIN.name) continue
+                val summary = entity.summary.ifBlank { entity.summaryLong }
+                for (kind in typesFor(entity)) {
+                    entries.add(
+                        BrowserEntry(
+                            id = entity.id + ":" + kind.name,
+                            title = entity.name,
+                            summary = summary,
+                            kind = kind,
+                            author = entity.author,
+                            version = entity.version,
+                            poster = entity.icon,
+                        ),
+                    )
+                }
+            }
+            AddonBrowser.folders(entries)
+        }
+
+    /** Abas deste repositório já conectadas pelo usuário. */
+    suspend fun boundKinds(repositoryId: String): List<MediaKind> = withContext(Dispatchers.IO) {
+        val repo = repositoryDao.byId(repositoryId) ?: return@withContext emptyList()
+        SourceTargeting.parse(repo.kinds)
+    }
+
+    /**
+     * Conecta uma pasta do repositório a uma aba do app.
+     *
+     * Grava a aba no repositório (`repositories.kinds`) e marca os addons
+     * daquela pasta com o destino, de modo que o catálogo passe a alimentá-la.
+     * Devolve quantos addons foram vinculados.
+     */
+    suspend fun bindFolder(repositoryId: String, kind: MediaKind): Int =
+        withContext(Dispatchers.IO) {
+            val repo = repositoryDao.byId(repositoryId) ?: return@withContext 0
+            val bound = SourceTargeting.parse(repo.kinds).toMutableSet()
+            bound.add(kind)
+            repositoryDao.upsert(repo.copy(kinds = SourceTargeting.encode(bound)))
+
+            var linked = 0
+            for (entity in addonDao.byRepository(repositoryId)) {
+                if (entity.kind == AddonKind.BUILTIN.name) continue
+                if (kind !in typesFor(entity)) continue
+                val types = SourceTargeting.parse(entity.types).toMutableSet()
+                types.add(kind)
+                addonDao.setTypes(entity.id, SourceTargeting.encode(types))
+                linked++
+            }
+            _repositories.value = repositoryDao.all().map { it.toDomain() }
+            _addons.value = addonDao.all().map { it.toDomain() }
+            _status.value = "Pasta conectada: ${AddonBrowser.titleFor(kind)} → aba do app"
+            linked
+        }
+
+    /** Desconecta a pasta de uma aba (mantém o repositório). */
+    suspend fun unbindFolder(repositoryId: String, kind: MediaKind) =
+        withContext(Dispatchers.IO) {
+            val repo = repositoryDao.byId(repositoryId) ?: return@withContext
+            val remaining = SourceTargeting.parse(repo.kinds).filterNot { it == kind }
+            repositoryDao.upsert(repo.copy(kinds = SourceTargeting.encode(remaining)))
+            _repositories.value = repositoryDao.all().map { it.toDomain() }
+            _status.value = "Pasta desconectada: ${AddonBrowser.titleFor(kind)}"
+        }
+
+    /**
+     * Abas de um addon instalado.
+     *
+     * Prefere a classificação por metadados quando ela é específica (uma ou duas
+     * abas) e cai para a marcação gravada quando o addon é genérico — assim
+     * "Filmes" não recebe 100 addons de manutenção só porque o índice não
+     * descreve o conteúdo.
+     */
+    private fun typesFor(entity: InstalledAddonEntity): Set<MediaKind> {
+        val inferred = AddonBrowser.classify(entity.id, entity.name, entity.summary)
+        if (inferred.size < AddonBrowser.KINDS.size) return inferred
+        val stored = SourceTargeting.parse(entity.types)
+        return if (stored.isNotEmpty()) stored.toSet() else inferred
     }
 
     suspend fun ensureDefaultRepository(): Repository = withContext(Dispatchers.IO) {

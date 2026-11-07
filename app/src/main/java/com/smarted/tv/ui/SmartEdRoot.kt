@@ -28,12 +28,14 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smarted.tv.AppGraph
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.ui.components.EdDestination
 import com.smarted.tv.ui.components.SideRail
+import com.smarted.tv.ui.screens.AddonBrowserScreen
 import com.smarted.tv.ui.screens.AddonsScreen
 import com.smarted.tv.ui.screens.CatalogScreen
 import com.smarted.tv.ui.screens.DetailsScreen
@@ -253,13 +255,32 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                 AddonsScreen(
                                     viewModel = addonsVm,
                                     onOpenRepository = { subScreen = "repository" },
+                                    onOpenBrowser = { subScreen = "browser" },
                                     onBack = { subScreen = null },
                                 )
                             }
 
+                            // Navegador do repositório: pastas (TV ao Vivo,
+                            // Filmes, Séries) e os itens de cada pasta.
+                            "browser" -> {
+                                val addonsVm: AddonsViewModel = viewModel(factory = factory)
+                                androidx.compose.runtime.LaunchedEffect(Unit) {
+                                    addonsVm.openBrowserActive()
+                                }
+                                AddonBrowserScreen(
+                                    viewModel = addonsVm,
+                                    onBack = { subScreen = "addons" },
+                                )
+                            }
+
                             "sources" -> {
-                                val settingsVm: SettingsViewModel = viewModel(factory = factory)
-                                SourcesScreen(viewModel = settingsVm, onBack = { subScreen = null })
+                                val addonsVm: AddonsViewModel = viewModel(factory = factory)
+                                SourcesScreen(
+                                    viewModel = addonsVm,
+                                    onOpenBrowser = { subScreen = "browser" },
+                                    onOpenRepository = { subScreen = "repository" },
+                                    onBack = { subScreen = null },
+                                )
                             }
 
                             "epg" -> {
@@ -374,13 +395,16 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
         // ---------------------------------------------------------------
         playerItem?.let { item ->
             val vm: PlayerViewModel = viewModel(factory = factory, key = "player-${item.ref.key}")
-            PlayerScreen(
-                viewModel = vm,
-                item = item,
-                onBack = { playerItem = null },
-                onPreviousChannel = { playerItem = zapTarget(item, -1, channelZapList) },
-                onNextChannel = { playerItem = zapTarget(item, +1, channelZapList) },
-            )
+            // zIndex explícito: o player é a última camada, sempre acima da rail.
+            Box(Modifier.fillMaxSize().zIndex(10f)) {
+                PlayerScreen(
+                    viewModel = vm,
+                    item = item,
+                    onBack = { playerItem = null },
+                    onPreviousChannel = { playerItem = zapTarget(item, -1, channelZapList) },
+                    onNextChannel = { playerItem = zapTarget(item, +1, channelZapList) },
+                )
+            }
         }
 
         trailerId?.let { id ->

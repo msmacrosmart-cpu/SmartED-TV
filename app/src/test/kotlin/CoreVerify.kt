@@ -4,6 +4,8 @@
  * Roda via `./tools/verify-core.sh` (JVM comum, sem Android) e também é
  * compatível com `./gradlew test` quando convertido em testes JUnit.
  */
+import com.smarted.tv.core.addons.AddonBrowser
+import com.smarted.tv.core.addons.BrowserEntry
 import com.smarted.tv.core.addons.KodiRepoParser
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.util.DecodeUtils
@@ -42,6 +44,7 @@ fun main() {
     verifyContentSeparation()
     verifySeriesGrouper()
     verifySourceTargeting()
+    verifyAddonBrowser()
     println("== TextUtils ==")
     eq("acentos", "cancao", TextUtils.stripAccents("canção"))
     eq("normalize pontuação", "globo hd", TextUtils.normalize("Globo  HD!!!"))
@@ -538,4 +541,74 @@ private fun verifySourceTargeting() {
         "canal m3u8 da mesma fonte entra em Canais",
         ContentClassifier.classifyFor(MediaKind.LIVE, "Globo HD", "https://x/globo/index.m3u8") == MediaKind.LIVE,
     )
+}
+
+/**
+ * Navegador de repositório (molde Kodi): pastas TV ao Vivo / Filmes / Séries,
+ * classificação por metadados e barreira de formato por pasta.
+ */
+private fun verifyAddonBrowser() {
+    println("== Navegador de repositório (pastas estilo Kodi) ==")
+
+    // ---- classificação por metadados do addon ----
+    check("addon de filmes cai em Filmes", MediaKind.MOVIE in AddonBrowser.classify(
+        "plugin.video.filmeshd", "Filmes HD", "Lançamentos de cinema",
+    ))
+    check("addon de filmes não cai em Canais", MediaKind.LIVE !in AddonBrowser.classify(
+        "plugin.video.filmeshd", "Filmes HD", "Lançamentos de cinema",
+    ))
+    check("addon de canais cai em TV ao Vivo", MediaKind.LIVE in AddonBrowser.classify(
+        "plugin.video.canais", "Canais ao Vivo", "Lista de canais com EPG",
+    ))
+    check("addon de séries cai em Séries", MediaKind.SERIES in AddonBrowser.classify(
+        "plugin.video.series", "Séries e Novelas", "Temporadas completas",
+    ))
+    eq(
+        "addon genérico aparece nas três pastas",
+        3,
+        AddonBrowser.classify("plugin.video.diversos", "Diversos", "Conteúdo variado").size,
+    )
+    check("acento não atrapalha a classificação", MediaKind.SERIES in AddonBrowser.classify(
+        "x", "SÉRIES", "",
+    ))
+
+    // ---- barreira de formato: filmes só aceitam arquivo estático ----
+    check("filme .mkv é aceito em Filmes", AddonBrowser.accepts(MediaKind.MOVIE, "https://x/a.mkv"))
+    check("filme .mp4 é aceito em Filmes", AddonBrowser.accepts(MediaKind.MOVIE, "https://x/a.mp4"))
+    check("canal .m3u8 é recusado em Filmes", !AddonBrowser.accepts(MediaKind.MOVIE, "https://x/live.m3u8"))
+    check("canal .m3u8 é aceito em Canais", AddonBrowser.accepts(MediaKind.LIVE, "https://x/live.m3u8"))
+    check("filme .mkv é recusado em Canais", !AddonBrowser.accepts(MediaKind.LIVE, "https://x/a.mkv"))
+    check("link que não é mídia é recusado", !AddonBrowser.accepts(MediaKind.MOVIE, "https://x/pagina.html"))
+    check("sem link não é reproduzível", !AddonBrowser.accepts(MediaKind.MOVIE, null))
+
+    // ---- montagem das pastas ----
+    val folderEntries = listOf(
+        BrowserEntry(id = "1", title = "Filmes A", summary = "", kind = MediaKind.MOVIE,
+            streamUrl = "https://x/a.mp4"),
+        BrowserEntry(id = "2", title = "Filmes B", summary = "", kind = MediaKind.MOVIE),
+        BrowserEntry(id = "3", title = "Canal C", summary = "", kind = MediaKind.LIVE,
+            streamUrl = "https://x/c.m3u8"),
+    )
+    val folders = AddonBrowser.folders(folderEntries)
+    eq("três pastas sempre", 3, folders.size)
+    eq("ordem das pastas", listOf(MediaKind.LIVE, MediaKind.MOVIE, MediaKind.SERIES), folders.map { it.kind })
+    eq("título da primeira pasta", "TV ao Vivo", folders[0].title)
+    eq("Filmes tem 2 itens", 2, folders[1].count)
+    eq("Filmes tem 1 reproduzível", 1, folders[1].playableCount)
+    eq("Séries vazia", 0, folders[2].count)
+    eq("resumo das pastas", "TV ao Vivo 1 · Filmes 2 · Séries 0", AddonBrowser.summary(folders))
+
+    // ---- link de mídia direto ----
+    eq(
+        "escolhe o primeiro link de mídia",
+        "https://x/a.mp4",
+        AddonBrowser.mediaUrl(listOf("https://x/pagina.html", "https://x/a.mp4")),
+    )
+    eq("sem link de mídia devolve null", null, AddonBrowser.mediaUrl(listOf("https://x/pagina.html", null)))
+
+    // ---- metadados do card ----
+    val entry = BrowserEntry(id = "z", title = "Filme Z", summary = "", kind = MediaKind.MOVIE,
+        author = "Vikings", version = "1.2.3")
+    eq("linha de metadados", "Vikings · v1.2.3", entry.metaLine)
+    check("entrada sem stream não é reproduzível", !entry.playable)
 }

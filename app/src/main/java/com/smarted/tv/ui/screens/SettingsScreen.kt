@@ -35,7 +35,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smarted.tv.R
 import com.smarted.tv.core.data.Settings
 import com.smarted.tv.core.data.SettingsStore
-import com.smarted.tv.core.model.ContentMode
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.ui.components.AccentDot
 import com.smarted.tv.ui.components.DividerLine
@@ -117,74 +116,6 @@ fun SettingsScreen(
                         title = "Sincronizar repositório agora",
                         value = if (state.busy) "…" else null,
                         onClick = { viewModel.setRepo(state.repoUrl, state.repoName) },
-                    )
-                }
-            }
-
-            item("group-modes") {
-                SettingsGroup(stringResource(R.string.settings_group_modes)) {
-                    // O modo é por aba: canais podem vir da lista pública
-                    // enquanto filmes vêm do repositório do usuário.
-                    SettingRow(
-                        icon = EdIcons.live,
-                        title = stringResource(R.string.settings_mode_channels),
-                        subtitle = stringResource(R.string.settings_mode_hint),
-                        value = modeLabel(state.settings.modeChannels),
-                        onClick = {
-                            viewModel.setContentMode(
-                                MediaKind.LIVE,
-                                nextMode(state.settings.modeChannels),
-                            )
-                        },
-                    )
-                    SettingRow(
-                        icon = EdIcons.movies,
-                        title = stringResource(R.string.settings_mode_movies),
-                        value = modeLabel(state.settings.modeMovies),
-                        onClick = {
-                            viewModel.setContentMode(
-                                MediaKind.MOVIE,
-                                nextMode(state.settings.modeMovies),
-                            )
-                        },
-                    )
-                    SettingRow(
-                        icon = EdIcons.series,
-                        title = stringResource(R.string.settings_mode_series),
-                        value = modeLabel(state.settings.modeSeries),
-                        onClick = {
-                            viewModel.setContentMode(
-                                MediaKind.SERIES,
-                                nextMode(state.settings.modeSeries),
-                            )
-                        },
-                    )
-                }
-            }
-
-            item("group-public") {
-                SettingsGroup(stringResource(R.string.settings_group_public)) {
-                    // Listas usadas nos modos Normal e SmartED.
-                    RepoField(
-                        icon = EdIcons.live,
-                        title = stringResource(R.string.settings_repo_channels),
-                        hint = stringResource(R.string.settings_public_channels_hint),
-                        current = state.settings.publicLiveUrl,
-                        onSave = { viewModel.setPublicSource(MediaKind.LIVE, it) },
-                    )
-                    RepoField(
-                        icon = EdIcons.movies,
-                        title = stringResource(R.string.settings_repo_movies),
-                        hint = stringResource(R.string.settings_public_movies_hint),
-                        current = state.settings.publicMoviesUrl,
-                        onSave = { viewModel.setPublicSource(MediaKind.MOVIE, it) },
-                    )
-                    RepoField(
-                        icon = EdIcons.series,
-                        title = stringResource(R.string.settings_repo_series),
-                        hint = stringResource(R.string.settings_public_series_hint),
-                        current = state.settings.publicSeriesUrl,
-                        onSave = { viewModel.setPublicSource(MediaKind.SERIES, it) },
                     )
                 }
             }
@@ -430,22 +361,6 @@ fun SettingsScreen(
  * Campo de repositório: mostra a URL atual e abre um diálogo de edição.
  * Um campo por tipo de mídia é o que garante a separação canais/filmes/séries.
  */
-/** Rótulo traduzido do modo de conteúdo. */
-@Composable
-private fun modeLabel(mode: ContentMode): String = stringResource(
-    when (mode) {
-        ContentMode.NORMAL -> R.string.mode_normal
-        ContentMode.SMARTED -> R.string.mode_smarted
-        ContentMode.REPO -> R.string.mode_repo
-    },
-)
-
-/** Ciclo Normal → SmartED → Repo → Normal (um toque troca o modo). */
-private fun nextMode(mode: ContentMode): ContentMode {
-    val all = ContentMode.entries
-    return all[(all.indexOf(mode) + 1) % all.size]
-}
-
 @Composable
 private fun RepoField(
     icon: ImageVector,

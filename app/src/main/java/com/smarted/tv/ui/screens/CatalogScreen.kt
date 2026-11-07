@@ -31,7 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smarted.tv.R
-import com.smarted.tv.core.model.ContentMode
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.ui.components.CategorySidebar
@@ -102,10 +101,6 @@ fun CatalogScreen(
                     title = title,
                     subtitle = "${state.total} $subtitle",
                     modifier = Modifier.weight(1f),
-                )
-                ModeSelector(
-                    current = state.mode,
-                    onSelect = { viewModel.setContentMode(it) },
                 )
             }
 
@@ -185,37 +180,6 @@ fun CatalogScreen(
 }
 
 /** Lista de canais (logotipo + nome estilo guia, como na referência). */
-/**
- * Seletor de origem do conteúdo desta aba.
- *
- * - **Normal**: listas M3U públicas (uma dedicada por tipo).
- * - **SmartED**: lista pública + repositórios configurados.
- * - **Repo**: apenas os repositórios configurados.
- *
- * O modo é por aba: mudar em Filmes não altera Canais.
- */
-@Composable
-private fun ModeSelector(
-    current: ContentMode,
-    onSelect: (ContentMode) -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ContentMode.entries.forEach { mode ->
-            FilterPill(
-                label = stringResource(modeLabel(mode)),
-                onClick = { onSelect(mode) },
-                active = mode == current,
-            )
-        }
-    }
-}
-
-/** Rótulo traduzido de cada modo (fonte única em `strings.xml`). */
-private fun modeLabel(mode: ContentMode): Int = when (mode) {
-    ContentMode.NORMAL -> R.string.mode_normal
-    ContentMode.SMARTED -> R.string.mode_smarted
-    ContentMode.REPO -> R.string.mode_repo
-}
 
 @Composable
 private fun LiveList(

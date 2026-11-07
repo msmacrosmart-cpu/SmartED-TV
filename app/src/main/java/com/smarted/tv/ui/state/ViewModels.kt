@@ -3,11 +3,13 @@ package com.smarted.tv.ui.state
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.smarted.tv.core.addons.AddonBrowser
 import com.smarted.tv.core.addons.AddonManager
+import com.smarted.tv.core.addons.BrowserEntry
+import com.smarted.tv.core.addons.RepositoryFolder
 import com.smarted.tv.core.data.Settings
 import com.smarted.tv.core.model.CatalogPage
 import com.smarted.tv.core.model.EpgProgram
-import com.smarted.tv.core.model.ContentMode
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.model.WatchProgress
@@ -226,8 +228,6 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
 data class CatalogUiState(
     val kind: MediaKind = MediaKind.MOVIE,
     val loading: Boolean = true,
-    /** Modo de conteúdo ativo nesta aba: Normal, SmartED ou Repo. */
-    val mode: ContentMode = ContentMode.SMARTED,
     val items: List<MediaItem> = emptyList(),
     val categories: List<Pair<String, Int>> = emptyList(),
     val selectedCategory: String? = null,
@@ -262,28 +262,11 @@ class CatalogViewModel(private val graph: AppServices) : ViewModel() {
         load(kind)
     }
 
-    /**
-     * Troca o modo de conteúdo da aba atual.
-     *
-     * O modo é uma preferência (persiste), mas o catálogo é um retrato único
-     * das três abas: ao mudar qualquer uma, o snapshot é invalidado e recarregado
-     * para que a mistura pública/repositório seja refeita.
-     */
-    fun setContentMode(mode: ContentMode) {
-        val kind = _state.value.kind
-        if (_state.value.mode == mode) return
-        graph.settings.setContentMode(kind, mode)
-        graph.catalog.invalidate()
-        _state.value = _state.value.copy(mode = mode, loading = true, items = emptyList())
-        load(kind, force = true)
-    }
-
     fun load(kind: MediaKind = _state.value.kind, force: Boolean = false) {
         viewModelScope.launch {
             _state.value = _state.value.copy(
                 loading = _state.value.items.isEmpty(),
                 kind = kind,
-                mode = modeFor(kind),
             )
             val snap = runCatching { graph.catalog.snapshot(force) }.getOrNull()
             if (snap == null) {
@@ -306,14 +289,6 @@ class CatalogViewModel(private val graph: AppServices) : ViewModel() {
             applyFilters()
             if (kind == MediaKind.LIVE) startEpgPolling()
         }
-    }
-
-    /** Modo configurado para a aba (lido das preferências). */
-    private fun modeFor(kind: MediaKind): ContentMode = when (kind) {
-        MediaKind.LIVE -> graph.settings.settings.modeChannels
-        MediaKind.MOVIE -> graph.settings.settings.modeMovies
-        MediaKind.SERIES -> graph.settings.settings.modeSeries
-        else -> ContentMode.SMARTED
     }
 
     fun selectCategory(category: String?) {
@@ -710,6 +685,14 @@ data class AddonsUiState(
     val syncStatus: String = "",
     val syncing: Boolean = false,
     val error: String? = null,
+    /** Navegador do repositório: pasta aberta (null = tela de pastas). */
+    val browserRepository: com.smarted.tv.core.addons.Repository? = null,
+    val browserFolders: List<RepositoryFolder> = emptyList(),
+    val browserBound: List<MediaKind> = emptyList(),
+    val browserKind: MediaKind? = null,
+    val browserEntries: List<BrowserEntry> = emptyList(),
+    val browserLoading: Boolean = false,
+    val browserMessage: String? = null,
 )
 
 class AddonsViewModel(private val graph: AppServices) : ViewModel() {
@@ -785,6 +768,99 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
 
     fun removeRepository(id: String) {
         viewModelScope.launch { graph.addons.removeRepository(id) }
+    }
+
+    // --------------------------------------------- navegador de repositório
+
+    /**
+     * Abre o navegador do repositório: lê as pastas (TV ao Vivo, Filmes,
+     * Séries) e as abas já conectadas.
+     */
+    fun openBrowser(repositoryId: String) {
+        viewModelScope.launch {
+            val repo = _state.value.repositories.firstOrNull { it.id == repositoryId }
+            _state.value = _state.value.copy(
+                browserRepository = repo,
+                browserLoading = true,
+                browserKind = null,
+                browserMessage = null,
+            )
+            val folders = runCatching { graph.addons.browseRepository(repositoryId) }
+                .getOrDefault(emptyList())
+            val bound = runCatching { graph.addons.boundKinds(repositoryId) }
+                .getOrDefault(emptyList())
+            _state.value = _state.value.copy(
+                browserFolders = folders,
+                browserBound = bound,
+                browserLoading = false,
+                browserRepository = repo ?: _state.value.browserRepository,
+            )
+        }
+    }
+
+    /**
+     * Abre o navegador no repositório ativo. Se ainda não houver nenhum,
+     * garante o padrão (Vikings) antes de navegar.
+     */
+    fun openBrowserActive() {
+        viewModelScope.launch {
+            val current = _state.value.repositories.firstOrNull { it.isDefault }
+                ?: _state.value.repositories.firstOrNull()
+            val repo = current ?: runCatching { graph.addons.ensureDefaultRepository() }.getOrNull()
+            repo?.let { openBrowser(it.id) }
+        }
+    }
+
+    /** Recarrega as pastas (usado depois de sincronizar o repositório). */
+    fun refreshBrowser() {
+        val id = _state.value.browserRepository?.id ?: return
+        openBrowser(id)
+    }
+
+    /** Entra numa pasta: mostra os itens (pôster, título, metadados). */
+    fun openFolder(kind: MediaKind) {
+        val folder = _state.value.browserFolders.firstOrNull { it.kind == kind }
+        _state.value = _state.value.copy(
+            browserKind = kind,
+            browserEntries = folder?.entries.orEmpty(),
+            browserMessage = null,
+        )
+    }
+
+    fun closeFolder() {
+        _state.value = _state.value.copy(browserKind = null, browserEntries = emptyList())
+    }
+
+    /** Conecta a pasta aberta à aba correspondente do app. */
+    fun bindCurrentFolder() {
+        val id = _state.value.browserRepository?.id ?: return
+        val kind = _state.value.browserKind ?: return
+        bindFolder(id, kind)
+    }
+
+    fun bindFolder(repositoryId: String, kind: MediaKind) {
+        viewModelScope.launch {
+            val linked = runCatching { graph.addons.bindFolder(repositoryId, kind) }.getOrDefault(0)
+            val bound = runCatching { graph.addons.boundKinds(repositoryId) }.getOrDefault(emptyList())
+            _state.value = _state.value.copy(
+                browserBound = bound,
+                browserMessage = "Pasta ${AddonBrowser.titleFor(kind)} conectada à aba · $linked addon(s)",
+            )
+            graph.catalog.invalidate()
+            runCatching { graph.catalog.snapshot(force = true) }
+        }
+    }
+
+    fun unbindFolder(repositoryId: String, kind: MediaKind) {
+        viewModelScope.launch {
+            runCatching { graph.addons.unbindFolder(repositoryId, kind) }
+            val bound = runCatching { graph.addons.boundKinds(repositoryId) }.getOrDefault(emptyList())
+            _state.value = _state.value.copy(
+                browserBound = bound,
+                browserMessage = "Pasta ${AddonBrowser.titleFor(kind)} desconectada",
+            )
+            graph.catalog.invalidate()
+        }
     }
 }
 
@@ -892,14 +968,6 @@ class SettingsViewModel(private val graph: AppServices) : ViewModel() {
         }
     }
 
-    /** Define o modo de conteúdo de uma aba em Ajustes. */
-    fun setContentMode(kind: MediaKind, mode: ContentMode) {
-        graph.settings.setContentMode(kind, mode)
-        viewModelScope.launch {
-            graph.catalog.invalidate()
-            runCatching { graph.catalog.snapshot(force = true) }
-        }
-    }
 
     fun togglePortugueseOnly(enabled: Boolean) {
         graph.settings.update { it.copy(portugueseOnly = enabled) }
@@ -936,45 +1004,6 @@ class SettingsViewModel(private val graph: AppServices) : ViewModel() {
     fun removeEpgSource(url: String) {
         viewModelScope.launch {
             runCatching { graph.epg.removeSource(url); refreshSources() }
-        }
-    }
-
-    /**
-     * Adiciona uma lista/M3U com as abas marcadas pelo usuário.
-     *
-     * @param kinds destinos escolhidos no painel (Canais/Filmes/Séries)
-     */
-    fun addPublicSource(name: String, url: String, kinds: List<MediaKind>) {
-        viewModelScope.launch {
-            runCatching { graph.sources.addCustom(name, url, kinds) }
-                .onSuccess {
-                    _state.value = _state.value.copy(message = "Fonte adicionada")
-                    refreshSources()
-                    graph.catalog.invalidate()
-                }
-                .onFailure { _state.value = _state.value.copy(message = it.message) }
-        }
-    }
-
-    /**
-     * Troca as abas (Canais/Filmes/Séries) de uma fonte já cadastrada.
-     * Reindexa o catálogo para o conteúdo migrar de aba na hora.
-     */
-    fun setSourceTargets(id: String, kinds: List<MediaKind>) {
-        if (kinds.isEmpty()) {
-            _state.value = _state.value.copy(message = "Marque ao menos uma aba")
-            return
-        }
-        viewModelScope.launch {
-            val source = runCatching { graph.sources.all() }.getOrDefault(emptyList())
-                .firstOrNull { it.id == id } ?: return@launch
-            graph.sources.upsert(source.copy(kind = kinds.first(), kinds = kinds))
-            _state.value = _state.value.copy(
-                message = "Abas atualizadas: " + com.smarted.tv.core.util.SourceTargeting.describe(kinds),
-            )
-            refreshSources()
-            graph.catalog.invalidate()
-            runCatching { graph.catalog.snapshot(force = true) }
         }
     }
 
