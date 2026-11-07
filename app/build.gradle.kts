@@ -77,8 +77,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-        // Interface e formatos 100% em português do Brasil.
-        resourceConfigurations += listOf("pt-rBR", "pt")
     }
 
     packaging {
