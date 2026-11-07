@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -80,10 +81,14 @@ fun ChannelsScreen(vm: CatalogViewModel, revision: Int, onHome: () -> Unit, onSe
         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(Modifier.weight(0.8f).fillMaxHeight().focusGroup().focusRestorer().testTag("channels-categories"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SectionLabel("Categorias")
-                val categories = listOf("Todos", "Favoritos") + vm.categories()
+                SearchField(ui.categorySearch, vm::categorySearch, "Pesquisar categorias", Modifier.fillMaxWidth(), "channel-category-search")
+                val categories = listOf("Todos", "Favoritos") + vm.categories().filter {
+                    com.smarted.tv.core.catalog.foldText(it).contains(com.smarted.tv.core.catalog.foldText(ui.categorySearch))
+                }
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(categories, key = { it }) { category ->
-                        Choice(category, ui.query.category == category, { vm.category(category) }, Modifier.fillMaxWidth()
+                        Choice(if (category == "Favoritos") "Favoritos (${data.favorites.count { it.scope == Scope.CHANNELS }})" else category,
+                            ui.query.category == category, { vm.category(category) }, Modifier.fillMaxWidth()
                             .focusProperties { right = channelFocus }.then(if (category == categories.first()) Modifier.focusRequester(categoryFocus) else Modifier))
                     }
                 }
@@ -97,7 +102,8 @@ fun ChannelsScreen(vm: CatalogViewModel, revision: Int, onHome: () -> Unit, onSe
                 LazyColumn(state = listState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(3.dp)) {
                     items(items, key = { it.key }) { item ->
                         val window = programWindow(item.videos, now)
-                        ChannelRow(item, window.current?.title.orEmpty(), item.key == selected?.key, { selectedKey = item.key },
+                        ChannelRow(item, window.current?.title.orEmpty(), window.upcoming.firstOrNull()?.title.orEmpty(),
+                            item.key == selected?.key, data.favorites.any { it.key == item.key }, { selectedKey = item.key },
                             Modifier.fillMaxWidth().then(if (item.key == items.first().key) Modifier.focusRequester(channelFocus) else Modifier)
                                 .focusProperties { left = categoryFocus; right = previewFocus })
                     }
@@ -132,7 +138,7 @@ fun ChannelsScreen(vm: CatalogViewModel, revision: Int, onHome: () -> Unit, onSe
 }
 
 @Composable
-private fun ChannelRow(item: MediaItem, nowTitle: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+private fun ChannelRow(item: MediaItem, nowTitle: String, nextTitle: String, selected: Boolean, favorite: Boolean, onClick: () -> Unit, modifier: Modifier) {
     var focused by remember { mutableStateOf(false) }
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(modifier.testTag("channel-${item.key}").onFocusChanged { focused = it.isFocused }.whiteFocus(focused, selected, 12.dp)
@@ -140,8 +146,10 @@ private fun ChannelRow(item: MediaItem, nowTitle: String, selected: Boolean, onC
         RemoteImage(item.imageUrl, "Logotipo de ${item.name}", Modifier.size(52.dp, 40.dp), ContentScale.Fit)
         Column(Modifier.weight(1f)) {
             Text(item.name, color = Color.White, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(nowTitle.ifBlank { "Programação não informada" }, color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Agora: ${nowTitle.ifBlank { "programação não informada" }}", color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("A seguir: ${nextTitle.ifBlank { "não informado" }}", color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        if (favorite) Icon(Icons.Default.Favorite, "Favorito", Modifier.size(18.dp), tint = Color.White)
     }
 }
 

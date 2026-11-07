@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -73,8 +74,13 @@ fun CatalogScreen(vm: CatalogViewModel, revision: Int, onHome: () -> Unit, onSet
                     Modifier.fillMaxWidth().weight(if (vm.scope == Scope.SERIES) 0.95f else 1f))
                 if (vm.scope == Scope.SERIES) {
                     Column(Modifier.weight(1.05f).focusGroup().focusRestorer(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (selected.seasons.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            selected.seasons.take(8).forEach { season -> Choice("Temporada $season", ui.season == season, { vm.season(season) }, Modifier.testTag("season-$season")) }
+                        if (selected.seasons.isNotEmpty()) Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            selected.seasons.forEach { season ->
+                                Choice(if (season == 0) "Especiais" else "Temporada $season", ui.season == season, { vm.season(season) }, Modifier.testTag("season-$season"))
+                            }
                         }
                         val episodes = selected.videos.filter { it.season == ui.season }.sortedWith(compareBy({ it.episode ?: Int.MAX_VALUE }, { it.id }))
                         if (episodes.isEmpty()) Notice("Este addon ainda não informou episódios. Atualize o catálogo ou escolha outra fonte.")

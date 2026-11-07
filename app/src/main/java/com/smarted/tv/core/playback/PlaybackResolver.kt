@@ -38,3 +38,11 @@ class PlaybackResolver(private val api: StremioApi) {
         return ResolvedPlayback(distinct, warnings)
     }
 }
+
+/** Próximo episódio da mesma série, respeitando temporada/episódio e especiais. */
+fun nextEpisode(item: MediaItem, current: Video?): Video? {
+    if (item.scope != Scope.SERIES || current == null) return null
+    val ordered = item.videos.sortedWith(compareBy({ it.season ?: Int.MAX_VALUE }, { it.episode ?: Int.MAX_VALUE }, { it.id }))
+    val index = ordered.indexOfFirst { it.id == current.id }
+    return if (index >= 0) ordered.getOrNull(index + 1) else null
+}

@@ -59,7 +59,7 @@ fun SmartEdApp(graph: AppGraph) {
             }
             request?.let { playing ->
                 Box(Modifier.fillMaxSize().testTag("fullscreen-player")) {
-                    PlayerScreen(playing, vm) { request = null }
+                    PlayerScreen(playing, vm, { request = null }, { request = it })
                 }
             }
         }

@@ -54,7 +54,7 @@ class TvFlowTest {
         val settings = compose.onNodeWithTag("settings").fetchSemanticsNode()
         assertTrue("Settings must be below navigation", settings.boundsInRoot.top > channels.boundsInRoot.bottom)
         assertEquals(Color.White, channels.config.getOrNull(FocusRingColorKey))
-        compose.onNodeWithTag("nav-Canais").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithTag("nav-Canais").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithTag("nav-Filmes").assertIsFocused()
         assertEquals(Color.White, compose.onNodeWithTag("nav-Filmes").fetchSemanticsNode().config.getOrNull(FocusRingColorKey))
         compose.onNodeWithTag("nav-Filmes").performKeyInput { pressKey(Key.Enter) }
@@ -97,6 +97,8 @@ class TvFlowTest {
         compose.onNodeWithTag("channel-search").assertIsDisplayed().performTextInput("canalle")
         compose.onNodeWithText("Canalle de teste").assertIsDisplayed()
         compose.onNodeWithText("Horizonte de teste").assertDoesNotExist()
+        compose.onNodeWithTag("channel-category-search").assertIsDisplayed().performTextInput("not")
+        compose.onNodeWithText("Notícias").assertIsDisplayed()
     }
 
     @Test fun settingsExposeThreeSlotsAndExplicitScope() {
@@ -116,5 +118,9 @@ class TvFlowTest {
         compose.waitUntil(10_000) { runBlocking { empty.repository.data.value.addons.size } == 1 }
         assertEquals(Scope.SERIES, runBlocking { empty.repository.data.value.addons.single().scope })
         compose.onNodeWithText("1 / 3").assertIsDisplayed()
+        compose.onNodeWithTag("settings-section-PLAYER").performClick()
+        compose.onNodeWithText("Idioma de áudio preferido").assertIsDisplayed()
+        compose.onNodeWithTag("settings-section-INTERFACE").performClick()
+        compose.onNodeWithText("Dark Glassmorphism fumê").assertIsDisplayed()
     }
 }

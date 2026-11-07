@@ -62,6 +62,24 @@ class RepositoryTest {
         assertThrows(java.io.IOException::class.java) { kotlinx.coroutines.runBlocking { repo.install("https://a.example", Scope.MOVIES) } }
         assertTrue(repo.data.value.addons.isEmpty())
     }
+    @Test fun preferencesPersistAndValidateRanges() = runTest {
+        val store = InMemoryState(); val repo = AppRepository(store, FakeApi()); repo.initialize()
+        repo.updatePreferences { it.copy(audioLanguage = "en", subtitleSizePercent = 125, autoplayNextEpisode = false) }
+        val reloaded = AppRepository(store, FakeApi()); reloaded.initialize()
+        assertEquals("en", reloaded.data.value.preferences.audioLanguage)
+        assertEquals(125, reloaded.data.value.preferences.subtitleSizePercent)
+        assertFalse(reloaded.data.value.preferences.autoplayNextEpisode)
+        assertThrows(IllegalArgumentException::class.java) { UserPreferences(subtitleSizePercent = 10) }
+    }
+    @Test fun clearProgressKeepsAddonsAndFavorites() = runTest {
+        val repo = AppRepository(InMemoryState(), FakeApi()); repo.initialize()
+        val addon = repo.install("https://a.example", Scope.MOVIES); val item = testItem(addon, "m")
+        repo.favorite(item); repo.saveProgress(item, "m", 1000, 5000)
+        repo.clearProgress()
+        assertEquals(1, repo.data.value.addons.size)
+        assertEquals(1, repo.data.value.favorites.size)
+        assertTrue(repo.data.value.progress.isEmpty())
+    }
     @Test fun progressIsBoundedAndNeverStoredForLive() = runTest {
         val repo = AppRepository(InMemoryState(), FakeApi()); repo.initialize()
         val movie = testAddon(Scope.MOVIES); val live = testAddon(Scope.CHANNELS)

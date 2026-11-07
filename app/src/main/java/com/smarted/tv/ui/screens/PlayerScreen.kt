@@ -33,6 +33,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import com.smarted.tv.core.model.*
 import com.smarted.tv.core.playback.ResolvedPlayback
+import com.smarted.tv.core.playback.nextEpisode
 import com.smarted.tv.player.*
 import com.smarted.tv.ui.components.*
 import com.smarted.tv.ui.state.AppViewModel
@@ -45,7 +46,7 @@ import kotlinx.coroutines.delay
 data class PlayRequest(val item: MediaItem, val video: Video?)
 
 @Composable
-fun PlayerScreen(request: PlayRequest, vm: AppViewModel, onClose: () -> Unit) {
+fun PlayerScreen(request: PlayRequest, vm: AppViewModel, onClose: () -> Unit, onNext: (PlayRequest) -> Unit = {}) {
     val context = LocalContext.current
     val view = LocalView.current
     val data by vm.data.collectAsState()
@@ -72,10 +73,19 @@ fun PlayerScreen(request: PlayRequest, vm: AppViewModel, onClose: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.Black).testTag("player")) {
         val stream = resolved?.streams?.getOrNull(source)
         if (stream?.direct == true) {
-            val progress = remember(request) { vm.graph.repository.progress(request.item, request.item.playbackId(request.video)) }
-            val player = rememberVideoPlayer(stream, false, progress?.takeIf { it.durationMs == 0L || it.positionMs < it.durationMs * .94 }?.positionMs ?: 0)
+            val preferences = data.preferences
+            val progress = remember(request, preferences.resumePlayback) {
+                if (preferences.resumePlayback) vm.graph.repository.progress(request.item, request.item.playbackId(request.video)) else null
+            }
+            val player = rememberVideoPlayer(stream, false,
+                progress?.takeIf { it.durationMs == 0L || it.positionMs < it.durationMs * .94 }?.positionMs ?: 0, preferences)
             val status by playerStatus(player)
-            VideoSurface(player, Modifier.matchParentSize())
+            VideoSurface(player, Modifier.matchParentSize(), preferences.subtitleSizePercent)
+            LaunchedEffect(status.ended, request, preferences.autoplayNextEpisode) {
+                if (status.ended && preferences.autoplayNextEpisode) {
+                    nextEpisode(request.item, request.video)?.let { onNext(PlayRequest(request.item, it)) }
+                }
+            }
             LaunchedEffect(player, request) {
                 while (true) { delay(5_000); vm.saveProgress(request, player.currentPosition, player.duration.coerceAtLeast(0)) }
             }

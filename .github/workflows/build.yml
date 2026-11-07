@@ -27,12 +27,12 @@ jobs:
       ORG_GRADLE_PROJECT_versionCode: ${{ github.run_number }}
       ORG_GRADLE_PROJECT_versionName: 2.0.0.${{ github.run_number }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Architecture gate
         run: python3 tools/check_architecture.py
       - name: Kotlin compile
@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           ./gradlew :app:assembleDebug --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee -a build.log
       - name: Upload debug APK for direct TV testing
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SmartED-TV-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
@@ -82,7 +82,7 @@ jobs:
           PY
       - name: Test report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: |
@@ -94,7 +94,7 @@ jobs:
           if-no-files-found: ignore
       - name: Candidate APKs
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: candidate-apks
           path: |
@@ -108,19 +108,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: AVD cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: avd-cache
         with:
           path: |
@@ -128,7 +128,7 @@ jobs:
             ~/.android/adb*
           key: avd-tv-30-x86_64-v2
       - name: Run Android TV instrumentation
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 30
           target: android-tv
@@ -136,24 +136,20 @@ jobs:
           profile: tv_1080p
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          script: |
-            set -o pipefail
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon --max-workers=2 --console=plain --stacktrace 2>&1 | tee tv-build.log
-            gradle_status=${PIPESTATUS[0]}
-            adb exec-out run-as com.smarted.tv.debug cat files/tv-player.png > app/build/tv-player.png || true
-            exit "$gradle_status"
+          script: bash tools/run_tv_tests.sh
       - name: Annotate TV failures
         if: failure()
         run: python3 tools/ci_report.py tv-build.log
       - name: Upload TV evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-tv-reports
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
             app/build/tv-player.png
+            app/build/tv-logcat.txt
           if-no-files-found: ignore
 
   release-candidate:
@@ -167,12 +163,12 @@ jobs:
       ORG_GRADLE_PROJECT_versionCode: ${{ github.run_number }}
       ORG_GRADLE_PROJECT_versionName: 2.0.0.${{ github.run_number }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Restore compatibility signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -205,7 +201,7 @@ jobs:
           "$BT/aapt2" dump badging dist/*.apk | grep -E "package:|sdkVersion|targetSdkVersion|leanback|launchable-activity"
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - name: Validated APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SmartED-TV-validated-apk
           path: dist/

@@ -22,21 +22,26 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.smarted.tv.core.model.MediaStream
+import com.smarted.tv.core.model.UserPreferences
 import com.smarted.tv.core.protocol.StremioClient
 import kotlinx.coroutines.delay
 
-data class PlayerStatus(val ready: Boolean = false, val playing: Boolean = false, val position: Long = 0, val duration: Long = 0, val error: String = "")
+data class PlayerStatus(val ready: Boolean = false, val playing: Boolean = false, val ended: Boolean = false, val position: Long = 0, val duration: Long = 0, val error: String = "")
 
 @OptIn(UnstableApi::class)
 @Composable
-fun rememberVideoPlayer(stream: MediaStream, muted: Boolean, startPosition: Long = 0): ExoPlayer {
+fun rememberVideoPlayer(stream: MediaStream, muted: Boolean, startPosition: Long = 0, preferences: UserPreferences = UserPreferences()): ExoPlayer {
     val context = LocalContext.current
-    val player = remember(stream.url, muted) {
+    val player = remember(stream.url, muted, preferences) {
         val factory = OkHttpDataSource.Factory(StremioClient.defaultClient()).setDefaultRequestProperties(stream.headers)
             .setUserAgent("SmartED-TV/2.0 Android TV")
         ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(factory))
             .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(8_000, 30_000, 1_000, 2_000).build())
-            .setSeekBackIncrementMs(10_000).setSeekForwardIncrementMs(30_000).build().apply {
+            .setSeekBackIncrementMs(preferences.seekBackSeconds * 1000L).setSeekForwardIncrementMs(preferences.seekForwardSeconds * 1000L).build().apply {
+                trackSelectionParameters = trackSelectionParameters.buildUpon()
+                    .setPreferredAudioLanguage(preferences.audioLanguage.takeIf(String::isNotBlank))
+                    .setPreferredTextLanguage(preferences.subtitleLanguage.takeIf(String::isNotBlank))
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !preferences.subtitlesEnabled).build()
                 volume = if (muted) 0f else 1f
                 val builder = ExoMediaItem.Builder().setUri(requireNotNull(stream.url))
                 val subtitles = stream.subtitles.filter { it.url.startsWith("https://") || it.url.startsWith("http://") }.map {
@@ -69,7 +74,7 @@ fun rememberVideoPlayer(stream: MediaStream, muted: Boolean, startPosition: Long
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoSurface(player: ExoPlayer, modifier: Modifier = Modifier) {
+fun VideoSurface(player: ExoPlayer, modifier: Modifier = Modifier, subtitleSizePercent: Int = 100) {
     AndroidView(modifier = modifier, factory = { context ->
         PlayerView(context).apply {
             useController = false
@@ -77,8 +82,12 @@ fun VideoSurface(player: ExoPlayer, modifier: Modifier = Modifier) {
             setShutterBackgroundColor(android.graphics.Color.BLACK)
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             this.player = player
+            subtitleView?.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18f * subtitleSizePercent / 100f)
         }
-    }, update = { it.player = player }, onRelease = { it.player = null })
+    }, update = {
+        it.player = player
+        it.subtitleView?.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18f * subtitleSizePercent / 100f)
+    }, onRelease = { it.player = null })
 }
 
 @Composable
@@ -87,7 +96,7 @@ fun playerStatus(player: ExoPlayer): State<PlayerStatus> {
     DisposableEffect(player) {
         fun update() {
             status.value = PlayerStatus(player.playbackState == Player.STATE_READY, player.isPlaying,
-                player.currentPosition.coerceAtLeast(0), player.duration.coerceAtLeast(0))
+                player.playbackState == Player.STATE_ENDED, player.currentPosition.coerceAtLeast(0), player.duration.coerceAtLeast(0))
         }
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) = update()

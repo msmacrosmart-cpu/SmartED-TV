@@ -146,11 +146,30 @@ data class InstalledAddon(val url: String, val scope: Scope, val manifest: Manif
 @Serializable
 data class PlaybackProgress(val positionMs: Long, val durationMs: Long, val updatedAt: Long)
 
+/** Preferências locais no modelo de organização do Stremio. Só expomos controles que o player nativo realmente aplica. */
+@Serializable
+data class UserPreferences(
+    val audioLanguage: String = "pt",
+    val subtitleLanguage: String = "pt",
+    val subtitlesEnabled: Boolean = true,
+    val subtitleSizePercent: Int = 100,
+    val resumePlayback: Boolean = true,
+    val autoplayNextEpisode: Boolean = true,
+    val seekBackSeconds: Int = 10,
+    val seekForwardSeconds: Int = 30,
+) {
+    init {
+        require(subtitleSizePercent in 75..150) { "Tamanho de legenda inválido." }
+        require(seekBackSeconds in 5..60 && seekForwardSeconds in 5..120) { "Intervalo de salto inválido." }
+    }
+}
+
 @Serializable
 data class AppData(
     val addons: List<InstalledAddon> = emptyList(),
     val favorites: List<MediaItem> = emptyList(),
     val progress: Map<String, PlaybackProgress> = emptyMap(),
+    val preferences: UserPreferences = UserPreferences(),
 ) {
     init { require(addons.size <= 3) { "Limite de 3 addons." } }
 }

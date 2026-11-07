@@ -100,6 +100,17 @@ class AppRepository(val persistence: PersistedState, private val api: StremioApi
 
     fun progress(item: MediaItem, videoId: String): PlaybackProgress? = _data.value.progress["${item.key}|$videoId"]
 
+    suspend fun updatePreferences(transform: (com.smarted.tv.core.model.UserPreferences) -> com.smarted.tv.core.model.UserPreferences) = mutex.withLock {
+        ensureLoaded()
+        val current = _data.value
+        commit(current.copy(preferences = transform(current.preferences)))
+    }
+
+    suspend fun clearProgress() = mutex.withLock {
+        ensureLoaded()
+        commit(_data.value.copy(progress = emptyMap()))
+    }
+
     private suspend fun commit(next: AppData) {
         persistence.write(next)
         _data.value = next

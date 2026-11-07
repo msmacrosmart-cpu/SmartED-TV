@@ -54,6 +54,15 @@ class AppViewModel(val graph: AppGraph) : ViewModel() {
     fun remove(url: String) = operation { graph.repository.remove(url); _settings.update { it.copy(revision = it.revision + 1) }; "Addon removido." }
     fun refresh(url: String) = operation { graph.repository.refresh(url); _settings.update { it.copy(revision = it.revision + 1) }; "Manifesto atualizado." }
     fun scope(url: String, scope: Scope) = operation { graph.repository.changeScope(url, scope); _settings.update { it.copy(revision = it.revision + 1) }; "Escopo atualizado." }
+    fun preferences(transform: (com.smarted.tv.core.model.UserPreferences) -> com.smarted.tv.core.model.UserPreferences) {
+        viewModelScope.launch {
+            try { graph.repository.updatePreferences(transform); _settings.update { it.copy(message = "Preferência salva.", error = "") } }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _settings.update { it.copy(error = e.message ?: "Não foi possível salvar a preferência.") } }
+        }
+    }
+    fun clearProgress() = operation { graph.repository.clearProgress(); "Histórico de reprodução apagado." }
+    fun resetPreferences() = preferences { com.smarted.tv.core.model.UserPreferences() }
     private fun operation(block: suspend () -> String) {
         if (_settings.value.busy) return
         _settings.update { it.copy(busy = true, error = "", message = "") }
