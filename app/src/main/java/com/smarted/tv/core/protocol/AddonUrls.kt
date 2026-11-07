@@ -36,5 +36,5 @@ object AddonUrls {
     }
 
     fun display(url: String): String = url.toHttpUrlOrNull()?.let { "${it.host}${it.encodedPath}" } ?: url
-    private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8").replace("+", "%20")
+    private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8").replace("+", "%20").replace("%7E", "~")
 }

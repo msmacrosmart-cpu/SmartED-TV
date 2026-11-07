@@ -7,7 +7,7 @@ lines = text.splitlines()
 errors = [line for line in lines if re.search(r'^[ew]: |^w:|FAILED|FAILURE:|Caused by:|What went wrong|> Task .*FAILED|Error:|error:|Unresolved reference', line)]
 failures = []
 for i, line in enumerate(lines):
-    if ' FAILED' in line or 'AssertionError' in line or 'ComparisonFailure' in line:
+    if ' FAILED' in line or 'AssertionError' in line or 'ComparisonFailure' in line or 'expected:' in line or 'Exception:' in line:
         failures.extend(lines[i:min(i + 9, len(lines))])
 selected = ((failures + errors)[:60] or lines[-30:])
 for line in selected:
