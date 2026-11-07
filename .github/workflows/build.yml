@@ -320,12 +320,12 @@ jobs:
           unzip -l "$APK" | awk '{print $4}' | grep -oE "lib/[^/]+/libvlc\.so" | sort -u
 
           # --- tamanho do APK ----------------------------------------------
-          # 184 MB era o resultado de empacotar 4 ABIs. Com ARM apenas e as
-          # .so comprimidas o APK fica bem menor; 120 MB é a rede de segurança.
+          # Faixa aceitável do produto: 0–60 MB. Empacotar as 4 ABIs do libVLC
+          # levava a 184 MB; com ARM apenas e as .so comprimidas fica ~40 MB.
           SIZE_MB=$(( $(stat -c %s "$APK") / 1024 / 1024 ))
           echo "tamanho do APK: ${SIZE_MB} MB"
-          if (( SIZE_MB > 120 )); then
-            echo "::error::APK com ${SIZE_MB} MB (limite 120 MB) — verifique o abiFilters do libVLC"
+          if (( SIZE_MB > 60 )); then
+            echo "::error::APK com ${SIZE_MB} MB (limite 60 MB) — verifique o abiFilters do libVLC"
             exit 1
           fi
 
