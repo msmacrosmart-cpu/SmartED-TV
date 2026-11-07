@@ -41,6 +41,7 @@ import com.smarted.tv.ui.components.DividerLine
 import com.smarted.tv.ui.components.EdBadge
 import com.smarted.tv.ui.components.EdChip
 import com.smarted.tv.ui.components.EdIcons
+import com.smarted.tv.ui.components.EdPill
 import com.smarted.tv.ui.components.EdPrimaryButton
 import com.smarted.tv.ui.components.EdSecondaryButton
 import com.smarted.tv.ui.components.EdTextField
