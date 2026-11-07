@@ -323,9 +323,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.kind == 'tag' && format('SmartED TV {0}', steps.version.outputs.name) || format('SmartED TV — build mais recente ({0})', steps.version.outputs.name) }}
+          name: ${{ steps.version.outputs.kind == 'tag' && format('Smarted TV {0}', steps.version.outputs.name) || format('Smarted TV — build mais recente ({0})', steps.version.outputs.name) }}
           body: |
-            ## SmartED TV ${{ steps.version.outputs.name }}
+            ## Smarted TV ${{ steps.version.outputs.name }}
 
             APK de release gerado automaticamente pelo GitHub Actions.
 

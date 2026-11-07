@@ -1,7 +1,8 @@
-# SmartED TV
+# Smarted TV
 
 Media center modular para **Android TV** e **mobile**, escrito 100% em **Kotlin + Jetpack Compose**,
-com arquitetura de **addons no estilo Kodi** e o **Brazuca Play** integrado nativamente.
+com arquitetura de **addons no estilo Kodi**, repositório **Vikings** como padrão e o
+catálogo nativo do Brazuca Play integrado.
 
 > Orientação travada em paisagem (`sensorLandscape`), interface D-pad-first com suporte a toque.
 
@@ -12,18 +13,27 @@ compilado e assinado automaticamente pelo GitHub Actions a cada push.
 
 ## ✨ O que está implementado
 
+Interface **dark + glassmorphism**, foco de D-pad em **branco puro** e todo o
+texto em **português do Brasil**.
+
 | Requisito | Implementação |
 |---|---|
-| Clonagem visual da referência (Extreme-InfiniTV) | Tokens OKLCH convertidos 1:1 (fundo slate `#0B0F14`, acento fúcsia `#EC92E5`, 12 paletas), rail lateral de 76dp, hero full-bleed, grid de pôsteres 2:3, anel de foco de 3dp e lift de 4% |
-| Arquitetura de addons estilo Kodi | `Addon`, `AddonManifest`, `AddonManager`, `KodiRepoParser` (addons.xml + índice HTML) e persistência em Room |
-| Brazuca Play por padrão | `BrazucaPlayAddon` nativo + `BrazucaCatalog` com snapshot em memória/disco; repositório `https://vkodi.net/repo` carregado no boot |
+| Identidade visual | Tokens neutros (`#0A0C10` de fundo), **acento branco puro `#FFFFFF`** em foco/seleção, 3 camadas de vidro (`Glass.kt`), rail de 76dp, grid de pôsteres 2:3, anel de foco de 2dp e lift de 4% |
+| App 100% pt-BR | `strings.xml` como fonte única, locale fixo em `MainActivity`, gate `tools/check-ptbr.py` no CI |
+| Player VLC | `VlcEngine` sobre `libvlc-all` 3.5.1 (codecs + reconexão), fallback automático para ExoPlayer |
+| Layouts por tipo de mídia | **Ao vivo**: zap ◀ ▶ / CH±, áudio, legendas, badge AO VIVO, resolução. **Filmes/Séries**: linha do tempo, capítulos, ±10s/+30s, áudio e legendas |
+| Três repositórios independentes | Canais, Filmes e Séries com URL própria; cada um alimenta só a sua aba |
+| Filtro PT-BR | `LanguageFilter` em cascata (metadados → grupo → título → palavras funcionais), com contagem de descartados |
+| EPG ≥ 12h contínuas | `EpgTimeline.pad` preenche lacunas; fontes XMLTV de fallback registradas no boot |
+| Home por ranking | Top 10 filmes → Top 10 séries → Canais favoritos → Todos os filmes; hero com backdrops rotativos, "Assistir" e "Detalhes" |
+| Arquitetura de addons estilo Kodi | `Addon`, `AddonManager`, `KodiRepoParser` (addons.xml + índice HTML) e persistência em Room |
+| Repositório de addons padrão | **Vikings** (`vikingskoditeam.github.io`), com addons BR/PT |
 | Canais / Filmes / Séries | Abas dedicadas com sidebar de categorias, contagem por grupo e EPG "agora" nos canais |
-| EPG com fallback XMLTV | `EpgService` em cascata (addon → fontes configuradas → `https://epg.best/brazil.xml`), parser XMLTV por streaming |
 | Indexador + manutenção de links | `Indexer` (varredura paralela, saúde por fonte, probe de links, lista de bloqueio) |
 | Atualização remota via nuvem | `SourceRepository.syncFromCloud()` lê catálogo JSON remoto e faz merge |
-| Metadados TMDB | `TmdbClient`: nota, sinopse, gêneros, elenco em faixa horizontal contínua, temporadas/episódios |
-| Trailer YouTube sem anúncios | `TrailerFinder` + `YouTubePlayer` (youtube-nocookie, bloqueio de hosts de anúncio, player nativo) |
-| Trocar / Gerenciar Repositório | Tela dedicada, grava em SharedPreferences **e** Room; app abre pronto com o repositório ativo |
+| Metadados TMDB | `TmdbClient`: nota, sinopse, gêneros, elenco, temporadas/episódios |
+| Trailer YouTube sem anúncios | `TrailerFinder` + `YouTubePlayer` (youtube-nocookie, bloqueio de hosts de anúncio) |
+| Trocar / Gerenciar Repositório | Tela dedicada, grava em SharedPreferences **e** Room |
 | Paisagem travada | `android:screenOrientation="sensorLandscape"` |
 
 ---
