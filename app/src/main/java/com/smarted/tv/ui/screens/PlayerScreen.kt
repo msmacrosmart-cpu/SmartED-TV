@@ -190,7 +190,7 @@ private fun BoxScope.TrackPanel(player: androidx.media3.exoplayer.ExoPlayer, onC
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TvAction("Sem legendas", { player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_TEXT).setDisabledTrackTypes(setOf(C.TRACK_TYPE_TEXT)).build(); revision++ }, compact = true)
+            TvAction("Sem legendas", { player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_TEXT).setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build(); revision++ }, compact = true)
             TvAction("Fechar", onClose, compact = true)
         }
     }

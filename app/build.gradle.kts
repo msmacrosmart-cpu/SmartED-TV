@@ -63,7 +63,7 @@ kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
         allWarningsAsErrors.set(false)
-        freeCompilerArgs.addAll("-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi", "-opt-in=androidx.compose.ui.ExperimentalComposeUiApi")
+        freeCompilerArgs.addAll("-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi", "-opt-in=androidx.compose.ui.ExperimentalComposeUiApi", "-opt-in=androidx.compose.ui.test.ExperimentalTestApi")
     }
 }
 
