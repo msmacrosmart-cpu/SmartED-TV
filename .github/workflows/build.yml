@@ -423,11 +423,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Baixar o APK do build
-        uses: actions/download-artifact@v4
+      # O APK de release é ARM (é o que mantém os ~40 MB e cobre TV box e
+      # celulares), e o emulador do runner é x86_64 — binário ARM não roda ali.
+      # Por isso o teste compila um APK debug só com x86_64: mesmo código
+      # Kotlin/Compose/Room do release, só muda a biblioteca nativa do VLC.
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
         with:
-          name: apk-release-${{ needs.build.outputs.version_name }}
-          path: dist
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache do Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Gerar APK de teste (x86_64, debug)
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ./gradlew :app:assembleDebug -Pabis=x86_64 --no-daemon --warning-mode=summary
+          cp app/build/outputs/apk/debug/app-debug.apk dist/app-debug.apk
+          ls -lh dist/
 
       - name: Gerar banco legado (esquema v1)
         run: python3 tools/make-legacy-db.py legacy.db 1
@@ -451,7 +473,7 @@ jobs:
           emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none
           script: |
             set -o pipefail
-            bash tools/emulator-smoke.sh 2>&1 | tee smoke.log
+            SMOKE_PKG=com.smarted.tv.debug bash tools/emulator-smoke.sh 2>&1 | tee smoke.log
 
       # O log bruto do Actions é inacessível por API (blob storage externo).
       # O comentário de commit guarda o relatório do teste — no sucesso e na
@@ -464,7 +486,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ -f smoke.log ]] || exit 0
-          trecho="$(grep -iE 'OK:|colunas de|user_version|^==|error|fatal|crash|Exception' smoke.log | tail -40 || true)"
+          trecho="$(grep -iE 'OK:|PASS|FAIL|colunas de|user_version|^==|Success|Failure|Error|error|fatal|crash|Exception' smoke.log | tail -40 || true)"
           [[ -n "$trecho" ]] || trecho="$(tail -40 smoke.log)"
           payload="$(printf '%s\n' "$trecho" | jq -Rs \
             --arg sha "${GITHUB_SHA:0:7}" --arg outcome "${OUTCOME:-unknown}" \
@@ -472,3 +494,16 @@ jobs:
           printf '%s' "$payload" | gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
             --input - > /dev/null || true
+
+      # O android-emulator-runner ignora o código de saída do script, então o
+      # veredito vem do arquivo de status: PASS só é escrito no fim do roteiro.
+      - name: Reprovar o job se o teste não passou
+        if: always()
+        run: |
+          set -euo pipefail
+          status="$(tr -d '\r\n' < smoke-status.txt 2>/dev/null || true)"
+          echo "status do teste no emulador: ${status:-MISSING}"
+          if [[ "$status" != "PASS" ]]; then
+            echo "::error title=Emulador::teste não passou (${status:-MISSING})"
+            exit 1
+          fi

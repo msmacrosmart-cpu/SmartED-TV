@@ -34,7 +34,7 @@ Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelh
 | `tools/check-db-schema.py` | esquema do Room: versão x baseline, migração obrigatória por passo e **execução real do SQL** no SQLite |
 | `tools/verify-core.sh` | 161 asserções do núcleo puro (parsers, EPG, classificador, abas) |
 | `tools/verify-logic.sh` | typecheck dos 35 arquivos não-UI |
-| job **Emulador** (CI) | instala o APK num Android 11, abre o app, confere que a UI renderiza e que um banco v1 antigo migra para v2 sem crash; publica o relatório como comentário de commit |
+| job **Emulador** (CI) | compila um APK `debug` x86_64 do mesmo código, instala num Android 11, abre o app, confere que a UI renderiza e que um banco v1 antigo migra para v2 sem crash; o relatório vai para um comentário de commit |
 
 ## Pendências
 

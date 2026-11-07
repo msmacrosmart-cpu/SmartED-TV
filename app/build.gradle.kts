@@ -16,7 +16,16 @@ android {
             // sozinho levava o APK a ~184 MB. Android TV e celulares usam ARM;
             // manter apenas arm64-v8a + armeabi-v7a cobre praticamente todo o
             // parque instalado e corta boa parte do tamanho.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // O CI de emulador passa -Pabis=x86_64 para gerar um APK de teste
+            // que roda na máquina virtual x86 do runner (o emulador não
+            // executa binários ARM). Sem a propriedade, o padrão continua ARM.
+            val abis = (project.findProperty("abis") as String?)
+                ?.split(',', ' ')
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.takeIf { it.isNotEmpty() }
+                ?: listOf("arm64-v8a", "armeabi-v7a")
+            abiFilters += abis
         }
         applicationId = "com.smarted.tv"
         minSdk = 23

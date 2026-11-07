@@ -10,7 +10,14 @@
 
 set -uo pipefail
 
-PKG="com.smarted.tv"
+# O android-emulator-runner NÃO propaga o código de saída do script, então a
+# reprovação do job depende deste arquivo (lido por um step posterior).
+STATUS_FILE="smoke-status.txt"
+echo "FAIL" > "$STATUS_FILE"   # só muda para PASS no fim, se tudo passar
+
+# O APK de teste é o variant `debug`, cujo applicationId tem sufixo `.debug`.
+# SMOKE_PKG permite apontar para outro applicationId sem editar o script.
+PKG="${SMOKE_PKG:-com.smarted.tv}"
 ACTIVITY="$PKG/.MainActivity"
 APK_PATH="$(ls dist/*.apk 2>/dev/null | head -1)"
 LEGACY_DB="legacy.db"
@@ -24,6 +31,7 @@ dump_logs() {
 
 fail() {
   echo "::error title=Emulador::$1"
+  echo "FAIL" > "$STATUS_FILE"
   dump_logs
   exit 1
 }
@@ -46,7 +54,9 @@ echo "APK: $APK_PATH"
 adb shell getprop ro.build.version.sdk | tr -d '\r' | xargs -I{} echo "Android API: {}"
 
 echo "== 1/4 instalando =="
-adb install -r -g "$APK_PATH" || fail "falha ao instalar o APK"
+INSTALL_OUT="$(adb install -r -g "$APK_PATH" 2>&1)"
+echo "$INSTALL_OUT"
+[[ "$INSTALL_OUT" == *Success* ]] || fail "falha ao instalar o APK: $INSTALL_OUT"
 
 echo "== 2/4 instalação limpa: abre o app =="
 adb shell pm clear "$PKG" >/dev/null 2>&1 || true
@@ -101,6 +111,7 @@ if version != 2:
     raise SystemExit(f"user_version={version}, esperado 2")
 PY
 
+echo "PASS" > "$STATUS_FILE"
 echo "OK: banco v1 migrado para v2 e o app abriu sem crash"
 echo "== resumo =="
 echo "  1. instalação limpa, app abre"
