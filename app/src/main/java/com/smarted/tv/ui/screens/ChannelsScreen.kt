@@ -37,6 +37,8 @@ import com.smarted.tv.ui.components.*
 import com.smarted.tv.ui.state.CatalogViewModel
 import com.smarted.tv.ui.theme.LocalCompact
 import com.smarted.tv.ui.theme.TvColors
+import com.smarted.tv.ui.theme.whiteFocus
+import com.smarted.tv.ui.theme.smokedGlass
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

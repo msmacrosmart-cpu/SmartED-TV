@@ -36,7 +36,7 @@ fun SmartEdApp(graph: AppGraph) {
     val startupError by vm.startupError.collectAsState()
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var request by remember { mutableStateOf<PlayRequest?>(null) }
-    BoxWithConstraints(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF242529), TvColors.Background), radius = maxWidth.value * 1.5f))) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF242529), TvColors.Background), radius = 1500f))) {
         SmartEdTheme(compact = maxHeight < 600.dp || maxWidth < 1000.dp) {
             Box(Modifier.fillMaxSize().padding(horizontal = if (maxHeight < 600.dp) 28.dp else 48.dp, vertical = if (maxHeight < 600.dp) 22.dp else 36.dp)) {
                 if (!ready) Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
