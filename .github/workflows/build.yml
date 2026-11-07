@@ -132,26 +132,8 @@ jobs:
             exit 1
           fi
           ls -l /dev/kvm
-      - name: AVD cache
-        uses: actions/cache@v6
-        id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: avd-tv-30-x86_64-v2
-      - name: Run Android TV instrumentation
-        uses: reactivecircus/android-emulator-runner@v2.38.0
-        with:
-          api-level: 30
-          target: android-tv
-          arch: x86_64
-          profile: tv_1080p
-          disable-animations: true
-          disable-linux-hw-accel: false
-          emulator-boot-timeout: 600
-          emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          script: bash tools/run_tv_tests.sh
+      - name: Boot Android TV emulator and run instrumentation
+        run: bash tools/tv_emulator_ci.sh
       - name: Annotate TV failures
         if: failure()
         run: |
