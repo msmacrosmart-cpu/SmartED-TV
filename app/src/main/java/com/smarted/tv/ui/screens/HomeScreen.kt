@@ -42,7 +42,7 @@ import com.smarted.tv.ui.components.RailSpacer
 import com.smarted.tv.ui.components.SectionHeader
 import com.smarted.tv.ui.components.ShimmerBox
 import com.smarted.tv.ui.components.WideCard
-import com.smarted.tv.ui.components.edFocusRing
+import com.smarted.tv.ui.theme.edFocusRing
 import com.smarted.tv.ui.components.edInteraction
 import com.smarted.tv.ui.state.HomeUiState
 import com.smarted.tv.ui.state.HomeViewModel

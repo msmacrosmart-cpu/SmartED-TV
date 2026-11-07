@@ -111,9 +111,8 @@ fun PlayerScreen(
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var resolution by remember { mutableStateOf<String?>(null) }
-    var audioTracks by remember { mutableStateOf<List<String>>(emptyList()) }
-    var subtitleTracks by remember { mutableStateOf<List<String>>(emptyList()) }
-    var audioIndex by remember { mutableStateOf(0) }
+    var audioLabelText by remember { mutableStateOf("Áudio") }
+    var subtitleLabelText by remember { mutableStateOf("Legendas") }
 
     // ---- motor principal: VLC ----
     val vlc = remember { VlcEngine(context) }
@@ -143,11 +142,11 @@ fun PlayerScreen(
             if (len > 0) duration = len
         }
         vlc.onVideoSize = { w, h -> resolution = describeResolution(w, h) }
-        vlc.onTracks = { audio, subs, currentAudio, _ ->
-            audioTracks = audio
-            subtitleTracks = subs
-            audioIndex = audio.indexOfFirst { it == audio.getOrNull(audioIndex) }.coerceAtLeast(0)
-            if (currentAudio >= 0) audioIndex = currentAudio
+        // O engine já devolve os rótulos prontos em português; aqui só
+        // sincronizamos a UI quando as faixas mudam de stream.
+        vlc.onTracks = { _, _, _, _ ->
+            audioLabelText = vlc.audioLabel()
+            subtitleLabelText = vlc.subtitleLabel()
         }
         onDispose {
             vlc.detach()
@@ -230,8 +229,7 @@ fun PlayerScreen(
                     SurfaceView(ctx).apply {
                         isFocusable = true
                         requestFocus()
-                        vlc.attach(this)
-                        vlc.replayIfPending()
+                        vlc.attachSurface(this)
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
@@ -357,22 +355,10 @@ fun PlayerScreen(
                             },
                             onPreviousChannel = onPreviousChannel,
                             onNextChannel = onNextChannel,
-                            audioLabel = audioLabel(audioTracks, audioIndex),
-                            onCycleAudio = {
-                                if (usingVlc && audioTracks.size > 1) {
-                                    val next = (audioIndex + 1) % audioTracks.size
-                                    audioIndex = next
-                                    vlc.selectAudio(next)
-                                }
-                            },
-                            subtitleLabel = if (subtitleTracks.isEmpty()) "Legendas" else "Legendas (${subtitleTracks.size})",
-                            onCycleSubtitle = {
-                                if (usingVlc && subtitleTracks.isNotEmpty()) {
-                                    val current = vlc.currentSubtitle()
-                                    val next = subtitleTracks.indices.firstOrNull { it != current } ?: -1
-                                    vlc.selectSubtitle(next)
-                                }
-                            },
+                            audioLabel = audioLabelText,
+                            onCycleAudio = { if (usingVlc) audioLabelText = vlc.cycleAudio() },
+                            subtitleLabel = subtitleLabelText,
+                            onCycleSubtitle = { if (usingVlc) subtitleLabelText = vlc.cycleSubtitle() },
                             onBack = onBack,
                         )
                     } else {
@@ -387,22 +373,10 @@ fun PlayerScreen(
                                 val target = (total * fraction.coerceIn(0f, 1f)).toLong()
                                 if (usingVlc) vlc.seekTo(target) else exo.seekTo(target)
                             },
-                            audioLabel = audioLabel(audioTracks, audioIndex),
-                            onCycleAudio = {
-                                if (usingVlc && audioTracks.size > 1) {
-                                    val next = (audioIndex + 1) % audioTracks.size
-                                    audioIndex = next
-                                    vlc.selectAudio(next)
-                                }
-                            },
-                            subtitleLabel = if (subtitleTracks.isEmpty()) "Legendas" else "Legendas (${subtitleTracks.size})",
-                            onCycleSubtitle = {
-                                if (usingVlc && subtitleTracks.isNotEmpty()) {
-                                    val current = vlc.currentSubtitle()
-                                    val next = subtitleTracks.indices.firstOrNull { it != current } ?: -1
-                                    vlc.selectSubtitle(next)
-                                }
-                            },
+                            audioLabel = audioLabelText,
+                            onCycleAudio = { if (usingVlc) audioLabelText = vlc.cycleAudio() },
+                            subtitleLabel = subtitleLabelText,
+                            onCycleSubtitle = { if (usingVlc) subtitleLabelText = vlc.cycleSubtitle() },
                             onBack = onBack,
                         )
                     }
@@ -633,12 +607,6 @@ private fun describeResolution(width: Int, height: Int): String {
         else -> "${width}x$height"
     }
     return label
-}
-
-private fun audioLabel(tracks: List<String>, index: Int): String = when {
-    tracks.isEmpty() -> "Áudio"
-    tracks.size == 1 -> "Áudio: ${tracks.first().take(14)}"
-    else -> "Áudio ${index + 1}/${tracks.size}"
 }
 
 /** Mantém o HUD visível ao primeiro toque de tecla (como os players de TV). */
