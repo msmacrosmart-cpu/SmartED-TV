@@ -79,7 +79,7 @@ object XtreamMapper {
         val userInfo = obj.obj("user_info") ?: return false
         val status = userInfo.str("status")
         val auth = when (val el = userInfo["auth"]) {
-            is kotlinx.serialization.json.JsonPrimitive -> el.booleanOrNull ?: el.contentOrNullBool() ?: true
+            is kotlinx.serialization.json.JsonPrimitive -> el.contentOrNullBool() ?: true
             null -> true
             else -> true
         }

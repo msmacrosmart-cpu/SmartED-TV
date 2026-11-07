@@ -1,5 +1,7 @@
 package com.smarted.tv.player
 
+import androidx.compose.ui.platform.LocalContext
+
 import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.compose.runtime.*

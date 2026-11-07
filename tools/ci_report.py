@@ -11,7 +11,9 @@ for i, line in enumerate(lines):
         failures.extend(lines[i:min(i + 9, len(lines))])
 selected = list(dict.fromkeys((failures + errors)[:100])) or lines[-30:]
 blob = '\n'.join(selected)[:55000]
-print('::error title=SmartED validation::' + blob.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+chunk = 3500
+for i in range(0, len(blob), chunk):
+    print(f"::error title=SmartED validation [{i // chunk + 1}]::" + blob[i:i + chunk].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
 summary = '\n'.join(selected + ['\n--- Final log lines ---'] + lines[-50:])
 if 'GITHUB_STEP_SUMMARY' in os.environ:
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
