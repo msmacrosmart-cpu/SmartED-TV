@@ -89,6 +89,19 @@ com.smarted.tv
 
 ---
 
+## 🖼️ Prévia da interface (sem emulador)
+
+`docs/preview/` traz uma maquete HTML autocontida das 9 telas principais com
+navegação por D-pad, troca de acento e splash:
+
+```bash
+cd docs/preview && python3 -m http.server 8099
+```
+
+Ela serve para revisar design e fluxo; o app real é Compose.
+
+---
+
 ## 🧪 Verificação (sem Android SDK)
 
 Como o núcleo (parsers, addons, dados, view-models) não depende do Android, ele é
