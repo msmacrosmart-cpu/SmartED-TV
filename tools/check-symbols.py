@@ -107,6 +107,8 @@ def check_extension_fqn(files):
 DESKTOP_ONLY = {
     "androidx.compose.ui.input.key.type": "use event.nativeKeyEvent.action",
     "androidx.compose.ui.input.key.KeyEventType": "use android.view.KeyEvent.ACTION_DOWN",
+    # nativeKeyEvent é 'val' membro de KeyEvent: não é importável
+    "androidx.compose.ui.input.key.nativeKeyEvent": "val membro; não precisa de import",
 }
 DESKTOP_PATTERNS = [
     (r"\bevent\.type\b", "KeyEvent do Android não tem .type; use event.nativeKeyEvent.action"),
