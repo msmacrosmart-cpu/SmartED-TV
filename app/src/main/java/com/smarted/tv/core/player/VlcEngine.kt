@@ -133,16 +133,45 @@ class VlcEngine(context: Context) {
         }
     }
 
-    /** Anexa a superfície de vídeo. Precisa vir antes de [play]. */
+    /**
+     * Anexa a superfície de vídeo. Precisa vir antes de [play].
+     *
+     * **Bug corrigido aqui:** sem IVLCVout.setWindowSize, o libVLC cria o
+     * video output com um viewport padrão minúsculo e desenha o vídeo no canto
+     * inferior esquerdo, mesmo com a SurfaceView em MATCH_PARENT. O tamanho
+     * precisa ser informado explicitamente ao vout, antes de `attachViews()`.
+     */
     fun attachSurface(view: SurfaceView) {
         val p = player ?: return
         runCatching {
             if (attached) detach()
             p.vlcVout.setVideoView(view)
+            applyWindowSize(view, p)
             p.vlcVout.attachViews()
             attached = true
         }
         replayIfPending()
+    }
+
+    /**
+     * Reaplica o tamanho da janela quando a SurfaceView muda de dimensão
+     * (rotação, troca de tela, volta do modo imersivo).
+     */
+    fun updateWindowSize(view: SurfaceView) {
+        val p = player ?: return
+        runCatching { applyWindowSize(view, p) }
+    }
+
+    /**
+     * Informa ao vout o tamanho em pixels da superfície. Se o layout ainda não
+     * aconteceu (width/height = 0), usa o tamanho do display — que é o mesmo
+     * da tela cheia e evita o viewport minúsculo.
+     */
+    private fun applyWindowSize(view: SurfaceView, p: MediaPlayer) {
+        val metrics = view.resources.displayMetrics
+        val width = if (view.width > 0) view.width else metrics.widthPixels
+        val height = if (view.height > 0) view.height else metrics.heightPixels
+        if (width > 0 && height > 0) p.vlcVout.setWindowSize(width, height)
     }
 
     fun detach() {

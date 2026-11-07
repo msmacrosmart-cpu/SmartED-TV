@@ -3,7 +3,11 @@
 package com.smarted.tv.ui.screens
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.view.KeyEvent
+import android.view.Window
 import android.view.SurfaceView
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
@@ -47,11 +51,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.common.Player
@@ -212,6 +220,20 @@ fun PlayerScreen(
 
     BackHandler { onBack() }
 
+    // Reforço de tela cheia absoluta. O MainActivity já esconde as barras,
+    // mas vários aparelhos (Fire TV, boxes chineses) as trazem de volta assim
+    // que a janela ganha foco. Barra visível encolhe a janela, o vout do VLC
+    // recebe dimensão menor que a tela e o vídeo "diminui". Reaplicamos o modo
+    // imersivo a cada abertura do player.
+    val hostView = LocalView.current
+    LaunchedEffect(hostView) {
+        val window = hostView.context.activityWindow()
+        val controller = window?.let { WindowCompat.getInsetsController(it, hostView) }
+        controller?.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller?.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
     val isLive = state.isLive || item.kind == MediaKind.LIVE
 
     fun togglePlay() {
@@ -232,12 +254,23 @@ fun PlayerScreen(
                 factory = { ctx ->
                     SurfaceView(ctx).apply {
                         isFocusable = true
-                        // A superfície do VLC acompanha o tamanho do container;
-                        // sem isso o vídeo ficava no tamanho intrínseco.
+                        // MATCH_PARENT real: a superfície é filha do Box raiz
+                        // que já está em fillMaxSize, então recebe a tela toda.
                         layoutParams = android.view.ViewGroup.LayoutParams(
                             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                         )
+                        // O vout do libVLC desenha num viewport próprio e não
+                        // herda o tamanho da SurfaceView. Sem setWindowSize ele
+                        // usa um padrão minúsculo e o vídeo aparece pequeno no
+                        // canto inferior esquerdo — mesmo com tudo em match
+                        // parent. attachSurface já informa o tamanho do display;
+                        // aqui reaplicamos o tamanho real em pixels assim que o
+                        // layout entrega as dimensões (e a cada mudança delas).
+                        addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                            if (right - left <= 0 || bottom - top <= 0) return@addOnLayoutChangeListener
+                            vlc.updateWindowSize(this)
+                        }
                         requestFocus()
                         vlc.attachSurface(this)
                     }
@@ -667,4 +700,14 @@ fun YouTubePlayer(
             EdPill(label = stringResource(R.string.action_close), onClick = onClose, icon = EdIcons.close)
         }
     }
+}
+
+/** Sobe a árvore de contexto até a janela da Activity (null fora de uma tela real). */
+private fun Context.activityWindow(): Window? {
+    var current: Context? = this
+    while (current != null) {
+        if (current is Activity) return current.window
+        current = (current as? ContextWrapper)?.baseContext
+    }
+    return null
 }
