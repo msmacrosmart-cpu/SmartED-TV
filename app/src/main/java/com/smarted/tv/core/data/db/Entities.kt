@@ -17,6 +17,8 @@ data class RepositoryEntity(
     val status: String = "UNKNOWN",
     val message: String? = null,
     val icon: String? = null,
+    /** Abas marcadas pelo usuário ao adicionar ("LIVE,MOVIE"); vazio = todas. */
+    val kinds: String = "",
 )
 
 @Entity(

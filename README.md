@@ -22,6 +22,7 @@ texto em **português do Brasil**.
 | App 100% pt-BR | `strings.xml` como fonte única, locale fixo em `MainActivity`, gate `tools/check-ptbr.py` no CI |
 | Player VLC | `VlcEngine` sobre `libvlc-all` 3.5.1 (codecs + reconexão), fallback automático para ExoPlayer |
 | Layouts por tipo de mídia | **Ao vivo**: zap ◀ ▶ / CH±, áudio, legendas, badge AO VIVO, resolução. **Filmes/Séries**: linha do tempo, capítulos, ±10s/+30s, áudio e legendas |
+| Navegador com seleção manual | Ao adicionar URL M3U, repositório ou addon, um painel de checkboxes define onde o conteúdo entra: **Usar para Canais / Filmes / Séries**. A marcação é editável depois e persiste no banco |
 | Três modos de conteúdo por aba | **Normal** (listas públicas), **SmartED** (pública + repositórios) e **Repo** (só repositórios), escolhidos separadamente em Canais, Filmes e Séries |
 | Repositórios independentes | Canais, Filmes e Séries com URL própria; cada um alimenta só a sua aba |
 | Separação rigorosa de acervo | `ContentClassifier` recusa canal ao vivo em Filmes e exige MP4/MKV/VOD; Canais só recebem transmissão; Séries exigem estrutura de temporada |
@@ -205,7 +206,7 @@ compilado e testado de verdade com o compilador Kotlin:
 npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
-./tools/verify-core.sh           # 137 asserções reais (M3U, XMLTV, EPG 12h, cruzamento de canais, separação de acervo, séries)
+./tools/verify-core.sh           # 161 asserções reais (M3U, XMLTV, EPG 12h, cruzamento de canais, separação de acervo, séries)
 ./tools/verify-logic.sh          # typecheck de 29 arquivos (rede, TMDB, EPG, DB, VMs)
 node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo

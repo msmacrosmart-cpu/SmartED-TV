@@ -118,19 +118,25 @@ class SourceRepository(
         dao.markHealth(id, healthy, System.currentTimeMillis(), error)
     }
 
-    /** Adiciona uma fonte avulsa explorada pelo usuário (ex.: URL de lista M3U). */
-    suspend fun addCustom(name: String, url: String, kind: MediaKind): PublicSource =
+    /**
+     * Adiciona uma fonte avulsa explorada pelo usuário (ex.: URL de lista M3U).
+     *
+     * @param kinds abas marcadas no painel de configuração (Canais/Filmes/Séries)
+     */
+    suspend fun addCustom(name: String, url: String, kinds: List<MediaKind>): PublicSource =
         withContext(Dispatchers.IO) {
             val format = when {
                 url.contains("get.php", true) || url.contains("player_api", true) -> SourceFormat.XTREAM
                 url.endsWith(".xml", true) || url.endsWith(".xml.gz", true) -> SourceFormat.XMLTV
                 else -> SourceFormat.M3U
             }
+            val targets = kinds.ifEmpty { listOf(MediaKind.LIVE) }
             val source = PublicSource(
                 id = "custom-" + Integer.toHexString((name + url).hashCode()),
                 name = name.ifBlank { "Fonte personalizada" },
                 url = url.trim(),
-                kind = kind,
+                kind = targets.first(),
+                kinds = targets,
                 format = format,
                 priority = 500,
                 enabled = true,
@@ -138,6 +144,10 @@ class SourceRepository(
             dao.upsert(source.toEntity(discoveredFrom = "user"))
             source
         }
+
+    /** Compatibilidade: fonte de uma aba só. */
+    suspend fun addCustom(name: String, url: String, kind: MediaKind): PublicSource =
+        addCustom(name, url, listOf(kind))
 
     /**
      * Atualização remota via nuvem: baixa um catálogo JSON (mesmo formato do
@@ -201,11 +211,19 @@ class SourceRepository(
     private fun toSource(o: JsonObject): PublicSource? {
         val url = o["url"]?.jsonPrimitive?.content?.takeIf { it.startsWith("http") } ?: return null
         val name = o["name"]?.jsonPrimitive?.content ?: url.substringAfterLast('/')
-        val kind = when (o["kind"]?.jsonPrimitive?.content?.uppercase()) {
-            "MOVIE", "MOVIES", "VOD" -> MediaKind.MOVIE
-            "SERIES", "SERIE" -> MediaKind.SERIES
-            else -> MediaKind.LIVE
-        }
+        // `kinds` é a marcação nova (lista); `kind` continua aceito sozinho.
+        val kindRaw = o["kind"]?.jsonPrimitive?.content
+        val kinds = (o["kinds"] as? JsonArray)
+            ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe() }
+            ?.flatMap { com.smarted.tv.core.util.SourceTargeting.parse(it) }
+            ?.distinct()
+            .orEmpty()
+        val kind = com.smarted.tv.core.util.SourceTargeting.parse(kindRaw).firstOrNull()
+            ?: when (kindRaw?.uppercase()) {
+                "MOVIE", "MOVIES", "VOD" -> MediaKind.MOVIE
+                "SERIES", "SERIE" -> MediaKind.SERIES
+                else -> MediaKind.LIVE
+            }
         val format = when (o["format"]?.jsonPrimitive?.content?.uppercase()) {
             "XTREAM" -> SourceFormat.XTREAM
             "XMLTV" -> SourceFormat.XMLTV
@@ -217,6 +235,7 @@ class SourceRepository(
             name = name,
             url = url,
             kind = kind,
+            kinds = kinds,
             format = format,
             group = o["group"]?.jsonPrimitive?.content,
             logo = o["logo"]?.jsonPrimitive?.content,
@@ -224,6 +243,10 @@ class SourceRepository(
             priority = o["priority"]?.jsonPrimitive?.intOrNull ?: 100,
         )
     }
+
+    /** Conteúdo de um item JSON, aceitando número ou texto. */
+    private fun kotlinx.serialization.json.JsonPrimitive.contentOrNullSafe(): String? =
+        runCatching { content }.getOrNull()
 
     data class CloudSyncResult(val added: Int, val updated: Int, val error: String?)
 }

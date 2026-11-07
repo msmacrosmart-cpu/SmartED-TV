@@ -24,6 +24,7 @@ object DbMappers {
             .getOrDefault(com.smarted.tv.core.addons.RepoStatus.UNKNOWN),
         message = message,
         icon = icon,
+        kinds = com.smarted.tv.core.util.SourceTargeting.parse(kinds),
     )
 
     fun com.smarted.tv.core.addons.Repository.toEntity() = RepositoryEntity(
@@ -38,6 +39,7 @@ object DbMappers {
         status = status.name,
         message = message,
         icon = icon,
+        kinds = com.smarted.tv.core.util.SourceTargeting.encode(kinds),
     )
 
     fun InstalledAddonEntity.toDomain() = com.smarted.tv.core.addons.InstalledAddon(
@@ -63,8 +65,11 @@ object DbMappers {
         id = id,
         name = name,
         url = url,
-        kind = runCatching { com.smarted.tv.core.model.MediaKind.valueOf(kind) }
-            .getOrDefault(com.smarted.tv.core.model.MediaKind.LIVE),
+        // O campo `kind` guarda a marcação completa ("LIVE,MOVIE"): assim a
+        // seleção de abas persiste sem coluna nova nem migração.
+        kind = com.smarted.tv.core.util.SourceTargeting.parse(kind).firstOrNull()
+            ?: com.smarted.tv.core.model.MediaKind.LIVE,
+        kinds = com.smarted.tv.core.util.SourceTargeting.parse(kind),
         format = runCatching { com.smarted.tv.core.model.SourceFormat.valueOf(format) }
             .getOrDefault(com.smarted.tv.core.model.SourceFormat.M3U),
         group = group,
@@ -80,7 +85,7 @@ object DbMappers {
         id = id,
         name = name,
         url = url,
-        kind = kind.name,
+        kind = com.smarted.tv.core.util.SourceTargeting.encode(targets),
         format = format.name,
         group = group,
         logo = logo,

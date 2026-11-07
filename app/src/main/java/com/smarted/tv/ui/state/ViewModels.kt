@@ -756,9 +756,22 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
         viewModelScope.launch { graph.addons.deleteAddon(id) }
     }
 
-    fun addRepository(url: String, name: String, onDone: (String?) -> Unit = {}) {
+    /** Abas em que um addon já instalado pode contribuir. */
+    fun setAddonTargets(id: String, kinds: List<MediaKind>) {
         viewModelScope.launch {
-            runCatching { graph.addons.addRepository(url, name) }
+            runCatching { graph.addons.setAddonTypes(id, kinds) }
+            graph.catalog.invalidate()
+        }
+    }
+
+    fun addRepository(
+        url: String,
+        name: String,
+        kinds: List<MediaKind> = emptyList(),
+        onDone: (String?) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            runCatching { graph.addons.addRepository(url, name, kinds) }
                 .onSuccess { onDone(null) }
                 .onFailure { onDone(it.message) }
         }
@@ -926,15 +939,42 @@ class SettingsViewModel(private val graph: AppServices) : ViewModel() {
         }
     }
 
-    fun addPublicSource(name: String, url: String, kind: MediaKind) {
+    /**
+     * Adiciona uma lista/M3U com as abas marcadas pelo usuário.
+     *
+     * @param kinds destinos escolhidos no painel (Canais/Filmes/Séries)
+     */
+    fun addPublicSource(name: String, url: String, kinds: List<MediaKind>) {
         viewModelScope.launch {
-            runCatching { graph.sources.addCustom(name, url, kind) }
+            runCatching { graph.sources.addCustom(name, url, kinds) }
                 .onSuccess {
                     _state.value = _state.value.copy(message = "Fonte adicionada")
                     refreshSources()
                     graph.catalog.invalidate()
                 }
                 .onFailure { _state.value = _state.value.copy(message = it.message) }
+        }
+    }
+
+    /**
+     * Troca as abas (Canais/Filmes/Séries) de uma fonte já cadastrada.
+     * Reindexa o catálogo para o conteúdo migrar de aba na hora.
+     */
+    fun setSourceTargets(id: String, kinds: List<MediaKind>) {
+        if (kinds.isEmpty()) {
+            _state.value = _state.value.copy(message = "Marque ao menos uma aba")
+            return
+        }
+        viewModelScope.launch {
+            val source = runCatching { graph.sources.all() }.getOrDefault(emptyList())
+                .firstOrNull { it.id == id } ?: return@launch
+            graph.sources.upsert(source.copy(kind = kinds.first(), kinds = kinds))
+            _state.value = _state.value.copy(
+                message = "Abas atualizadas: " + com.smarted.tv.core.util.SourceTargeting.describe(kinds),
+            )
+            refreshSources()
+            graph.catalog.invalidate()
+            runCatching { graph.catalog.snapshot(force = true) }
         }
     }
 

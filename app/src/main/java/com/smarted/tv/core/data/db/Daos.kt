@@ -57,6 +57,10 @@ interface AddonDao {
     @Query("UPDATE installed_addons SET enabled = :enabled WHERE id = :id")
     suspend fun setEnabled(id: String, enabled: Boolean)
 
+    /** Grava as abas (LIVE,MOVIE,SERIES) em que o addon pode contribuir. */
+    @Query("UPDATE installed_addons SET types = :types WHERE id = :id")
+    suspend fun setTypes(id: String, types: String)
+
     @Query("DELETE FROM installed_addons WHERE id = :id AND kind != 'BUILTIN'")
     suspend fun delete(id: String)
 

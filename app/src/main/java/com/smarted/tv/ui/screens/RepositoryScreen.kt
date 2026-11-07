@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +43,9 @@ import com.smarted.tv.ui.components.EdIcons
 import com.smarted.tv.ui.components.EdPrimaryButton
 import com.smarted.tv.ui.components.EdSecondaryButton
 import com.smarted.tv.ui.components.EdTextField
+import com.smarted.tv.ui.components.TargetPicker
+import com.smarted.tv.R
+import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.ui.components.EmptyState
 import com.smarted.tv.ui.components.ScreenTitle
 import com.smarted.tv.ui.components.edInteraction
@@ -70,6 +74,10 @@ fun RepositoryScreen(
     val type = Ed.type
 
     var url by remember { mutableStateOf("") }
+    // Abas em que os addons deste repositório podem contribuir.
+    var repoTargets by remember {
+        mutableStateOf(listOf(MediaKind.LIVE, MediaKind.MOVIE, MediaKind.SERIES))
+    }
     var name by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
 
@@ -166,6 +174,18 @@ fun RepositoryScreen(
                     placeholder = "Nome amigável (opcional)",
                     label = "NOME",
                 )
+                // Painel de configuração: checkboxes por aba.
+                TargetPicker(
+                    selected = repoTargets,
+                    onToggle = { kind, checked ->
+                        repoTargets = if (checked) {
+                            (repoTargets + kind).distinct()
+                        } else {
+                            repoTargets - kind
+                        }
+                    },
+                    hint = stringResource(R.string.repo_targets_hint),
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     EdPrimaryButton(
                         label = "Adicionar",
@@ -173,8 +193,10 @@ fun RepositoryScreen(
                         onClick = {
                             if (url.isBlank()) {
                                 message = "Informe a URL do repositório"
+                            } else if (repoTargets.isEmpty()) {
+                                message = "Marque ao menos uma aba para o repositório"
                             } else {
-                                addonsViewModel.addRepository(url, name) { error ->
+                                addonsViewModel.addRepository(url, name, repoTargets) { error ->
                                     message = error ?: "Repositório adicionado"
                                 }
                                 url = ""

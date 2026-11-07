@@ -163,6 +163,8 @@ data class Repository(
     val status: RepoStatus = RepoStatus.UNKNOWN,
     val message: String? = null,
     val icon: String? = null,
+    /** Abas para as quais os addons deste repositório podem contribuir. */
+    val kinds: List<com.smarted.tv.core.model.MediaKind> = emptyList(),
 )
 
 enum class RepoStatus { UNKNOWN, SYNCING, ONLINE, OFFLINE, EMPTY }

@@ -261,7 +261,16 @@ data class PublicSource(
     val id: String,
     val name: String,
     val url: String,
+    /**
+     * Tipo legado de uma aba só. Continua valendo quando [kinds] está vazio,
+     * para catálogos JSON antigos e fontes já gravadas no banco.
+     */
     val kind: MediaKind = MediaKind.LIVE,
+    /**
+     * Abas em que a fonte se aplica — marcadas pelo usuário com checkbox ao
+     * adicionar a URL (`Usar para Canais/Filmes/Séries`). Vazio = usa [kind].
+     */
+    val kinds: List<MediaKind> = emptyList(),
     val format: SourceFormat = SourceFormat.M3U,
     val group: String? = null,
     val logo: String? = null,
@@ -270,7 +279,21 @@ data class PublicSource(
     val lastCheckedMs: Long = 0L,
     val healthy: Boolean = true,
     @SerialName("lastError") val lastError: String? = null,
-)
+) {
+    /** Destinos efetivos: marcação explícita ou o tipo único legado. */
+    val targets: List<MediaKind>
+        get() = if (kinds.isNotEmpty()) {
+            listOf(MediaKind.LIVE, MediaKind.MOVIE, MediaKind.SERIES).filter { it in kinds }
+        } else {
+            listOf(kind)
+        }
+
+    /** A fonte alimenta esta aba? */
+    fun appliesTo(k: MediaKind): Boolean = k in targets
+
+    /** Aceita canais, filmes ou séries? */
+    val isMixed: Boolean get() = targets.size > 1
+}
 
 @Serializable
 enum class SourceFormat { M3U, XTREAM, PLUGIN, XMLTV }

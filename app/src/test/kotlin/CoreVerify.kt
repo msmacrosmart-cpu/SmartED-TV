@@ -15,6 +15,7 @@ import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.util.ContentClassifier
 import com.smarted.tv.core.util.LanguageFilter
 import com.smarted.tv.core.util.SeriesGrouper
+import com.smarted.tv.core.util.SourceTargeting
 import com.smarted.tv.core.util.TextUtils
 import com.smarted.tv.core.util.XmltvParser
 
@@ -40,6 +41,7 @@ fun main() {
     verifyEpgMatcher()
     verifyContentSeparation()
     verifySeriesGrouper()
+    verifySourceTargeting()
     println("== TextUtils ==")
     eq("acentos", "cancao", TextUtils.stripAccents("canção"))
     eq("normalize pontuação", "globo hd", TextUtils.normalize("Globo  HD!!!"))
@@ -476,4 +478,64 @@ private fun verifySeriesGrouper() {
     // Título do show sem o marcador de episódio.
     eq("remove marcador do título", "The Boys", SeriesGrouper.showTitle("The Boys S01E01 - A Lei"))
     eq("remove marcador 1x02", "Round 6", SeriesGrouper.showTitle("Round 6 1x03"))
+}
+
+// ---------------------------------------------------------------------------
+// Seleção manual de abas (Canais / Filmes / Séries) por fonte
+// ---------------------------------------------------------------------------
+
+private fun verifySourceTargeting() {
+    println("== SourceTargeting ==")
+
+    eq("lê marcação de duas abas", listOf(MediaKind.LIVE, MediaKind.MOVIE), SourceTargeting.parse("LIVE,MOVIE"))
+    eq("aceita nome em português", listOf(MediaKind.MOVIE), SourceTargeting.parse("filmes"))
+    eq("aceita separador alternativo", listOf(MediaKind.LIVE, MediaKind.SERIES), SourceTargeting.parse("live;series"))
+    eq("ignora token desconhecido", listOf(MediaKind.SERIES), SourceTargeting.parse("SERIES,radioweb"))
+    eq("vazio devolve lista vazia", emptyList<MediaKind>(), SourceTargeting.parse(""))
+    eq("grava em ordem estável", "LIVE,MOVIE,SERIES", SourceTargeting.encode(
+        listOf(MediaKind.SERIES, MediaKind.LIVE, MediaKind.MOVIE),
+    ))
+    eq("grava sem duplicar", "MOVIE", SourceTargeting.encode(listOf(MediaKind.MOVIE, MediaKind.MOVIE)))
+    check("rota para aba marcada", SourceTargeting.routesTo(listOf(MediaKind.MOVIE), MediaKind.MOVIE))
+    check("não rota para aba não marcada", !SourceTargeting.routesTo(listOf(MediaKind.MOVIE), MediaKind.LIVE))
+    eq("sem marcação usa o tipo legado", listOf(MediaKind.SERIES), SourceTargeting.effective(emptyList(), MediaKind.SERIES))
+    eq("com marcação ignora o legado", listOf(MediaKind.LIVE), SourceTargeting.effective(listOf(MediaKind.LIVE), MediaKind.SERIES))
+    eq("descrição de duas abas", "Canais + Filmes", SourceTargeting.describe(listOf(MediaKind.LIVE, MediaKind.MOVIE)))
+    eq("descrição de todas", "Todas as abas", SourceTargeting.describe(SourceTargeting.ALL))
+
+    // Ida-e-volta: o que a UI grava é o que o catálogo lê.
+    val written = SourceTargeting.encode(listOf(MediaKind.LIVE, MediaKind.SERIES))
+    eq("ida e volta da marcação", listOf(MediaKind.LIVE, MediaKind.SERIES), SourceTargeting.parse(written))
+
+    // ---- fonte marcada só para Filmes ----
+    val moviesOnly = com.smarted.tv.core.model.PublicSource(
+        id = "s1",
+        name = "Lista de filmes",
+        url = "https://exemplo.com/filmes.m3u",
+        kind = MediaKind.MOVIE,
+        kinds = listOf(MediaKind.MOVIE),
+    )
+    check("fonte só de filmes alimenta Filmes", moviesOnly.appliesTo(MediaKind.MOVIE))
+    check("fonte só de filmes não alimenta Canais", !moviesOnly.appliesTo(MediaKind.LIVE))
+    check("fonte só de filmes não é mista", !moviesOnly.isMixed)
+
+    // ---- fonte mista marcada em duas abas ----
+    val mixed = moviesOnly.copy(id = "s2", kinds = listOf(MediaKind.LIVE, MediaKind.MOVIE))
+    check("fonte mista é mista", mixed.isMixed)
+    eq("fonte mista tem 2 destinos", 2, mixed.targets.size)
+
+    // ---- a marcação não sobrepõe a separação de acervo ----
+    // Mesmo marcado para FILMES, um canal ao vivo do .m3u8 é recusado.
+    check(
+        "canal ao vivo de fonte marcada em Filmes é descartado",
+        ContentClassifier.classifyFor(MediaKind.MOVIE, "Globo HD", "https://x/globo/index.m3u8") == null,
+    )
+    check(
+        "filme .mkv de fonte mista entra em Filmes",
+        ContentClassifier.classifyFor(MediaKind.MOVIE, "Matrix", "https://x/movie/1/2.mkv") == MediaKind.MOVIE,
+    )
+    check(
+        "canal m3u8 da mesma fonte entra em Canais",
+        ContentClassifier.classifyFor(MediaKind.LIVE, "Globo HD", "https://x/globo/index.m3u8") == MediaKind.LIVE,
+    )
 }

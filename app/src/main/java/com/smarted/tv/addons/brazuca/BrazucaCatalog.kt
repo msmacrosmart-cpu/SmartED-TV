@@ -122,8 +122,8 @@ class BrazucaCatalog(
         try {
             // Cada aba escolhe o seu modo: Normal (lista pública), SmartED
             // (pública + repositórios) ou Repo (só repositórios).
-            val enabled = KINDS.flatMap { kind -> sourcesFor(kind) }
-                .distinctBy { "${it.kind}|${it.url}" }
+            val enabled = configuredSources()
+                .distinctBy { "${it.url}|${it.targets.joinToString(",")}" }
             sourceUrlsSignature = enabled.joinToString("|") { "${it.kind}:${it.url}" }
             if (enabled.isEmpty()) {
                 _status.value = "Nenhuma fonte habilitada"
@@ -139,10 +139,10 @@ class BrazucaCatalog(
                     .map { source ->
                         async {
                             try {
-                                source.kind to fetchSource(source)
+                                source to fetchSource(source)
                             } catch (e: Exception) {
                                 errors.add("${source.name}: ${e.message ?: "falha"}")
-                                source.kind to emptyList<MediaItem>()
+                                source to emptyList<MediaItem>()
                             }
                         }
                     }
@@ -157,19 +157,23 @@ class BrazucaCatalog(
             //  1. tipo de conteúdo (ao vivo × filme × série) — o classificador
             //     recusa canal ao vivo na aba de filmes e vice-versa;
             //  2. idioma (PT-BR), quando `portugueseOnly` está ligado.
-            fun accept(perKind: Map<MediaKind, List<MediaItem>>): List<MediaItem> = buildList {
-                for (kind in KINDS) {
-                    for (raw in perKind[kind].orEmpty()) {
-                        totalRaw++
-                        val typed = applyKind(kind, raw) ?: continue
-                        if (brOnly && !isPortuguese(typed)) continue
-                        totalAccepted++
-                        add(typed)
+            fun accept(fetched: List<Pair<PublicSource, List<MediaItem>>>): List<MediaItem> = buildList {
+                for ((source, items) in fetched) {
+                    // Uma fonte pode servir a mais de uma aba; cada destino
+                    // reclassifica os itens com o seu próprio contrato.
+                    for (kind in source.targets) {
+                        for (raw in items) {
+                            totalRaw++
+                            val typed = applyKind(kind, raw) ?: continue
+                            if (brOnly && !isPortuguese(typed)) continue
+                            totalAccepted++
+                            add(typed)
+                        }
                     }
                 }
             }
 
-            val typed = accept(results.groupBy({ it.first }, { it.second }).mapValues { it.value.flatten() })
+            val typed = accept(results)
             filterStats = FilterStats(
                 total = totalRaw,
                 accepted = totalAccepted,
@@ -258,49 +262,56 @@ class BrazucaCatalog(
     }
 
     /**
-     * Fontes de uma aba, conforme o modo escolhido nela.
+     * Todas as fontes ativas, com os **destinos marcados pelo usuário**.
      *
-     * Além das fontes do modo, entram as fontes públicas extras cadastradas
-     * pelo indexador **quando o tipo delas é o mesmo da aba** — assim uma lista
-     * de canais adicionada à mão nunca vaza para a aba de filmes.
+     * Cada fonte carrega [PublicSource.targets]: as abas em que ela foi marcada
+     * no painel de configuração (Canais/Filmes/Séries). Uma lista mista pode
+     * alimentar mais de uma aba — e o [ContentClassifier] continua filtrando
+     * item a item, então canal ao vivo nunca entra em Filmes mesmo vindo de uma
+     * fonte marcada para todas as abas.
      */
-    private suspend fun sourcesFor(kind: MediaKind): List<PublicSource> {
-        val mode = modeFor(kind)
-        val out = ArrayList<PublicSource>(4)
+    private suspend fun configuredSources(): List<PublicSource> {
+        val out = ArrayList<PublicSource>(8)
 
-        if (ContentMode.includesPublic(mode)) {
-            val url = publicUrlFor(kind)
-            if (url.isNotBlank()) {
-                out.add(
-                    PublicSource(
-                        id = "public-" + kind.name.lowercase(),
-                        name = "Lista pública · ${kindLabel(kind)}",
-                        url = url.trim(),
-                        kind = kind,
-                        format = com.smarted.tv.core.model.SourceFormat.M3U,
-                        priority = 5,
-                    ),
-                )
+        KINDS.forEach { kind ->
+            val mode = modeFor(kind)
+            if (ContentMode.includesPublic(mode)) {
+                val url = publicUrlFor(kind)
+                if (url.isNotBlank()) {
+                    out.add(
+                        PublicSource(
+                            id = "public-" + kind.name.lowercase(),
+                            name = "Lista pública · ${kindLabel(kind)}",
+                            url = url.trim(),
+                            kind = kind,
+                            kinds = listOf(kind),
+                            format = com.smarted.tv.core.model.SourceFormat.M3U,
+                            priority = 5,
+                        ),
+                    )
+                }
+            }
+            if (ContentMode.includesRepository(mode)) {
+                val url = repositoryUrlFor(kind)
+                if (url.isNotBlank()) {
+                    out.add(
+                        PublicSource(
+                            id = "repo-" + kind.name.lowercase(),
+                            name = "Repositório · ${kindLabel(kind)}",
+                            url = url.trim(),
+                            kind = kind,
+                            kinds = listOf(kind),
+                            format = com.smarted.tv.core.model.SourceFormat.M3U,
+                            priority = 1,
+                        ),
+                    )
+                }
             }
         }
-        if (ContentMode.includesRepository(mode)) {
-            val url = repositoryUrlFor(kind)
-            if (url.isNotBlank()) {
-                out.add(
-                    PublicSource(
-                        id = "repo-" + kind.name.lowercase(),
-                        name = "Repositório · ${kindLabel(kind)}",
-                        url = url.trim(),
-                        kind = kind,
-                        format = com.smarted.tv.core.model.SourceFormat.M3U,
-                        priority = 1,
-                    ),
-                )
-            }
-        }
-        // Fontes extras do indexador, respeitando o tipo declarado.
+
+        // Fontes cadastradas pelo usuário: valem exatamente nas abas marcadas.
         sources.enabled()
-            .filter { it.kind == kind }
+            .filter { it.targets.isNotEmpty() }
             .filterNot { extra -> out.any { it.url == extra.url } }
             .forEach { out.add(it) }
         return out

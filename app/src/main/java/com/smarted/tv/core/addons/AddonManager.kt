@@ -177,7 +177,11 @@ class AddonManager(
                             installedAt = previous?.installedAt ?: now,
                             updatedAt = now,
                             kind = AddonKind.REMOTE.name,
-                            types = inferTypes(info).joinToString(",") { it.name },
+                            // Marcação do repositório manda: se o usuário disse
+                            // "este repo é de filmes", o addon não aparece nas
+                            // outras abas. Sem marcação, infere pelos metadados.
+                            types = com.smarted.tv.core.util.SourceTargeting.encode(repo.kinds)
+                                .ifBlank { inferTypes(info).joinToString(",") { it.name } },
                             sortOrder = index + 1,
                         )
                     }
@@ -326,7 +330,17 @@ class AddonManager(
         return syncRepository(repo, force = true)
     }
 
-    suspend fun addRepository(url: String, name: String): Repository = withContext(Dispatchers.IO) {
+    /**
+     * Adiciona um repositório com as **abas marcadas pelo usuário**.
+     *
+     * @param kinds abas (Canais/Filmes/Séries) em que os addons deste
+     *   repositório podem contribuir; vazio = inferir pelos metadados do addon
+     */
+    suspend fun addRepository(
+        url: String,
+        name: String,
+        kinds: List<com.smarted.tv.core.model.MediaKind> = emptyList(),
+    ): Repository = withContext(Dispatchers.IO) {
         val normalized = url.trim().let { if (it.startsWith("http")) it else "https://$it" }.trimEnd('/')
         val existing = repositoryDao.byUrl(normalized)
         if (existing != null) return@withContext existing.toDomain()
@@ -335,10 +349,26 @@ class AddonManager(
             name = name.ifBlank { guessRepoName(normalized) },
             url = normalized,
             addedAt = System.currentTimeMillis(),
+            kinds = com.smarted.tv.core.util.SourceTargeting.encode(kinds),
         )
         repositoryDao.upsert(entity)
         _repositories.value = repositoryDao.all().map { it.toDomain() }
         entity.toDomain()
+    }
+
+    /**
+     * Troca as abas de um addon instalado.
+     *
+     * É o mesmo checkbox do painel de configuração, aplicado depois da
+     * instalação: quem instalou "tudo" pode restringir o addon a Filmes.
+     */
+    suspend fun setAddonTypes(
+        id: String,
+        kinds: List<com.smarted.tv.core.model.MediaKind>,
+    ) = withContext(Dispatchers.IO) {
+        val encoded = com.smarted.tv.core.util.SourceTargeting.encode(kinds)
+        addonDao.setTypes(id, encoded)
+        _addons.value = addonDao.all().map { it.toDomain() }
     }
 
     suspend fun removeRepository(id: String) = withContext(Dispatchers.IO) {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,11 +23,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.smarted.tv.R
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.model.PublicSource
 import com.smarted.tv.ui.components.AccentDot
@@ -39,6 +42,9 @@ import com.smarted.tv.ui.components.EdSwitch
 import com.smarted.tv.ui.components.EdTextField
 import com.smarted.tv.ui.components.EmptyState
 import com.smarted.tv.ui.components.ScreenTitle
+import com.smarted.tv.ui.components.TargetPicker
+import com.smarted.tv.ui.components.labelFor
+import com.smarted.tv.core.util.SourceTargeting
 import com.smarted.tv.ui.state.SettingsViewModel
 import com.smarted.tv.ui.theme.Ed
 
@@ -54,8 +60,10 @@ fun SourcesScreen(
 
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
-    var kindIndex by remember { mutableStateOf(0) }
-    val kinds = listOf(MediaKind.LIVE, MediaKind.MOVIE, MediaKind.SERIES)
+    // Abas marcadas no painel — o usuário decide onde o conteúdo entra.
+    var targets by remember { mutableStateOf(listOf(MediaKind.LIVE)) }
+    // Fonte em edição de abas (null = painel fechado).
+    var editing by remember { mutableStateOf<PublicSource?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(palette.bg).padding(horizontal = 32.dp),
@@ -104,6 +112,20 @@ fun SourcesScreen(
                 source = source,
                 onToggle = { viewModel.toggleSource(source.id, it) },
                 onRemove = { viewModel.removeSource(source.id) },
+                onEditTargets = { editing = source },
+            )
+        }
+
+        // Painel de edição das abas de uma fonte já cadastrada.
+        editing?.let { source ->
+            TargetsDialog(
+                title = source.name,
+                initial = source.targets,
+                onDismiss = { editing = null },
+                onConfirm = { selected ->
+                    viewModel.setSourceTargets(source.id, selected)
+                    editing = null
+                },
             )
         }
 
@@ -116,7 +138,16 @@ fun SourcesScreen(
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Adicionar fonte", style = type.sectionTitle, color = palette.fg)
+                Text(
+                    text = stringResource(R.string.sources_add_title),
+                    style = type.sectionTitle,
+                    color = palette.fg,
+                )
+                Text(
+                    text = stringResource(R.string.sources_add_hint),
+                    style = type.caption,
+                    color = palette.fg3,
+                )
                 EdTextField(value = name, onValueChange = { name = it }, placeholder = "Nome da fonte", label = "NOME")
                 EdTextField(
                     value = url,
@@ -124,30 +155,35 @@ fun SourcesScreen(
                     placeholder = "https://exemplo.com/lista.m3u",
                     label = "URL (M3U / XTREAM / XMLTV)",
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    kinds.forEachIndexed { index, kind ->
-                        EdChip(
-                            label = when (kind) {
-                                MediaKind.LIVE -> "Canais"
-                                MediaKind.MOVIE -> "Filmes"
-                                else -> "Séries"
-                            },
-                            selected = kindIndex == index,
-                            onClick = { kindIndex = index },
-                        )
-                    }
-                }
+                // Painel de configuração: checkboxes por aba.
+                TargetPicker(
+                    selected = targets,
+                    onToggle = { kind, checked ->
+                        targets = if (checked) {
+                            (targets + kind).distinct()
+                        } else {
+                            targets - kind
+                        }
+                    },
+                )
                 EdPrimaryButton(
                     label = "Adicionar fonte",
                     icon = EdIcons.add,
                     onClick = {
-                        if (url.isNotBlank()) {
-                            viewModel.addPublicSource(name, url, kinds[kindIndex])
+                        if (url.isNotBlank() && targets.isNotEmpty()) {
+                            viewModel.addPublicSource(name, url, targets)
                             name = ""
                             url = ""
                         }
                     },
                 )
+                if (targets.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.sources_choose_targets),
+                        style = type.caption,
+                        color = palette.warn,
+                    )
+                }
             }
         }
 
@@ -162,6 +198,7 @@ private fun SourceRow(
     source: PublicSource,
     onToggle: (Boolean) -> Unit,
     onRemove: () -> Unit,
+    onEditTargets: () -> Unit,
 ) {
     val palette = Ed.palette
     val type = Ed.type
@@ -193,12 +230,9 @@ private fun SourceRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // Destino marcado pelo usuário: "Canais + Filmes", "Todas"…
                 EdBadge(
-                    text = when (source.kind) {
-                        MediaKind.LIVE -> "canais"
-                        MediaKind.MOVIE -> "filmes"
-                        else -> "séries"
-                    },
+                    text = SourceTargeting.describe(source.targets).lowercase(),
                     color = palette.fg3,
                 )
                 EdBadge(text = source.format.name, color = palette.accent.copy(alpha = 0.85f))
@@ -221,8 +255,52 @@ private fun SourceRow(
                 color = if (source.healthy) palette.ok else palette.bad,
             )
         }
+        EdChip(label = stringResource(R.string.targets_change), selected = false, onClick = onEditTargets)
         EdChip(label = "Remover", selected = false, onClick = onRemove)
         EdSwitch(checked = source.enabled, onChange = onToggle)
+    }
+}
+
+/**
+ * Diálogo com o mesmo painel de checkboxes, para reconfigurar uma fonte que já
+ * existe (sem precisar remover e adicionar de novo).
+ */
+@Composable
+private fun TargetsDialog(
+    title: String,
+    initial: List<MediaKind>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<MediaKind>) -> Unit,
+) {
+    val palette = Ed.palette
+    val type = Ed.type
+    var selected by remember { mutableStateOf(initial) }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .width(720.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(palette.surface)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(text = title, style = type.sectionTitle, color = palette.fg, maxLines = 1)
+            TargetPicker(
+                selected = selected,
+                onToggle = { kind, checked ->
+                    selected = if (checked) (selected + kind).distinct() else selected - kind
+                },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                EdPrimaryButton(
+                    label = "Salvar",
+                    icon = EdIcons.check,
+                    onClick = { onConfirm(selected) },
+                )
+                EdSecondaryButton(label = "Cancelar", onClick = onDismiss)
+            }
+        }
     }
 }
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,9 +20,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,11 +36,14 @@ import com.smarted.tv.core.addons.InstalledAddon
 import com.smarted.tv.ui.components.AccentDot
 import com.smarted.tv.ui.components.Artwork
 import com.smarted.tv.ui.components.EdBadge
+import com.smarted.tv.ui.components.EdChip
 import com.smarted.tv.ui.components.EdIcons
+import com.smarted.tv.ui.components.EdPrimaryButton
 import com.smarted.tv.ui.components.EdSecondaryButton
 import com.smarted.tv.ui.components.EdSwitch
 import com.smarted.tv.ui.components.EmptyState
 import com.smarted.tv.ui.components.ScreenTitle
+import com.smarted.tv.ui.components.TargetPicker
 import com.smarted.tv.ui.state.AddonsViewModel
 import com.smarted.tv.ui.theme.Ed
 
@@ -52,6 +60,19 @@ fun AddonsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val palette = Ed.palette
     val type = Ed.type
+    // Addon cujas abas estão sendo reconfiguradas (null = painel fechado).
+    var editingTargets by remember { mutableStateOf<InstalledAddon?>(null) }
+
+    editingTargets?.let { addon ->
+        AddonTargetsDialog(
+            addon = addon,
+            onDismiss = { editingTargets = null },
+            onConfirm = { kinds ->
+                viewModel.setAddonTargets(addon.id, kinds)
+                editingTargets = null
+            },
+        )
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(palette.bg).padding(horizontal = 32.dp, vertical = 18.dp),
@@ -85,6 +106,7 @@ fun AddonsScreen(
                         addon = addon,
                         onToggle = { viewModel.toggleAddon(addon.id, it) },
                         onRemove = { viewModel.removeAddon(addon.id) },
+                        onEditTargets = { editingTargets = addon },
                     )
                 }
             }
@@ -99,6 +121,7 @@ private fun AddonRow(
     addon: InstalledAddon,
     onToggle: (Boolean) -> Unit,
     onRemove: () -> Unit,
+    onEditTargets: () -> Unit,
 ) {
     val palette = Ed.palette
     val type = Ed.type
@@ -150,10 +173,55 @@ private fun AddonRow(
                 color = palette.fg3,
             )
         }
+        EdChip(label = stringResource(R.string.targets_change), selected = false, onClick = onEditTargets)
         if (!builtin) {
             EdSecondaryButton(label = "Remover", onClick = onRemove, icon = EdIcons.delete)
         }
         EdSwitch(checked = addon.enabled, onChange = { if (!builtin || it) onToggle(it) })
+    }
+}
+
+/**
+ * Painel de abas do addon: mesmo componente do cadastro de fontes.
+ * Aqui ele responde "em quais abas este addon pode contribuir?".
+ */
+@Composable
+private fun AddonTargetsDialog(
+    addon: InstalledAddon,
+    onDismiss: () -> Unit,
+    onConfirm: (List<com.smarted.tv.core.model.MediaKind>) -> Unit,
+) {
+    val palette = Ed.palette
+    val type = Ed.type
+    var selected by remember { mutableStateOf(addon.types.toList()) }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .width(760.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(palette.surface)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(addon.name, style = type.sectionTitle, color = palette.fg, maxLines = 1)
+            Text(addon.summary, style = type.caption, color = palette.fg3, maxLines = 2)
+            TargetPicker(
+                selected = selected,
+                onToggle = { kind, checked ->
+                    selected = if (checked) (selected + kind).distinct() else selected - kind
+                },
+                hint = stringResource(R.string.addon_targets_hint),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                EdPrimaryButton(
+                    label = "Salvar",
+                    icon = EdIcons.check,
+                    onClick = { onConfirm(selected) },
+                )
+                EdSecondaryButton(label = "Cancelar", onClick = onDismiss)
+            }
+        }
     }
 }
 
