@@ -17,6 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class TvFlowTest {
     @get:Rule val compose = createComposeRule()

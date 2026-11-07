@@ -39,6 +39,16 @@ jobs:
       - name: Annotate compiler/test failures
         if: failure()
         run: python3 tools/ci_report.py build.log
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          for path in Path('app/build/test-results').glob('**/*.xml'):
+              for case in ET.parse(path).getroot().findall('testcase'):
+                  failure = case.find('failure')
+                  if failure is not None:
+                      message = (failure.get('message') or '') + '\n' + (failure.text or '')
+                      print('::error title=JUnit failure::' + message.replace('%','%25').replace('\r','%0D').replace('\n','%0A')[:3000])
+          PY
       - name: Test report
         if: always()
         uses: actions/upload-artifact@v4
