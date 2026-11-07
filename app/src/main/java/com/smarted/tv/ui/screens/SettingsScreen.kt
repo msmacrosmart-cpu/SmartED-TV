@@ -48,7 +48,7 @@ fun SettingsScreen(vm: AppViewModel, onHome: () -> Unit) {
             }
             Spacer(Modifier.weight(1f))
             Text("SmartED TV 2.0\nKotlin · Compose · Media3", color = TvColors.Muted, style = MaterialTheme.typography.labelMedium)
-            Text("Sem Kodi, sem listas fixas, sem execução de plugins. Use apenas fontes que você tem autorização para acessar.", color = TvColors.Muted, style = MaterialTheme.typography.labelMedium)
+            Text("Sem listas fixas, sem execução de plugins. Use apenas fontes que você tem autorização para acessar.", color = TvColors.Muted, style = MaterialTheme.typography.labelMedium)
         }
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

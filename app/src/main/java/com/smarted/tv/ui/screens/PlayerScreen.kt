@@ -75,7 +75,7 @@ fun PlayerScreen(request: PlayRequest, vm: AppViewModel, onClose: () -> Unit) {
             val status by playerStatus(player)
             VideoSurface(player, Modifier.matchParentSize())
             LaunchedEffect(player, request) {
-                while (true) { delay(5_000); vm.graph.repository.saveProgress(request.item, request.item.playbackId(request.video), player.currentPosition, player.duration.coerceAtLeast(0)) }
+                while (true) { delay(5_000); vm.saveProgress(request, player.currentPosition, player.duration.coerceAtLeast(0)) }
             }
             DisposableEffect(player) {
                 onDispose {
