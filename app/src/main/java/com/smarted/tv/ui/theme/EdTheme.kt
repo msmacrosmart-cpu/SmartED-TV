@@ -140,6 +140,8 @@ val LocalEdDimens = staticCompositionLocalOf { EdDimens() }
 data class EdPalette(
     val dark: Boolean,
     val bg: Color,
+    /** Preto absoluto das áreas sem conteúdo (esqueleto do palco). */
+    val bgDeep: Color = Color(0xFF030406),
     val surface: Color,
     val surface2: Color,
     val surface3: Color,
@@ -161,6 +163,8 @@ data class EdPalette(
     val glassHighlight: Color = Color(0x0DFFFFFF),
     /** Preenchimento de vidro escuro para HUDs e botões secundários. */
     val glassDark: Color = Color(0x66000000),
+    /** Contorno de vidro em painéis que estão sobre a arte (doca/HUD). */
+    val glassBorderStrong: Color = Color(0x33FFFFFF),
     /** Texto sobre a arte do palco (sempre branco puro). */
     val onArt: Color = Color(0xFFFFFFFF),
 )
@@ -169,6 +173,7 @@ fun paletteFor(dark: Boolean, accent: AccentSwatch): EdPalette = if (dark) {
     EdPalette(
         dark = true,
         bg = EdColors.Bg,
+        bgDeep = EdColors.BgDeep,
         surface = EdColors.Surface,
         surface2 = EdColors.Surface2,
         surface3 = EdColors.Surface3,
@@ -189,6 +194,9 @@ fun paletteFor(dark: Boolean, accent: AccentSwatch): EdPalette = if (dark) {
     EdPalette(
         dark = false,
         bg = EdColors.LightBg,
+        bgDeep = Color(0xFFE8EAEF),
+        glassDark = Color(0x1F000000),
+        glassBorderStrong = Color(0x33000000),
         surface = EdColors.LightSurface,
         surface2 = EdColors.LightSurface2,
         surface3 = EdColors.LightSurface3,
