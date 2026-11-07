@@ -10,7 +10,6 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
-import android.app.UiAutomation
 import com.smarted.tv.util.TestServer
 import org.junit.After
 import org.junit.Assert.assertTrue
@@ -57,12 +56,9 @@ class TvFlowTest {
     }
 
     private fun pressBack() {
-        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        val down = KeyEvent.obtainKeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK)
-        val up = KeyEvent.obtainKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK)
-        runCatching { automation.injectInputEvent(down, UiAutomation.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH) }
-        runCatching { automation.injectInputEvent(up, UiAutomation.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH) }
-        down.recycle(); up.recycle()
+        val instr = InstrumentationRegistry.getInstrumentation()
+        instr.sendKeySync(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+        instr.sendKeySync(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
     }
 
     @Test
