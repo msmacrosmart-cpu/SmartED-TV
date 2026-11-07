@@ -38,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.border
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -359,7 +358,7 @@ private fun LiveProgressHint() {
 private fun Modifier.wakeOnKey(show: () -> Unit): Modifier = composed {
     this.then(
         onPreviewKeyEvent { event ->
-            if (event.type == KeyEventType.KeyDown) show()
+            if (event.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) show()
             false
         },
     )

@@ -95,6 +95,43 @@ def check_extension_fqn(files):
     return problems
 
 
+
+# ---------------------------------------------------------------------------
+# APIs de Compose Desktop usadas por engano no Android.
+#
+# `androidx.compose.ui.input.key.KeyEvent` no Android embrulha um
+# `android.view.KeyEvent` e expõe `.nativeKeyEvent`. Já `.type` e
+# `.key`/`KeyEventType` vêm do Compose Desktop (GLFW); importar
+# `androidx.compose.ui.input.key.type` compila em desktop e falha no Android.
+# ---------------------------------------------------------------------------
+DESKTOP_ONLY = {
+    "androidx.compose.ui.input.key.type": "use event.nativeKeyEvent.action",
+    "androidx.compose.ui.input.key.KeyEventType": "use android.view.KeyEvent.ACTION_DOWN",
+}
+DESKTOP_PATTERNS = [
+    (r"\bevent\.type\b", "KeyEvent do Android não tem .type; use event.nativeKeyEvent.action"),
+]
+
+
+def check_desktop_api(files):
+    problems = []
+    for path in files:
+        source = open(path, encoding="utf-8").read()
+        for number, line in enumerate(source.split("\n"), 1):
+            stripped = line.strip()
+            if stripped.startswith("//"):
+                continue
+            for imp, hint in DESKTOP_ONLY.items():
+                if stripped.startswith("import " + imp):
+                    problems.append((os.path.relpath(path, ROOT), number, f"API de desktop: {imp} ({hint})"))
+            if stripped.startswith("import "):
+                continue
+            for pattern, hint in DESKTOP_PATTERNS:
+                if re.search(pattern, line):
+                    problems.append((os.path.relpath(path, ROOT), number, hint))
+    return problems
+
+
 def main() -> int:
     problems = []
     files = sorted(glob.glob(os.path.join(SRC, "**", "*.kt"), recursive=True))
@@ -120,6 +157,9 @@ def main() -> int:
 
     for rel, number, fqn in check_extension_fqn(files):
         problems.append((f"{rel}:{number}", fqn, "função de extensão chamada por FQN"))
+
+    for rel, number, reason in check_desktop_api(files):
+        problems.append((f"{rel}:{number}", "-", reason))
 
     print(f"{len(files)} arquivo(s) analisado(s)")
     if problems:

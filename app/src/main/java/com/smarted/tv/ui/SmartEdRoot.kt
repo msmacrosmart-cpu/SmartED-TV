@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,10 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smarted.tv.AppGraph
@@ -76,7 +74,7 @@ val LocalAppGraph = staticCompositionLocalOf<AppGraph> { error("AppGraph não di
  */
 @Composable
 fun SmartEdRoot(graph: AppGraph) {
-    val settings by graph.settings.state.collectAsStateWithLifecycleCompat()
+    val settings by graph.settings.state.collectAsStateWithLifecycle()
 
     SmartEdTheme(
         darkTheme = settings.themeDark,
@@ -107,15 +105,6 @@ fun SmartEdRoot(graph: AppGraph) {
         }
     }
 }
-
-/**
- * `collectAsState` sem exigir LifecycleOwner — usado no nível da raiz, onde a
- * árvore ainda pode estar em preview. As telas usam
- * `collectAsStateWithLifecycle` diretamente.
- */
-@Composable
-private fun <T> kotlinx.coroutines.flow.StateFlow<T>.collectAsStateWithLifecycleCompat(): androidx.compose.runtime.State<T> =
-    collectAsState(this)
 
 @Composable
 private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) {
@@ -169,7 +158,7 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
             .fillMaxSize()
             .background(palette.bg)
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (event.nativeKeyEvent.action != android.view.KeyEvent.ACTION_DOWN) return@onPreviewKeyEvent false
                 when (event.key) {
                     Key.One -> { destination = EdDestination.HOME.name; true }
                     Key.Two -> { destination = EdDestination.LIVE.name; true }
