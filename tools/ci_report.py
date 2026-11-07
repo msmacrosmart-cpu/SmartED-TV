@@ -4,7 +4,7 @@ from pathlib import Path
 import os, re, sys
 text = Path(sys.argv[1]).read_text(errors='replace') if Path(sys.argv[1]).exists() else ''
 lines = text.splitlines()
-errors = [line for line in lines if re.search(r'^e: |FAILED|FAILURE:|Caused by:|What went wrong|> Task .*FAILED|Error:|error:|Unresolved reference', line)]
+errors = [line for line in lines if re.search(r'^[ew]: |^w:|FAILED|FAILURE:|Caused by:|What went wrong|> Task .*FAILED|Error:|error:|Unresolved reference', line)]
 selected = (errors[:35] or lines[-30:])
 for line in selected:
     clean = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
