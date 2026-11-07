@@ -236,6 +236,12 @@ jobs:
           "$BTDIR/aapt2" dump badging "$APK" \
             | grep -E "^package:|sdkVersion|targetSdkVersion|application-label" || true
 
+          # Publica os metadados como anotação (o log bruto pode não ser
+          # acessível por API em todos os ambientes).
+          BADGING=$("$BTDIR/aapt2" dump badging "$APK" 2>/dev/null | grep -E "^package:|application-label:" | head -3 | tr '\n' ' ')
+          echo "::notice title=APK gerado::${BADGING}"
+          echo "sha256: $(sha256sum "$APK" | cut -d' ' -f1)"
+
           if [[ "${{ steps.keystore.outputs.signed }}" == "true" ]]; then
             # apksigner é um script shell + jar no build-tools
             if [[ -x "$BTDIR/apksigner" ]]; then
@@ -247,6 +253,22 @@ jobs:
             fi
           else
             echo "APK sem keystore de release; assinatura não verificada."
+          fi
+
+          echo "== conteúdo do APK =="
+          unzip -l "$APK" | awk '{print $4}' | grep -E "^(classes|AndroidManifest|resources.arsc|assets/)" | head -12 || true
+
+          # o catálogo embutido precisa estar empacotado, senão o app abre vazio
+          for asset in assets/catalog/sources.json assets/catalog/repos.json assets/catalog/epg.json; do
+            if unzip -l "$APK" | grep -q " $asset$"; then
+              echo "  ok: $asset"
+            else
+              echo "::error::asset ausente no APK: $asset"
+            fi
+          done
+          if ! unzip -l "$APK" | grep -q " classes.dex$"; then
+            echo "::error::classes.dex ausente — o APK não contém código"
+            exit 1
           fi
 
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
@@ -289,6 +311,6 @@ jobs:
             dist/${{ steps.version.outputs.apk }}
             dist/SHA256SUMS.txt
           draft: false
-          prerelease: ${{ steps.version.outputs.kind != 'tag' }}
-          make_latest: ${{ steps.version.outputs.kind == 'tag' }}
+          prerelease: false
+          make_latest: true
           token: ${{ secrets.GITHUB_TOKEN }}
