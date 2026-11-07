@@ -70,7 +70,7 @@ fun SettingsScreen(app: AppViewModel) {
             if (ui.message.isNotBlank()) Notice("✓ ${ui.message}")
             if (ui.error.isNotBlank()) Notice("✕ ${ui.error}")
             when (page) {
-                SettingsPage.SOURCES -> SourcesPanel(ui.sources, app, ui)
+                SettingsPage.SOURCES -> SourcesPanel(ui.sources, app, ui, Modifier.fillMaxWidth().weight(1f))
                 SettingsPage.ELEMENTUM -> ElementumPanel(app, prefs)
                 SettingsPage.PLAYBACK -> PlaybackPanel(prefs, app)
                 SettingsPage.INTERFACE -> InterfacePanel(prefs, app)
@@ -101,7 +101,7 @@ private fun MenuRow(label: String, selected: Boolean, onClick: () -> Unit) {
 // ---------------------------------------------------------------- Fontes
 
 @Composable
-private fun SourcesPanel(sources: List<ListSource>, app: AppViewModel, ui: com.smarted.tv.ui.state.AppUi) {
+private fun SourcesPanel(sources: List<ListSource>, app: AppViewModel, ui: com.smarted.tv.ui.state.AppUi, modifier: Modifier = Modifier) {
     var editing by remember { mutableStateOf<SettingsForm?>(null) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Fontes e repositórios", style = MaterialTheme.typography.headlineMedium, color = Color.White)
@@ -118,7 +118,7 @@ private fun SourcesPanel(sources: List<ListSource>, app: AppViewModel, ui: com.s
     if (sources.isEmpty() && form == null) {
         EmptyState("Nenhuma fonte cadastrada", "Adicione uma playlist M3U, um painel Xtream ou um repositório de fontes.", Modifier.fillMaxWidth())
     }
-    LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(sources, key = { "src-$it" }) { source ->
             SourceRow(source, app, form == null)
         }

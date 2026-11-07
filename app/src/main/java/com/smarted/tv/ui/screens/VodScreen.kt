@@ -174,7 +174,7 @@ fun VodScreen(
                     ui = ui,
                     vm = vm,
                     onBack = { vm.clearSelection(); keyboard?.hide() },
-                    onPlay = { playVod(selected, vm, it) },
+                    onPlay = { playVod(selected, vm, onPlay) },
                     onPlayEpisode = { episode ->
                         onPlay(PlayRequest(vm.playbackTarget(episode), "${selected.name} · ${episodeTitle(episode)}", "${selected.favKey}:${episode.id}", "vod"))
                     },
@@ -253,7 +253,7 @@ private fun DetailsHero(
                 }
             }
             if (entry.kind == Tab.SERIES) {
-                SeriesEpisodeList(ui, vm, seasons, onPlayEpisode, ui.detailBusy)
+                SeriesEpisodeList(ui, vm, seasons, onPlayEpisode, ui.detailBusy, Modifier.weight(0.58f))
             }
         }
     }
@@ -271,8 +271,9 @@ private fun SeriesEpisodeList(
     seasons: List<Int>,
     onPlayEpisode: (Episode) -> Unit,
     busy: Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    Column(Modifier.fillMaxWidth().weight(0.58f).smokedGlass().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth().smokedGlass().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionLabel("Temporadas e episódios")
         if (seasons.isEmpty()) {
             Text(
@@ -318,7 +319,7 @@ private fun EpisodeRow(episode: Episode, onPlay: (Episode) -> Unit) {
                 Text(episode.plot, color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = if (LocalCompact.current) 1 else 2, overflow = TextOverflow.Ellipsis)
             }
         }
-        episode.durationMinutes?.takeIf { it > 0 }?.let { Text("${it} min", color = TvColors.Muted, style = MaterialTheme.typography.labelMedium) }
+        episode.runtimeMinutes?.takeIf { it > 0 }?.let { Text("${it} min", color = TvColors.Muted, style = MaterialTheme.typography.labelMedium) }
         Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp), tint = Color.White)
     }
 }

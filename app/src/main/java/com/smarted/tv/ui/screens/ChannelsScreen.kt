@@ -67,7 +67,7 @@ fun ChannelsScreen(
     val compact = LocalCompact.current
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 to listState.layoutInfo.totalItemsCount }
-            .collect { (last, total) -> if (total > 0 && last >= total - 14) vm.loadMore() }
+            .collect { pair -> val (last, total) = pair; if (total > 0 && last >= total - 14) vm.loadMore() }
     }
 
     Row(Modifier.fillMaxSize().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp)) {
