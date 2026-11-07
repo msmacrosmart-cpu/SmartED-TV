@@ -79,6 +79,7 @@ object DbMappers {
         lastCheckedMs = lastCheckedMs,
         healthy = healthy,
         lastError = lastError,
+        discoveredFrom = discoveredFrom,
     )
 
     fun com.smarted.tv.core.model.PublicSource.toEntity(discoveredFrom: String? = null) = PublicSourceEntity(
@@ -94,6 +95,6 @@ object DbMappers {
         lastCheckedMs = lastCheckedMs,
         healthy = healthy,
         lastError = lastError,
-        discoveredFrom = discoveredFrom,
+        discoveredFrom = discoveredFrom ?: this.discoveredFrom,
     )
 }

@@ -279,6 +279,13 @@ data class PublicSource(
     val lastCheckedMs: Long = 0L,
     val healthy: Boolean = true,
     @SerialName("lastError") val lastError: String? = null,
+    /**
+     * Origem da fonte: `embedded` (catálogo que acompanha o APK), `cloud`
+     * (catálogo remoto) ou `user` (cadastrada pelo usuário). Desde a rodada 5
+     * a arquitetura só usa as fontes do catálogo — listas avulsas do usuário
+     * ficam de fora (`BrazucaCatalog.configuredSources`).
+     */
+    @SerialName("discoveredFrom") val discoveredFrom: String? = null,
 ) {
     /** Destinos efetivos: marcação explícita ou o tipo único legado. */
     val targets: List<MediaKind>
