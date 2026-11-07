@@ -2,7 +2,7 @@
 # Teste de fumaça em emulador Android: instala o APK do build, abre o app de
 # verdade e confere que ele não morre — inclusive no cenário que causou o bug
 # de "erro ao abrir o app": banco local com esquema antigo (v1) migrando para
-# o esquema novo (v2).
+# o esquema atual (v4: repositórios com abas + lista do usuário).
 #
 # Roda dentro do emulador criado pelo reactivecircus/android-emulator-runner,
 # com adb já conectado (usuário shell + `adb root` para ler o banco do app).
@@ -23,6 +23,11 @@ ACTIVITY=""
 
 APK_PATH="$(ls dist/*.apk 2>/dev/null | head -1)"
 LEGACY_DB="legacy-v1.db"
+
+# Versão atual do banco, lida do fonte (uma fonte só para o teste e a migração).
+DB_VERSION="$(grep -m1 -oE 'version = [0-9]+' app/src/main/java/com/smarted/tv/core/data/db/SmartEdDatabase.kt | grep -oE '[0-9]+')"
+DB_VERSION="${DB_VERSION:-4}"
+echo "versão do banco no fonte: $DB_VERSION"
 
 dump_logs() {
   echo "== buffer de crash (stack trace) =="
@@ -117,13 +122,14 @@ APP_UID="$(adb shell dumpsys package "$PKG" | grep -m1 -o 'userId=[0-9]*' | cut 
 [[ -n "$APP_UID" ]] || fail "não descobri o uid do app"
 echo "uid do app: $APP_UID"
 
-echo "-- banco que o app criou na primeira execução (v2) --"
-pull_db /tmp/v2 || fail "não consegui ler o banco criado pelo app"
-python3 tools/check-db-state.py /tmp/v2/smarted-tv.db 2 kinds \
-  || fail "o banco criado pelo app não está no esquema v2"
+echo "-- banco que o app criou na primeira execução (v$DB_VERSION) --"
+pull_db /tmp/current || fail "não consegui ler o banco criado pelo app"
+python3 tools/check-db-state.py /tmp/current/smarted-tv.db "$DB_VERSION" \
+  kinds saved_items.shelf saved_items.playUrl \
+  || fail "o banco criado pelo app não está no esquema v$DB_VERSION"
 
 echo "-- derivando o v1 (sem a coluna kinds) e devolvendo ao aparelho --"
-python3 tools/legacy-from-current.py /tmp/v2/smarted-tv.db "$LEGACY_DB" \
+python3 tools/legacy-from-current.py /tmp/current/smarted-tv.db "$LEGACY_DB" \
   || fail "não consegui derivar o banco v1"
 
 adb push "$LEGACY_DB" /data/local/tmp/legacy.db >/dev/null || fail "adb push do banco legado falhou"
@@ -144,13 +150,14 @@ if adb logcat -d 2>/dev/null | grep -q "Banco local incompat"; then
 fi
 
 pull_db /tmp/after || fail "não consegui ler o banco depois da migração"
-python3 tools/check-db-state.py /tmp/after/smarted-tv.db 2 kinds --marker \
-  || fail "migração 1→2 não foi aplicada corretamente"
+python3 tools/check-db-state.py /tmp/after/smarted-tv.db "$DB_VERSION" \
+  kinds saved_items.shelf saved_items.playUrl --marker \
+  || fail "migração 1→$DB_VERSION não foi aplicada corretamente"
 
 echo "PASS" > "$STATUS_FILE"
-echo "OK: banco v1 migrado para v2, dados preservados e o app abriu sem crash"
+echo "OK: banco v1 migrado para v$DB_VERSION, dados preservados e o app abriu sem crash"
 echo "== resumo =="
 echo "  1. instalação limpa, app abre"
 echo "  2. UI renderiza"
-echo "  3. banco antigo (v1) migra para v2 sem recriar"
+echo "  3. banco antigo (v1) migra para v$DB_VERSION sem recriar"
 echo "  4. dados antigos preservados"

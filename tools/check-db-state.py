@@ -5,8 +5,11 @@ Verifica a versão do esquema (`user_version`), se colunas obrigatórias existem
 com `--marker`, se a linha marcadora gravada antes da migração sobreviveu —
 prova de que a migração preservou os dados em vez de recriar o banco.
 
+As colunas podem ser `coluna` (tabela `repositories`, o caso histórico) ou
+`tabela.coluna` para checar qualquer tabela criada nas migrações.
+
 Uso:
-    python3 tools/check-db-state.py <banco.db> <versao> [coluna ...] [--marker]
+    python3 tools/check-db-state.py <banco.db> <versao> [tabela.coluna ...] [--marker]
 """
 
 from __future__ import annotations
@@ -42,9 +45,15 @@ def main() -> int:
         problems = []
         if version != expected_version:
             problems.append(f"user_version={version}, esperado {expected_version}")
-        for column in required:
-            if column not in columns:
-                problems.append(f"coluna ausente: repositories.{column}")
+        for entry in required:
+            table, _, column = entry.partition(".")
+            if not column:
+                table, column = "repositories", table
+            present = [row[1] for row in con.execute(f'PRAGMA table_info("{table}")')]
+            if column not in present:
+                problems.append(f"coluna ausente: {table}.{column}")
+            else:
+                print(f"{table}.{column}: OK")
 
         if want_marker:
             row = con.execute(

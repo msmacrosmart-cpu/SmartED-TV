@@ -21,8 +21,10 @@ import sqlite3
 import sys
 from pathlib import Path
 
-# Colunas que entraram na versão 2 — precisam sair para simular a versão 1.
+# Colunas que entraram depois da v1 — precisam sair para simular a versão 1.
 DROPPED_COLUMNS = [("repositories", "kinds")]
+# Tabelas que entraram depois da v1 (v3: lista do usuário).
+DROPPED_TABLES = ["saved_items"]
 MARKER_QUERY = "smoke-migracao-v1"
 
 
@@ -43,6 +45,12 @@ def main() -> int:
             if column in columns:
                 con.execute(f'ALTER TABLE "{table}" DROP COLUMN "{column}"')
                 print(f"removida {table}.{column} (esquema v1)")
+        for table in DROPPED_TABLES:
+            if con.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone()[0]:
+                con.execute(f'DROP TABLE "{table}"')
+                print(f"removida tabela {table} (esquema v1)")
         con.execute("PRAGMA user_version = 1")
         con.execute(
             'INSERT OR REPLACE INTO "search_history" ("query", "usedAt") VALUES (?, ?)',
