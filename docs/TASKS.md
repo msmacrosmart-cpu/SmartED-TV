@@ -5,6 +5,19 @@ verificado. Atualizada a cada rodada.
 
 Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelho · ⏳ pendente
 
+## Rodada 7 — navegação em árvore e “Minha lista”
+
+| # | Pedido | Status | Onde | Verificação |
+|---|--------|--------|------|-------------|
+| 1 | Navegar como no Kodi: árvore de pastas (Lançamentos, Ação, Aventura…), entrando e voltando nível por nível | ✅ | `core/addons/AddonTree.kt` (`Node`, `Level`, `routeOf`, `parentOf`, `styleOf`, `onlyFolder`), `AddonBrowserScreen.TreeLevel` | 29 asserções em `verify-core.sh` |
+| 2 | Usuário **salva** o que quiser e monta a playlist dele | ✅ | tabela `saved_items` (Room v4), `LibraryRepository.observeSaved/toggleSaved/removeSaved`, `MyListScreen` | `check-db-schema.py` (migração 2→3 e 3→4 no SQLite) + emulador |
+| 3 | Ao salvar, o usuário **escolhe a aba**: Canais, Filmes ou Séries | ✅ | `AddonTree.Shelf` (enum + `suggest`/`parse`), `SaveToShelfDialog` (checkbox branco puro), `AddonsViewModel.saveToShelf`, coluna `saved_items.shelf` | asserções de aba, agrupamento e resumo |
+| 4 | “Minha lista” separada por aba escolhida, agrupada pela pasta de origem | ✅ | `MyListScreen` (abas Canais/Filmes/Séries + contagem), `AddonTree.groupByShelf/savedSummary` | gates + emulador |
+
+**Regra mantida:** a aba escolhida pelo usuário é a autoridade — o item aparece
+em Canais/Filmes/Séries conforme a escolha, e o tipo detectado só pré-seleciona o
+botão no diálogo. Salvar o mesmo link de novo troca de aba em vez de duplicar.
+
 ## Rodada 6 — addon Elementum (torrentes do Vikings)
 
 | # | Pedido | Status | Onde | Verificação |

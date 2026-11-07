@@ -73,6 +73,10 @@ val LocalAppGraph = staticCompositionLocalOf<AppGraph> { error("AppGraph não di
  * porque cada transição é instantânea em TV box e o botão VOLTAR tem semântica
  * própria por tela.
  */
+/** Addon de origem de um item da lista do usuário (hoje, o Elementum). */
+private fun entryAddonId(@Suppress("UNUSED_PARAMETER") saved: com.smarted.tv.core.addons.AddonTree.SavedItem): String =
+    com.smarted.tv.core.addons.Elementum.ADDON_ID
+
 @Composable
 fun SmartEdRoot(graph: AppGraph) {
     val settings by graph.settings.state.collectAsStateWithLifecycle()
@@ -260,6 +264,7 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                         addonsVm.openElementum()
                                         subScreen = "browser"
                                     },
+                                    onOpenMyList = { subScreen = "mylist" },
                                     onBack = { subScreen = null },
                                 )
                             }
@@ -277,6 +282,20 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                 }
                                 AddonBrowserScreen(
                                     viewModel = addonsVm,
+                                    // Item da lista do usuário: toca o link do
+                                    // daemon (ele resolve o magnet e serve).
+                                    onPlayTree = { saved ->
+                                        playerItem = com.smarted.tv.core.model.MediaItem(
+                                            id = saved.id,
+                                            addonId = entryAddonId(saved),
+                                            kind = saved.kind,
+                                            title = saved.title,
+                                            subtitle = saved.folder.ifBlank { null },
+                                            streamUrl = saved.playUrl,
+                                            quality = saved.meta.ifBlank { null },
+                                        )
+                                    },
+                                    onOpenMyList = { subScreen = "mylist" },
                                     // Item de pasta com stream direto abre no
                                     // player em tela cheia (Elementum incluso).
                                     onPlay = { entry ->
@@ -292,6 +311,27 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                                 streamUrl = url,
                                             )
                                         }
+                                    },
+                                    onBack = { subScreen = "addons" },
+                                )
+                            }
+
+                            // Minha lista: a playlist que o usuário monta
+                            // salvando itens da árvore em Canais, Filmes ou Séries.
+                            "mylist" -> {
+                                val addonsVm: AddonsViewModel = viewModel(factory = factory)
+                                MyListScreen(
+                                    viewModel = addonsVm,
+                                    onPlay = { saved ->
+                                        playerItem = com.smarted.tv.core.model.MediaItem(
+                                            id = saved.id,
+                                            addonId = entryAddonId(saved),
+                                            kind = saved.kind,
+                                            title = saved.title,
+                                            subtitle = saved.folder.ifBlank { null },
+                                            streamUrl = saved.playUrl,
+                                            quality = saved.meta.ifBlank { null },
+                                        )
                                     },
                                     onBack = { subScreen = "addons" },
                                 )
@@ -394,6 +434,7 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                                     vm.openElementum()
                                     subScreen = "browser"
                                 },
+                                onOpenMyList = { subScreen = "mylist" },
                                 onBack = { destination = EdDestination.SETTINGS.name },
                             )
                         }

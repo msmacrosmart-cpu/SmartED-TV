@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.smarted.tv.core.addons.AddonBrowser
 import com.smarted.tv.core.addons.AddonManager
 import com.smarted.tv.core.addons.BrowserEntry
+import com.smarted.tv.core.addons.AddonTree
 import com.smarted.tv.core.addons.Elementum
 import com.smarted.tv.core.addons.RepositoryFolder
 import com.smarted.tv.core.data.Settings
@@ -703,6 +704,22 @@ data class AddonsUiState(
     /** Último termo buscado no Elementum. */
     val elementumQuery: String = "",
     val elementumBusy: Boolean = false,
+    /** Rota atual dentro da árvore do Elementum ("" = raiz). */
+    val treeRoute: String = "",
+    /** Título da pasta aberta na árvore. */
+    val treeTitle: String = "",
+    /** Caminhos percorridos (para voltar). */
+    val treeTrail: List<String> = emptyList(),
+    /** Nós do nível atual: pastas e itens. */
+    val treeNodes: List<AddonTree.Node> = emptyList(),
+    /** Quantos itens da lista do usuário existem (selo na tela). */
+    val savedCount: Int = 0,
+    /** Lista do usuário (playlist montada navegando os addons). */
+    val saved: List<AddonTree.SavedItem> = emptyList(),
+    /** Item com a escolha de aba aberta (null = diálogo fechado). */
+    val saveDialogNode: AddonTree.Node? = null,
+    /** Abas que já receberam itens (para destacar na tela da lista). */
+    val savedShelves: List<AddonTree.Shelf> = emptyList(),
 )
 
 class AddonsViewModel(private val graph: AppServices) : ViewModel() {
@@ -724,6 +741,16 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
         viewModelScope.launch {
             graph.addons.observeAddons().collect { list ->
                 _state.value = _state.value.copy(addons = list)
+            }
+        }
+        // Selo da lista do usuário (quantos itens ele já salvou).
+        viewModelScope.launch {
+            graph.library.observeSaved().collect { list ->
+                _state.value = _state.value.copy(
+                    savedCount = list.size,
+                    saved = list,
+                    savedShelves = list.map { it.shelf }.distinct(),
+                )
             }
         }
         viewModelScope.launch {
@@ -845,6 +872,14 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
      * O daemon não tem catálogo: o caminho é buscar um termo. A tela mostra as
      * pastas Filmes/Séries já filtradas a partir do resultado.
      */
+    /**
+     * Abre o **Elementum** na raiz da árvore.
+     *
+     * O daemon se apresenta como o Kodi: `/` traz o menu (`movies`, `shows`,
+     * `search`…), e cada nó leva a mais pastas até chegar no item. É essa
+     * navegação que deixa o usuário montar a lista dele entrando em
+     * "Lançamentos", "Ação", "Aventura" etc.
+     */
     fun openElementum() {
         viewModelScope.launch {
             _state.value = _state.value.copy(
@@ -856,6 +891,10 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
                 browserEntries = emptyList(),
                 browserLoading = true,
                 browserMessage = null,
+                treeRoute = "",
+                treeTitle = "",
+                treeTrail = emptyList(),
+                treeNodes = emptyList(),
             )
             runCatching { graph.addons.ensureElementum() }
             val status = runCatching { graph.elementum.status() }
@@ -870,14 +909,76 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
                 )
                 return@launch
             }
-            // Daemon no ar: já mostra o que ele tem de filmes e séries.
-            val filmes = runCatching { graph.elementum.movies() }.getOrDefault(emptyList())
-            val series = runCatching { graph.elementum.shows() }.getOrDefault(emptyList())
-            loadElementum(filmes + series, status, null)
+            _state.value = _state.value.copy(elementum = status)
+            // A raiz é o menu do daemon; buscar é um item dele, então o app
+            // mantém a busca sempre visível na tela e usa a árvore para o resto.
+            openTreeRoute("", title = "Elementum", trail = emptyList())
         }
     }
 
-    /** Busca torrentes e monta as pastas Filmes/Séries com o resultado. */
+    /**
+     * Entra em uma pasta da árvore.
+     *
+     * Aceita rota do serviço (`/movies/genre/acao`) e o caminho cru do nó
+     * (`plugin://…`), que é normalizado por [AddonTree.routeOf].
+     */
+    fun openTreeFolder(node: AddonTree.Node) {
+        val route = node.route
+        if (route.isEmpty()) return
+        val trail = _state.value.treeTrail + _state.value.treeRoute
+        openTreeRoute(route, title = AddonTree.titleOf(node), trail = trail)
+    }
+
+    /** Volta uma pasta (ou para a raiz quando está no primeiro nível). */
+    fun treeUp() {
+        val current = _state.value
+        val trail = current.treeTrail
+        if (trail.isEmpty()) {
+            if (current.treeRoute.isNotEmpty()) openTreeRoute("", title = "Elementum", trail = emptyList())
+            return
+        }
+        val route = trail.last()
+        val parentTitle = if (trail.size == 1) "Elementum" else current.treeTitle
+        openTreeRoute(route, title = parentTitle, trail = trail.dropLast(1))
+    }
+
+    /** Carrega um nível da árvore do Elementum. */
+    private fun openTreeRoute(route: String, title: String, trail: List<String>) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                treeRoute = route,
+                treeTitle = title,
+                treeTrail = trail,
+                treeNodes = emptyList(),
+                browserLoading = true,
+                browserKind = null,
+                browserEntries = emptyList(),
+                browserMessage = null,
+            )
+            val url = if (route.isEmpty()) {
+                Elementum.browseUrl("/")
+            } else if (route.startsWith("http")) {
+                route
+            } else {
+                Elementum.browseUrl(route)
+            }
+            val nodes = runCatching { graph.elementum.view(url) }
+                .getOrDefault(emptyList())
+                .map { it.toTreeNode() }
+            _state.value = _state.value.copy(
+                treeNodes = nodes,
+                browserLoading = false,
+                browserMessage = when {
+                    nodes.isEmpty() -> "Esta pasta não devolveu itens"
+                    nodes.none { it.isFolder } && nodes.none { it.isItem } ->
+                        "Esta pasta não devolveu itens"
+                    else -> null
+                },
+            )
+        }
+    }
+
+    /** Busca torrentes e mostra o resultado como uma pasta da árvore. */
     fun searchElementum(query: String) {
         val term = query.trim()
         if (term.isEmpty()) return
@@ -886,43 +987,84 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
                 elementumQuery = term,
                 elementumBusy = true,
                 browserLoading = true,
+                browserExternal = true,
                 browserKind = null,
+                treeRoute = "",
+                treeTitle = "Busca: $term",
+                treeTrail = emptyList(),
+                treeNodes = emptyList(),
+                browserEntries = emptyList(),
                 browserMessage = null,
             )
-            val status = _state.value.elementum
-            val items = runCatching { graph.elementum.search(term) }.getOrDefault(emptyList())
-            if (items.isEmpty()) {
-                _state.value = _state.value.copy(
-                    browserFolders = emptyList(),
-                    browserEntries = emptyList(),
-                    browserLoading = false,
-                    elementumBusy = false,
-                    browserMessage = "Nenhum torrente encontrado para \"$term\"",
-                )
-                return@launch
-            }
-            loadElementum(items, status, term)
+            runCatching { graph.library.recordSearch(term) }
+            val nodes = runCatching { graph.elementum.view(Elementum.searchUrl(term)) }
+                .getOrDefault(emptyList())
+                .map { it.toTreeNode() }
+            _state.value = _state.value.copy(
+                treeNodes = nodes,
+                browserLoading = false,
+                elementumBusy = false,
+                browserMessage = if (nodes.isEmpty()) {
+                    "Nenhum torrente encontrado para \"$term\""
+                } else {
+                    "${nodes.count { it.isItem }} torrente(s) para \"$term\""
+                },
+            )
         }
     }
 
-    /** Estado comum das duas entradas do Elementum (abertura e busca). */
-    private fun loadElementum(items: List<Elementum.Item>, status: Elementum.Status?, term: String?) {
-        val entries = Elementum.toEntries(items)
-        _state.value = _state.value.copy(
-            elementum = status,
-            browserFolders = AddonBrowser.folders(entries),
-            browserEntries = entries,
-            browserLoading = false,
-            elementumBusy = false,
-            browserMessage = when {
-                term != null && items.isNotEmpty() -> "${items.size} torrente(s) para \"$term\""
-                items.isNotEmpty() -> "${items.size} torrente(s) em destaque"
-                else -> "O daemon está ligado, mas não devolveu itens. Use a busca."
-            },
-        )
+    /**
+     * Salva o item na **lista do usuário**, na aba escolhida por ele
+     * (Canais, Filmes ou Séries) e na pasta de onde ele veio.
+     *
+     * Se o mesmo link já estiver salvo, a chamada não duplica: devolve o que
+     * está lá para a tela pedir a troca de aba em vez de criar outro item.
+     */
+    fun saveToShelf(node: AddonTree.Node, shelf: AddonTree.Shelf, playUrl: String = "") {
+        viewModelScope.launch {
+            val current = _state.value
+            val target = playUrl.ifBlank { AddonTree.playUrl(node) }
+            if (target.isBlank()) return@launch
+            val saved = AddonTree.toSaved(
+                node = node,
+                playUrl = target,
+                folder = current.treeTitle,
+                folderRoute = current.treeRoute,
+                shelf = shelf,
+            )
+            val already = current.saved.firstOrNull { it.playUrl == target }
+            if (already != null) {
+                // Já existe: troca de aba em vez de duplicar.
+                runCatching { graph.library.removeSaved(already.id) }
+            }
+            runCatching { graph.library.toggleSaved(saved) }
+            val shelfLabel = shelf.label
+            _state.value = _state.value.copy(
+                browserMessage = "\"${node.title}\" salvo em $shelfLabel " +
+                    if (current.treeTitle.isNotBlank()) "· ${current.treeTitle}" else "",
+                saveDialogNode = null,
+            )
+        }
     }
 
-    /** Recarrega as pastas (usado depois de sincronizar o repositório). */    /** Recarrega as pastas (usado depois de sincronizar o repositório). */
+    /** Abre a escolha de aba para salvar o item. */
+    fun askSaveToShelf(node: AddonTree.Node) {
+        _state.value = _state.value.copy(saveDialogNode = node)
+    }
+
+    /** Fecha a escolha de aba. */
+    fun dismissSaveDialog() {
+        _state.value = _state.value.copy(saveDialogNode = null)
+    }
+
+    /** Remove um item da lista do usuário. */
+    fun removeSaved(id: String) {
+        viewModelScope.launch {
+            runCatching { graph.library.removeSaved(id) }
+        }
+    }
+
+    /** Recarrega as pastas (usado depois de sincronizar o repositório). */    /** Recarrega as pastas (usado depois de sincronizar o repositório). */    /** Recarrega as pastas (usado depois de sincronizar o repositório). */
     fun refreshBrowser() {
         val id = _state.value.browserRepository?.id ?: return
         openBrowser(id)
@@ -942,10 +1084,7 @@ class AddonsViewModel(private val graph: AppServices) : ViewModel() {
         _state.value = _state.value.copy(browserKind = null, browserEntries = emptyList())
     }
 
-    /**
-     * "Recomeçar" no Elementum: limpa a busca e volta ao destaque do daemon
-     * (filmes e séries populares), que é o que ele oferece sem catálogo.
-     */
+    /** "Recomeçar" no Elementum: volta à raiz da árvore (menu do daemon). */
     fun resetElementum() {
         openElementum()
     }

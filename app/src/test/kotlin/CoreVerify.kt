@@ -6,6 +6,7 @@
  */
 import com.smarted.tv.core.addons.AddonBrowser
 import com.smarted.tv.core.addons.BrowserEntry
+import com.smarted.tv.core.addons.AddonTree
 import com.smarted.tv.core.addons.Elementum
 import com.smarted.tv.core.addons.KodiRepoParser
 import com.smarted.tv.core.model.MediaKind
@@ -47,6 +48,7 @@ fun main() {
     verifySourceTargeting()
     verifyAddonBrowser()
     verifyElementum()
+    verifyAddonTree()
     println("== TextUtils ==")
     eq("acentos", "cancao", TextUtils.stripAccents("canção"))
     eq("normalize pontuação", "globo hd", TextUtils.normalize("Globo  HD!!!"))
@@ -732,4 +734,122 @@ private fun verifyElementum() {
     check("magnet montado", magnet.startsWith("magnet:?xt=urn:btih:ABC123&dn=Filme"))
     check("magnet traz trackers", magnet.contains("tr=udp%3A%2F%2F"))
     eq("hash vazio não gera magnet", "", Elementum.magnet(""))
+}
+
+private fun verifyAddonTree() {
+    println("== Árvore de navegação (estilo Kodi) e minha lista ==")
+
+    // ---- caminhos: plugin://, absolutos e magnet ----
+    eq(
+        "plugin:// vira rota",
+        "/movies/genre/acao",
+        AddonTree.routeOf("plugin://plugin.video.elementum/movies/genre/acao"),
+    )
+    eq(
+        "plugin:// com query mantém a query",
+        "/movies/popular?page=2",
+        AddonTree.routeOf("plugin://plugin.video.elementum/movies/popular?page=2"),
+    )
+    eq("plugin:// sem caminho é a raiz", "/", AddonTree.routeOf("plugin://plugin.video.elementum"))
+    eq("URL absoluta é mantida", "http://127.0.0.1:65220/play?uri=x", AddonTree.routeOf("http://127.0.0.1:65220/play?uri=x"))
+    eq("magnet não é navegável", "", AddonTree.routeOf("magnet:?xt=urn:btih:AAA"))
+    eq("rota relativa ganha barra", "/shows/popular", AddonTree.routeOf("shows/popular"))
+    check("rota de play reconhecida", AddonTree.isPlayRoute("http://127.0.0.1:65220/play?uri=x"))
+    check("rota de pasta não é play", !AddonTree.isPlayRoute("/movies/popular"))
+
+    // ---- subir/descer na árvore ----
+    eq("pai de gênero", "/movies/genre", AddonTree.parentOf("/movies/genre/acao"))
+    eq("pai de pasta", "/movies", AddonTree.parentOf("/movies/genre"))
+    eq("pai da raiz é nulo", null, AddonTree.parentOf("/movies"))
+    eq("raiz não tem pai", null, AddonTree.parentOf("/"))
+
+    // ---- view do daemon virada em nós ----
+    val view = """
+        {"content_type":"seasons","items":[
+          {"label":"[B]Lançamentos[/B]","path":"plugin://plugin.video.elementum/movies/recent","is_playable":false},
+          {"label":"Ação","path":"plugin://plugin.video.elementum/movies/genre/acao","is_playable":false},
+          {"label":"Aventura","path":"plugin://plugin.video.elementum/movies/genre/aventura","is_playable":false},
+          {"label":"O Auto da Compadecida","label2":"RuTor","is_playable":true,
+           "path":"plugin://plugin.video.elementum/play?uri=magnet%3A%3Fxt%3Durn%3Abtih%3AAAA",
+           "info":{"tagline":"320 / 12 - 1080p - 1.4 GB"}},
+          {"label":"Matrix 1999","is_playable":true,
+           "path":"plugin://plugin.video.elementum/play?uri=magnet%3A%3Fxt%3Durn%3Abtih%3ABBB",
+           "info":{"tagline":"88 / 4 - 720p - 700 MB"}}
+        ]}
+    """.trimIndent()
+    val nodes = Elementum.parseTree(view)
+    eq("cinco nós", 5, nodes.size)
+    eq("rótulo sem marcação do Kodi", "Lançamentos", nodes[0].title)
+    eq("rota do nó plugin://", "/movies/recent", nodes[0].route)
+    check("primeiro é pasta", nodes[0].isFolder)
+    check("terceiro é item", nodes[3].isItem)
+    eq("ícone de pasta de gênero", AddonTree.FolderStyle.GENRE, AddonTree.styleOf(nodes[1]))
+
+    // ---- nó com play: destino do player e do salvamento ----
+    val itemNode = nodes[3]
+    eq("magnet decodificado do play", "magnet:?xt=urn:btih:AAA", Elementum.playTarget(itemNode.path))
+    check("item pode ser salvo", AddonTree.canSave(itemNode))
+    check("pasta não pode ser salva", !AddonTree.canSave(nodes[0]))
+    eq("tipo do filme", MediaKind.MOVIE, AddonTree.kindOf(itemNode))
+
+    // ---- sugestão de aba (o usuário pode trocar) ----
+    eq("filme sugere Filmes", AddonTree.Shelf.MOVIES, AddonTree.Shelf.suggest(itemNode))
+    val serieNode = AddonTree.Node(
+        label = "Breaking Bad S01E01",
+        path = "plugin://plugin.video.elementum/play?uri=magnet%3A%3Fxt%3Durn%3Abtih%3ACCC",
+        playable = true,
+    )
+    eq("série sugere Séries", AddonTree.Shelf.SERIES, AddonTree.Shelf.suggest(serieNode))
+
+    // ---- salvar: o destino escolhido manda ----
+    eq(
+        "player recebe a URL absoluta do daemon",
+        "http://127.0.0.1:65220/play?uri=magnet%3A%3Fxt%3Durn%3Abtih%3AAAA",
+        AddonTree.playUrl(itemNode),
+    )
+    eq("pasta não tem URL de player", "", AddonTree.playUrl(nodes[0]))
+    val emFilmes = AddonTree.toSaved(itemNode, playUrl = AddonTree.playUrl(itemNode), folder = "Lançamentos", folderRoute = "/movies/recent", shelf = AddonTree.Shelf.MOVIES)
+    eq("aba escolhida: Filmes", AddonTree.Shelf.MOVIES, emFilmes.shelf)
+    eq("pasta de origem", "Lançamentos", emFilmes.folder)
+    check("link guardado é o play do daemon", emFilmes.playUrl.startsWith("http://127.0.0.1:65220/play?uri="), emFilmes.playUrl)
+    check("resumo traz qualidade e tamanho", emFilmes.meta.contains("1080p") && emFilmes.meta.contains("1,4 GB"), emFilmes.meta)
+
+    // Mesmo item salvo em Canais: a escolha do usuário é a autoridade.
+    val emCanais = AddonTree.toSaved(itemNode, playUrl = AddonTree.playUrl(itemNode), folder = "Lançamentos", shelf = AddonTree.Shelf.CHANNELS)
+    eq("mesmo item pode ir para Canais", AddonTree.Shelf.CHANNELS, emCanais.shelf)
+    eq("tipo continua sendo filme", MediaKind.MOVIE, emCanais.kind)
+    check("itens distintos por aba", emFilmes.id == emCanais.id)
+
+    // ---- agrupamento por aba ----
+    val lista = listOf(
+        emFilmes,
+        AddonTree.toSaved(serieNode, playUrl = AddonTree.playUrl(serieNode), folder = "Séries", shelf = AddonTree.Shelf.SERIES),
+        AddonTree.toSaved(itemNode, playUrl = "http://127.0.0.1:65220/play?uri=BBB", folder = "Ação", shelf = AddonTree.Shelf.MOVIES),
+        emCanais,
+    )
+    val grupos = AddonTree.groupByShelf(lista)
+    eq("três abas", 3, grupos.size)
+    eq("ordem: Canais, Filmes, Séries", listOf("Canais", "Filmes", "Séries"), grupos.map { it.shelf.label })
+    eq("Filmes com dois itens", 2, grupos.first { it.shelf == AddonTree.Shelf.MOVIES }.count)
+    eq("Canais com um item", 1, grupos.first { it.shelf == AddonTree.Shelf.CHANNELS }.count)
+    eq("Séries com um item", 1, grupos.first { it.shelf == AddonTree.Shelf.SERIES }.count)
+    eq(
+        "pastas de origem em Filmes",
+        listOf("Lançamentos", "Ação"),
+        grupos.first { it.shelf == AddonTree.Shelf.MOVIES }.folders.map { it.first },
+    )
+    eq("resumo com as três abas", "4 itens · Canais 1 · Filmes 2 · Séries 1", AddonTree.savedSummary(lista))
+    eq("lista vazia", "Sua lista está vazia", AddonTree.savedSummary(emptyList()))
+
+    // ---- leitura da aba gravada ----
+    eq("aba LIVE", AddonTree.Shelf.CHANNELS, AddonTree.Shelf.parse("LIVE"))
+    eq("aba SERIES", AddonTree.Shelf.SERIES, AddonTree.Shelf.parse("SERIES"))
+    eq("aba vazia cai em Filmes", AddonTree.Shelf.MOVIES, AddonTree.Shelf.parse(""))
+    eq("aba desconhecida cai em Filmes", AddonTree.Shelf.MOVIES, AddonTree.Shelf.parse("xyz"))
+    eq("rótulo da aba", "Séries", AddonTree.Shelf.SERIES.label)
+
+    // ---- pasta única (Kodi "abre direto") ----
+    val soPasta = listOf(AddonTree.Node(label = "Filmes", path = "plugin://plugin.video.elementum/movies"))
+    eq("pasta única detectada", "/movies", AddonTree.onlyFolder(soPasta)?.route)
+    eq("com item não é pasta única", null, AddonTree.onlyFolder(nodes))
 }

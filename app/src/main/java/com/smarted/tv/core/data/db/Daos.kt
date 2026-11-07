@@ -211,3 +211,34 @@ interface SearchDao {
     @Query("DELETE FROM search_history WHERE query = :query")
     suspend fun delete(query: String)
 }
+
+@Dao
+interface SavedItemDao {
+    @Query("SELECT * FROM saved_items ORDER BY position ASC, addedAt ASC")
+    fun observeAll(): Flow<List<SavedItemEntity>>
+
+    @Query("SELECT * FROM saved_items ORDER BY position ASC, addedAt ASC")
+    suspend fun all(): List<SavedItemEntity>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM saved_items WHERE playUrl = :playUrl)")
+    suspend fun containsPlayUrl(playUrl: String): Boolean
+
+    @Query("SELECT COUNT(*) FROM saved_items")
+    suspend fun count(): Int
+
+    @Query("SELECT COALESCE(MAX(position), 0) FROM saved_items")
+    suspend fun maxPosition(): Int
+
+    /** Quais abas (Canais/Filmes/Séries) já têm itens salvos pelo usuário. */
+    @Query("SELECT DISTINCT shelf FROM saved_items")
+    suspend fun shelves(): List<String>
+
+    @Upsert
+    suspend fun upsert(item: SavedItemEntity)
+
+    @Query("DELETE FROM saved_items WHERE id = :id")
+    suspend fun delete(id: String)
+
+    @Query("DELETE FROM saved_items")
+    suspend fun clear()
+}

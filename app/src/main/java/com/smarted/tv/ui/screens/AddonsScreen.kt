@@ -58,6 +58,7 @@ fun AddonsScreen(
     onOpenRepository: () -> Unit,
     onOpenBrowser: () -> Unit,
     onOpenElementum: () -> Unit,
+    onOpenMyList: () -> Unit,
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -95,6 +96,12 @@ fun AddonsScreen(
             EdSecondaryButton(label = "Repositório", onClick = onOpenRepository, icon = EdIcons.cloud)
             Box(Modifier.size(10.dp))
             EdSecondaryButton(label = "Sincronizar", onClick = { viewModel.sync() }, icon = EdIcons.refresh)
+            Box(Modifier.size(10.dp))
+            EdSecondaryButton(
+                label = "Minha lista" + if (state.savedCount > 0) " (${state.savedCount})" else "",
+                onClick = onOpenMyList,
+                icon = EdIcons.check,
+            )
         }
 
         // Elementum: addon de torrentes do Vikings, servido pelo daemon local.

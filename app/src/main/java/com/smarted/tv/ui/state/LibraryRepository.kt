@@ -8,11 +8,14 @@ import com.smarted.tv.core.data.db.CategoryDao
 import com.smarted.tv.core.data.db.ProgressDao
 import com.smarted.tv.core.data.db.SearchDao
 import com.smarted.tv.core.data.db.SearchHistoryEntity
+import com.smarted.tv.core.data.db.SavedItemDao
+import com.smarted.tv.core.data.db.SavedItemEntity
 import com.smarted.tv.core.data.db.WatchProgressEntity
 import com.smarted.tv.core.model.ItemRef
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.model.WatchProgress
+import com.smarted.tv.core.addons.AddonTree
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,7 +31,74 @@ class LibraryRepository(
     private val categories: CategoryDao,
     private val search: SearchDao,
     private val cache: CacheDao,
+    private val saved: SavedItemDao,
 ) {
+
+    // -----------------------------------------------------------------
+    // lista do usuário (montada navegando a árvore dos addons)
+    // -----------------------------------------------------------------
+
+    /** Lista do usuário, na ordem em que ele salvou. */
+    fun observeSaved(): Flow<List<AddonTree.SavedItem>> =
+        saved.observeAll().map { list -> list.map { it.toSaved() } }
+
+    suspend fun savedItems(): List<AddonTree.SavedItem> = withContext(Dispatchers.IO) {
+        saved.all().map { it.toSaved() }
+    }
+
+    /** O link já está na lista do usuário? */
+    suspend fun isSaved(playUrl: String): Boolean = withContext(Dispatchers.IO) {
+        playUrl.isNotBlank() && saved.containsPlayUrl(playUrl)
+    }
+
+    /**
+     * Salva (ou remove) um item na lista do usuário — o mesmo gesto que o
+     * "marcar" do Kodi, com o conteúdo que ele escolheu na árvore.
+     */
+    suspend fun toggleSaved(item: AddonTree.SavedItem): Boolean = withContext(Dispatchers.IO) {
+        val existing = saved.all().firstOrNull { it.playUrl == item.playUrl }
+        if (existing != null) {
+            saved.delete(existing.id)
+            false
+        } else {
+            val position = saved.maxPosition() + 1
+            saved.upsert(
+                SavedItemEntity(
+                    id = item.id,
+                    title = item.title,
+                    playUrl = item.playUrl,
+                    folder = item.folder,
+                    folderRoute = item.folderRoute,
+                    kind = item.kind.name,
+                    shelf = item.shelf.kind.name,
+                    meta = item.meta,
+                    poster = item.poster,
+                    addonId = item.id.substringBefore(':'),
+                    addedAt = System.currentTimeMillis(),
+                    position = position,
+                ),
+            )
+            true
+        }
+    }
+
+    suspend fun removeSaved(id: String) = withContext(Dispatchers.IO) { saved.delete(id) }
+
+    suspend fun clearSaved() = withContext(Dispatchers.IO) { saved.clear() }
+
+    private fun SavedItemEntity.toSaved() = AddonTree.SavedItem(
+        id = id,
+        title = title,
+        playUrl = playUrl,
+        folder = folder,
+        folderRoute = folderRoute,
+        kind = runCatching { MediaKind.valueOf(kind) }.getOrDefault(MediaKind.MOVIE),
+        shelf = AddonTree.Shelf.parse(shelf),
+        meta = meta,
+        poster = poster,
+        addedAt = addedAt,
+        position = position,
+    )
 
     fun observeFavorites(): Flow<List<MediaItem>> =
         favorites.observeAll().map { list -> list.map { it.toItem() } }

@@ -35,8 +35,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         HiddenCategoryEntity::class,
         EpgSourceEntity::class,
         SearchHistoryEntity::class,
+        SavedItemEntity::class,
     ],
-    version = 2,
+    version = 4,
     exportSchema = true,
 )
 abstract class SmartEdDatabase : RoomDatabase() {
@@ -50,6 +51,7 @@ abstract class SmartEdDatabase : RoomDatabase() {
     abstract fun epgDao(): EpgDao
     abstract fun categoryDao(): CategoryDao
     abstract fun searchDao(): SearchDao
+    abstract fun savedItemDao(): SavedItemDao
 
     companion object {
         private const val DB_NAME = "smarted-tv.db"
@@ -62,6 +64,30 @@ abstract class SmartEdDatabase : RoomDatabase() {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `repositories` ADD COLUMN `kinds` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /**
+         * v2 → v3: `saved_items`, a lista do usuário montada navegando a árvore
+         * dos addons (pastas como "Lançamentos", "Ação", "Aventura").
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Esquema exatamente como em [SavedItemEntity]. O SQL fica num
+                // único literal porque `tools/check-db-schema.py` o extrai do
+                // fonte e o executa num SQLite real antes de aprovar o build.
+                db.execSQL("CREATE TABLE IF NOT EXISTS `saved_items` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `playUrl` TEXT NOT NULL, `folder` TEXT NOT NULL, `folderRoute` TEXT NOT NULL, `kind` TEXT NOT NULL, `meta` TEXT NOT NULL, `poster` TEXT, `addonId` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_items_playUrl` ON `saved_items` (`playUrl`)")
+            }
+        }
+
+        /**
+         * v3 → v4: `saved_items.shelf`, a aba (Canais/Filmes/Séries) que o
+         * usuário escolheu ao salvar o item na lista dele.
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `saved_items` ADD COLUMN `shelf` TEXT NOT NULL DEFAULT 'MOVIE'")
             }
         }
 
@@ -98,7 +124,7 @@ abstract class SmartEdDatabase : RoomDatabase() {
 
         private fun openDatabase(context: Context): SmartEdDatabase =
             Room.databaseBuilder(context, SmartEdDatabase::class.java, DB_NAME)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration()
                 .build()
     }

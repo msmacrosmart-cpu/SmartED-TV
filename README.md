@@ -207,7 +207,7 @@ compilado e testado de verdade com o compilador Kotlin:
 npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
-./tools/verify-core.sh           # 249 asserções reais (EPG 12h, cruzamento de canais, separação de acervo, séries, navegador de repositório)
+./tools/verify-core.sh           # 297 asserções reais (EPG 12h, cruzamento de canais, separação de acervo, séries, navegador de repositório)
 ./tools/verify-logic.sh          # typecheck de 35 arquivos (rede, TMDB, EPG, DB, VMs)
 node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo
@@ -283,6 +283,25 @@ cartão em **Addons** mostra o estado real (`ligado`/`desligado`), o botão
 O vínculo entre pasta e aba continua valendo: um item do Elementum só entra em
 Filmes/Séries se o link for um arquivo estático ou o `/play` de um serviço em
 loopback (`AddonBrowser.isLocalPlayerLink`) — magnet cru é recusado.
+
+### Navegação em árvore e “Minha lista”
+
+O navegador anda **como no Kodi**: o daemon devolve pastas, o usuário entra em
+“Lançamentos”, “Ação”, “Aventura”… e chega no título. Cada nível é uma resposta
+do serviço (`/movies/genre/acao`) e o botão **Voltar pasta** sobe um nível.
+
+No item, dois gestos:
+
+| Botão | O que faz |
+| --- | --- |
+| **Assistir** | manda o `/play?uri=<magnet>` para o player em tela cheia |
+| **Salvar** | abre a escolha **Canais / Filmes / Séries** e guarda o item na aba escolhida, com a pasta de origem |
+
+A escolha da aba é a autoridade: é o usuário quem diz onde o conteúdo entra —
+o tipo detectado no título apenas pré-seleciona o botão. A aba **Minha lista**
+(em Addons) mostra as três abas com os itens agrupados pela pasta de onde
+vieram (“Lançamentos 4”, “Ação 3”…), e é a playlist própria do usuário: nada é
+adicionado sozinho, e remover é um botão.
 
 ### Filtro de português
 

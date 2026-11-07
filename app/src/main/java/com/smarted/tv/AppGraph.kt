@@ -85,6 +85,7 @@ class AppGraph(context: Context) : com.smarted.tv.ui.state.AppServices {
         categories = db.categoryDao(),
         search = db.searchDao(),
         cache = db.cacheDao(),
+        saved = db.savedItemDao(),
     )
 
     /** Pedido de reprodução pendente (a navegação consome e limpa). */

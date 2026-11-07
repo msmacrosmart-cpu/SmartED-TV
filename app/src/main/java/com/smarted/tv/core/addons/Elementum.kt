@@ -133,7 +133,24 @@ object Elementum {
         val icon: String = "",
         val tagline: String = "",
         val code: String = "",
-    )
+        /** `info.plot`, quando o daemon manda a sinopse. */
+        val plot: String = "",
+    ) {
+        /** Nó da árvore de navegação (mesmos campos, regras de caminho). */
+        fun toTreeNode(): AddonTree.Node = AddonTree.Node(
+            label = label,
+            path = path,
+            playable = playable,
+            label2 = label2,
+            icon = icon,
+            tagline = tagline,
+            code = code,
+            plot = plot,
+        )
+    }
+
+    /** Converte a view do daemon direto em nós de árvore. */
+    fun parseTree(json: String?): List<AddonTree.Node> = parseView(json).map { it.toTreeNode() }
 
     /** Um resultado de busca/navegação já resolvido para o player. */
     data class Item(
@@ -222,6 +239,7 @@ object Elementum {
                 icon = field(obj, "icon", "thumbnail").orEmpty(),
                 tagline = stripKodiTags(field(obj, "tagline").orEmpty()),
                 code = field(obj, "code").orEmpty(),
+                plot = stripKodiTags(field(obj, "plot").orEmpty()),
             )
         }
     }

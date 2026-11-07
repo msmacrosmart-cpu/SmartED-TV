@@ -127,3 +127,28 @@ data class SearchHistoryEntity(
     @PrimaryKey val query: String,
     val usedAt: Long = System.currentTimeMillis(),
 )
+
+/**
+ * Item que o usuário salvou na **lista própria** dele.
+ *
+ * Diferente de favoritos (que é um atalho por item de catálogo), esta lista é
+ * montada navegando a árvore dos addons como no Kodi: o usuário entra em
+ * "Lançamentos", "Ação", "Aventura" e salva o que quer assistir. [folder] e
+ * [folderRoute] guardam a pasta de origem, para a tela agrupar a lista.
+ */
+@Entity(tableName = "saved_items")
+data class SavedItemEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val playUrl: String,
+    val folder: String = "",
+    val folderRoute: String = "",
+    val kind: String = "MOVIE",
+    /** Aba escolhida pelo usuário ao salvar: `LIVE`, `MOVIE` ou `SERIES`. */
+    val shelf: String = "MOVIE",
+    val meta: String = "",
+    val poster: String? = null,
+    val addonId: String = "",
+    val addedAt: Long = System.currentTimeMillis(),
+    val position: Int = 0,
+)
