@@ -29,7 +29,7 @@ class HttpAndPlaybackTest {
             StremioClient().use { client ->
                 val addon = testAddon(Scope.MOVIES, server.url("/manifest.json").toString())
                 val items = client.catalog(addon, addon.manifest.catalogs.first(), mapOf("search" to "ação & aventura", "skip" to "100"))
-                assertEquals("A & B", items.single().name)
+                assertEquals("debug items=" + items, "A & B", items.single().name)
                 assertEquals("/catalog/movie/top/search=a%C3%A7%C3%A3o%20%26%20aventura&skip=100.json", server.takeRequest().path)
             }
         }
