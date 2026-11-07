@@ -308,6 +308,27 @@ jobs:
             exit 1
           fi
 
+          # --- libVLC empacotado? ------------------------------------------
+          # O player principal depende das .so do VLC. Se o ABI filter ou o
+          # empacotamento mudarem, o app instalaria e falharia só ao abrir um
+          # canal — por isso a checagem é aqui, no build.
+          if ! unzip -l "$APK" | grep -qE "lib/(arm64-v8a|armeabi-v7a)/libvlc\.so"; then
+            echo "::error::libVLC ausente no APK (lib/*/libvlc.so)"
+            exit 1
+          fi
+          echo "== arquiteturas com libVLC =="
+          unzip -l "$APK" | awk '{print $4}' | grep -oE "lib/[^/]+/libvlc\.so" | sort -u
+
+          # --- tamanho do APK ----------------------------------------------
+          # 184 MB era o resultado de empacotar 4 ABIs. Com ARM apenas e as
+          # .so comprimidas o APK fica bem menor; 120 MB é a rede de segurança.
+          SIZE_MB=$(( $(stat -c %s "$APK") / 1024 / 1024 ))
+          echo "tamanho do APK: ${SIZE_MB} MB"
+          if (( SIZE_MB > 120 )); then
+            echo "::error::APK com ${SIZE_MB} MB (limite 120 MB) — verifique o abiFilters do libVLC"
+            exit 1
+          fi
+
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
 
       - name: Guardar artefato

@@ -11,6 +11,13 @@ android {
     compileSdk = 35
 
     defaultConfig {
+        ndk {
+            // O libVLC (player principal) traz binários de 4 arquiteturas e
+            // sozinho levava o APK a ~184 MB. Android TV e celulares usam ARM;
+            // manter apenas arm64-v8a + armeabi-v7a cobre praticamente todo o
+            // parque instalado e corta boa parte do tamanho.
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
         applicationId = "com.smarted.tv"
         minSdk = 23
         targetSdk = 35
@@ -80,6 +87,11 @@ android {
     }
 
     packaging {
+        jniLibs {
+            // Comprime as bibliotecas nativas: o download fica bem menor e a
+            // instalação é feita uma única vez.
+            useLegacyPackaging = true
+        }
         resources {
             excludes += setOf(
                 "/META-INF/{AL2.0,LGPL2.1}",

@@ -36,3 +36,14 @@
 
 # Markwon
 -dontwarn io.noties.markwon.**
+
+# ---------------------------------------------------------------- libVLC ----
+# O libVLC chama classes Java a partir do código nativo (JNI). Ofuscar ou
+# renomear esses tipos faz o player falhar em runtime com erros de
+# "class not found" no Java.LibVLC, mesmo compilando normalmente.
+-keep class org.videolan.libvlc.** { *; }
+-keep class org.videolan.medialibrary.** { *; }
+-keepclassmembers class org.videolan.libvlc.** { *; }
+# Interfaces implementadas pelo lado nativo precisam manter a assinatura.
+-keep interface org.videolan.libvlc.** { *; }
+-dontwarn org.videolan.**
