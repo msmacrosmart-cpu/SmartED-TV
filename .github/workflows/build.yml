@@ -33,7 +33,12 @@ jobs:
       - name: Architecture gate
         run: python3 tools/check_architecture.py
       - name: Kotlin compile + JVM tests + Android lint
-        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }}
+        run: |
+          set -o pipefail
+          ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }} 2>&1 | tee build.log
+      - name: Annotate compiler/test failures
+        if: failure()
+        run: python3 tools/ci_report.py build.log
       - name: Test report
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,7 +92,13 @@ jobs:
           profile: tv_1080p
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          script: ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
+          script: |
+            set -o pipefail
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace 2>&1 | tee tv-build.log
+            adb exec-out run-as com.smarted.tv.debug cat files/tv-player.png > app/build/tv-player.png || true
+      - name: Annotate TV failures
+        if: failure()
+        run: python3 tools/ci_report.py tv-build.log
       - name: Upload TV evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -96,6 +107,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            app/build/tv-player.png
           if-no-files-found: ignore
 
   release-candidate:

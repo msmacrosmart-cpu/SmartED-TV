@@ -123,7 +123,7 @@ class CatalogViewModel(val scope: Scope, val graph: AppGraph) : ViewModel() {
     private fun publishFavorites() {
         val favorites = data.value.favorites.filter { it.scope == scope &&
             (_ui.value.query.search.isBlank() || foldText(it.name).contains(foldText(_ui.value.query.search))) &&
-            (_ui.value.query.category == "Favoritos" || _ui.value.query.category == "Todos" || it.genres.any { g -> foldText(g) == foldText(_ui.value.query.category) }) }
+            (_ui.value.query.category == "Favoritos" || _ui.value.query.category == "Todos" || it.genres.any { g -> foldText(g) == foldText(_ui.value.query.category) } || it.catalogName == _ui.value.query.category) }
         _ui.update { it.copy(items = favorites, loading = false, loadingMore = false, hasMore = false) }
     }
 

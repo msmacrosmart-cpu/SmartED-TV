@@ -105,7 +105,7 @@ fun CatalogScreen(vm: CatalogViewModel, revision: Int, onHome: () -> Unit, onSet
 }
 
 @Composable
-private fun CatalogGrid(vm: CatalogViewModel, items: List<MediaItem>, query: CatalogQuery, loading: Boolean, loadingMore: Boolean, hasMore: Boolean, error: String,
+private fun ColumnScope.CatalogGrid(vm: CatalogViewModel, items: List<MediaItem>, query: CatalogQuery, loading: Boolean, loadingMore: Boolean, hasMore: Boolean, error: String,
                         gridFocus: FocusRequester, categoriesFocus: FocusRequester, onSettings: () -> Unit) {
     val state = rememberLazyGridState()
     LaunchedEffect(state, hasMore, items.size) {
