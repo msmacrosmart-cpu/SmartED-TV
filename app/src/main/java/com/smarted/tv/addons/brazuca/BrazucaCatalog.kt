@@ -264,7 +264,7 @@ class BrazucaCatalog(
      * pelo indexador **quando o tipo delas é o mesmo da aba** — assim uma lista
      * de canais adicionada à mão nunca vaza para a aba de filmes.
      */
-    private fun sourcesFor(kind: MediaKind): List<PublicSource> {
+    private suspend fun sourcesFor(kind: MediaKind): List<PublicSource> {
         val mode = modeFor(kind)
         val out = ArrayList<PublicSource>(4)
 
