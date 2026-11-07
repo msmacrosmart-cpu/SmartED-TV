@@ -150,6 +150,25 @@ jobs:
         run: |
           set +e
           python3 tools/ci_report.py tv-build.log
+          python3 - <<'PY2'
+          import glob, subprocess
+          from pathlib import Path
+          def tail(path, n=1400):
+              try: return Path(path).read_text(errors='replace')[-n:]
+              except OSError: return ''
+          def sh(cmd):
+              return subprocess.run(cmd, shell=True, capture_output=True, text=True).stdout[-1200:]
+          chunks = []
+          for pat in ('/home/runner/.android/**/emulator*.log', '/home/runner/.android/**/*boot*.log', '/tmp/emulator*.log'):
+              for f in glob.glob(pat, recursive=True)[:2]:
+                  chunks.append((f, tail(f)))
+          chunks.append(('df/free', sh('df -h / | tail -1; free -m | head -2')))
+          chunks.append(('procs', sh('pgrep -af qemu | head -3; pgrep -af emulator | head -3')))
+          def enc(s): return s.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          for name, body in chunks:
+              if body.strip():
+                  print('::error title=TVdiagnostic ' + name.replace(' ', '_') + '::' + enc(body)[:3400])
+          PY2
           echo '::group::TV host diagnostics'
           uname -a
           ls -l /dev/kvm 2>&1
