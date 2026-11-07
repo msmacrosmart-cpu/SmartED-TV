@@ -65,8 +65,6 @@ class CatalogTest {
         assertEquals(listOf("a", "b"), page.items.map { it.id })
         assertNull(page.nextCursor)
     }
-}
-
     @Test fun nextEpisodeFollowsSeasonOrderAndStopsAtEnd() {
         val series = testAddon(Scope.SERIES)
         val item = testItem(series, "s").copy(videos = listOf(
@@ -75,3 +73,4 @@ class CatalogTest {
         assertEquals("s:2:1", com.smarted.tv.core.playback.nextEpisode(item, item.videos[1])!!.id)
         assertNull(com.smarted.tv.core.playback.nextEpisode(item, item.videos[0]))
     }
+}
