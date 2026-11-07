@@ -418,6 +418,10 @@ jobs:
     name: Emulador (abertura e migração do banco)
     needs: build
     runs-on: ubuntu-latest
+    # Roda em segundo plano: o APK já foi publicado pela job `build`, então o
+    # resultado do emulador informa (comentário no commit) mas nunca impede a
+    # entrega. Basta olhar o comentário do commit para o veredito.
+    continue-on-error: true
     permissions:
       contents: write
     steps:

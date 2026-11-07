@@ -20,7 +20,7 @@ Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelh
 
 | # | Problema | Causa | Correção | Verificação |
 |---|----------|-------|----------|-------------|
-| A | **App não abria** depois de atualizar | `repositories.kinds` foi adicionada sem subir `version` do Room; a assinatura do esquema não batia com a do banco já existente → `IllegalStateException` na abertura | `version = 2` + `MIGRATION_1_2` (`ALTER TABLE … ADD COLUMN kinds TEXT NOT NULL DEFAULT ''`) + abertura antecipada com recriação de emergência | `check-db-schema.py` (roda o SQL num SQLite real) + job **Emulador** migrando um banco v1 de verdade |
+| A | **App não abria** depois de atualizar | `repositories.kinds` foi adicionada sem subir `version` do Room; a assinatura do esquema não batia com a do banco já existente → `IllegalStateException` na abertura | `version = 2` + `MIGRATION_1_2` (`ALTER TABLE … ADD COLUMN kinds TEXT NOT NULL DEFAULT ''`) + abertura antecipada com recriação de emergência | `check-db-schema.py` **e** job **Emulador** ✅ (banco v1 real migrado, `user_version=2`, dados preservados) |
 | B | Build da rodada 4 nunca compilou (APK antigo na Release) | `import R` ausente em `AddonsScreen` e `TargetsDialog` chamado dentro do `LazyColumn` | imports + diálogos fora do escopo da lista | CI `APK de release` verde |
 | C | Player abria **pequeno no canto inferior esquerdo** | O vout do libVLC não herda o tamanho da `SurfaceView`; sem `setWindowSize` ele usa um viewport minúsculo | `VlcEngine.attachSurface`/`updateWindowSize` com `setWindowSize` + reaplicação no layout | Emulador + teste no aparelho |
 | D | Erros de compilação ficavam invisíveis no CI | Anotações do Actions têm teto de 12 e o log bruto é inacessível | Step publica os erros completos como comentário de commit | `gh api …/commits/<sha>/comments` |
@@ -34,7 +34,7 @@ Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelh
 | `tools/check-db-schema.py` | esquema do Room: versão x baseline, migração obrigatória por passo e **execução real do SQL** no SQLite |
 | `tools/verify-core.sh` | 161 asserções do núcleo puro (parsers, EPG, classificador, abas) |
 | `tools/verify-logic.sh` | typecheck dos 35 arquivos não-UI |
-| job **Emulador** (CI) | compila um APK `debug` x86_64 do mesmo código, instala num Android 11, abre o app, confere que a UI renderiza e que um banco v1 antigo migra para v2 sem crash; o relatório vai para um comentário de commit |
+| job **Emulador** (CI) | compila um APK `debug` x86_64 do mesmo código, instala num Android 11, abre o app, confere que a UI renderiza e que um banco v1 real migra para v2 preservando dados. Roda **em segundo plano** (`continue-on-error`): informa no comentário do commit, não segura o release |
 
 ## Pendências
 
