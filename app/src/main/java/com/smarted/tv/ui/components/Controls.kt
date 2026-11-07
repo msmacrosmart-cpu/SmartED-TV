@@ -4,8 +4,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.composed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -490,14 +493,17 @@ fun Modifier.edBorder(
     color: Color,
     shape: androidx.compose.ui.graphics.Shape,
     width: Dp = 1.dp,
-): Modifier = androidx.compose.ui.composed {
-    this.then(androidx.compose.foundation.border(width, color, shape))
+): Modifier = composed {
+    border(width, color, shape)
 }
 
-/** Pequeno helper para alinhar um ícone ao final de uma Row. */
+/**
+ * Espaçador elástico para usar dentro de [Row]/[Column].
+ * É `RowScope` porque `Modifier.weight` só existe nesse escopo.
+ */
 @Composable
-fun SpacerWeight() {
-    Box(Modifier.weight(1f))
+fun RowScope.SpacerWeight() {
+    Spacer(Modifier.weight(1f))
 }
 
 @Composable

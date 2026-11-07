@@ -47,7 +47,7 @@ interface CatalogGateway {
 
 /** Operações do addon usadas pelas telas (browse/search/details/resolve). */
 interface AddonGateway {
-    suspend fun search(query: String, page: Int = 1): List<MediaItem>
+    suspend fun search(query: String, page: Int): List<MediaItem>
     suspend fun details(item: MediaItem): MediaItem
     suspend fun resolve(item: MediaItem): PlayInfo?
     suspend fun browsePage(kind: com.smarted.tv.core.model.MediaKind): CatalogPage?

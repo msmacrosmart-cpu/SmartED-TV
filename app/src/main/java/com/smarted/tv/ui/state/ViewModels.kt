@@ -541,7 +541,7 @@ class SearchViewModel(private val graph: AppServices) : ViewModel() {
         job = viewModelScope.launch {
             delay(220)
             _state.value = _state.value.copy(loading = true)
-            val results = runCatching { graph.addon.search(q) }.getOrDefault(emptyList())
+            val results = runCatching { graph.addon.search(q, page = 1) }.getOrDefault(emptyList())
             _state.value = _state.value.copy(loading = false, results = results)
         }
     }

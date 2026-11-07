@@ -21,7 +21,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -63,6 +65,7 @@ fun CatalogScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val palette = Ed.palette
     val categoryState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(kind) { viewModel.setKind(kind) }
 
@@ -78,7 +81,7 @@ fun CatalogScreen(
             selected = state.selectedCategory,
             onSelect = {
                 viewModel.selectCategory(it)
-                categoryState.animateScrollToItem(0)
+                scope.launch { categoryState.animateScrollToItem(0) }
             },
             modifier = Modifier.fillMaxHeight(),
             title = if (kind == MediaKind.LIVE) "CATEGORIAS" else "CATEGORIAS",

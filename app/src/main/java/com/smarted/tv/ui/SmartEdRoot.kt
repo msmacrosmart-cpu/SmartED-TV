@@ -107,10 +107,14 @@ fun SmartEdRoot(graph: AppGraph) {
     }
 }
 
-/** `collectAsState` com lifecycle, mas sem exigir LifecycleOwner em previews. */
+/**
+ * `collectAsState` sem exigir LifecycleOwner — usado no nível da raiz, onde a
+ * árvore ainda pode estar em preview. As telas usam
+ * `collectAsStateWithLifecycle` diretamente.
+ */
 @Composable
 private fun <T> kotlinx.coroutines.flow.StateFlow<T>.collectAsStateWithLifecycleCompat(): androidx.compose.runtime.State<T> =
-    androidx.lifecycle.compose.collectAsStateWithLifecycle(this)
+    androidx.compose.runtime.collectAsState(this)
 
 @Composable
 private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) {

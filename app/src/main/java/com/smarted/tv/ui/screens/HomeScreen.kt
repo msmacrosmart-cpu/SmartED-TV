@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.Text
@@ -95,7 +97,7 @@ fun HomeScreen(
                     trailing = "${state.continueWatching.size} ${if (state.continueWatching.size == 1) "item" else "itens"}",
                     onSeeAll = { onOpenDestination("continue") },
                 ) {
-                    androidx.compose.foundation.lazy.items(state.continueWatching, key = { "cw-${it.ref}" }) { progress ->
+                    items(state.continueWatching, key = { "cw-${it.ref}" }) { progress ->
                         WideCard(
                             item = progressToItem(progress),
                             onClick = { onPlay(progressToItem(progress)) },
@@ -114,7 +116,7 @@ fun HomeScreen(
                     trailing = "${state.favorites.size} ${if (state.favorites.size == 1) "item" else "itens"}",
                     onSeeAll = { onOpenDestination("favorites") },
                 ) {
-                    androidx.compose.foundation.lazy.items(state.favorites, key = { "fav-${it.ref.key}" }) { item ->
+                    items(state.favorites, key = { "fav-${it.ref.key}" }) { item ->
                         PosterCard(
                             item = item,
                             onClick = { onOpenDetails(item) },
@@ -139,9 +141,9 @@ fun HomeScreen(
                     SeeAllPill { onOpenDestination("live") }
                 }
             }
-            androidx.compose.foundation.lazy.itemsIndexed(state.channelRows, key = { _, row -> "ch-${row.first}" }) { _, row ->
+            itemsIndexed(state.channelRows, key = { _, row -> "ch-${row.first}" }) { _, row ->
                 Rail(title = row.first, onSeeAll = { onOpenDestination("live") }) {
-                    androidx.compose.foundation.lazy.itemsIndexed(row.second, key = { i, item -> "ch-${row.first}-$i-${item.id}" }) { index, channel ->
+                    itemsIndexed(row.second, key = { i, item -> "ch-${row.first}-$i-${item.id}" }) { index, channel ->
                         ChannelCard(
                             item = channel,
                             onClick = { onOpenChannel(channel) },
@@ -160,7 +162,7 @@ fun HomeScreen(
                     trailing = "${state.movieCount} títulos",
                     onSeeAll = { onOpenDestination("movies") },
                 ) {
-                    androidx.compose.foundation.lazy.items(state.movies, key = { "mv-${it.id}" }) { item ->
+                    items(state.movies, key = { "mv-${it.id}" }) { item ->
                         PosterCard(item = item, onClick = { onOpenDetails(item) })
                     }
                 }
@@ -174,7 +176,7 @@ fun HomeScreen(
                     trailing = "${state.seriesCount} títulos",
                     onSeeAll = { onOpenDestination("series") },
                 ) {
-                    androidx.compose.foundation.lazy.items(state.series, key = { "sr-${it.id}" }) { item ->
+                    items(state.series, key = { "sr-${it.id}" }) { item ->
                         PosterCard(item = item, onClick = { onOpenDetails(item) })
                     }
                 }

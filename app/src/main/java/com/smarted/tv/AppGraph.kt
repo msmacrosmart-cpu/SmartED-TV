@@ -53,7 +53,7 @@ class AppGraph(context: Context) : com.smarted.tv.ui.state.AppServices {
         cache = db.cacheDao(),
     )
 
-    val trailerFinder = com.smarted.tv.core.trailer.TrailerFinder(http)
+    override val trailerFinder = com.smarted.tv.core.trailer.TrailerFinder(http)
 
     override val epg = EpgService(http = http, dao = db.epgDao())
 

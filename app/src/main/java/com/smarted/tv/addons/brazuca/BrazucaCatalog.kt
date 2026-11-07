@@ -46,7 +46,7 @@ class BrazucaCatalog(
         override val movies: List<MediaItem> = emptyList(),
         override val series: List<MediaItem> = emptyList(),
         val loadedAt: Long = 0L,
-        val degraded: Boolean = false,
+        override val degraded: Boolean = false,
         override val sourceErrors: List<String> = emptyList(),
     ) : com.smarted.tv.ui.state.CatalogSnapshot {
         override val total: Int get() = live.size + movies.size + series.size
