@@ -32,7 +32,7 @@ texto em **português do Brasil**.
 | EPG ≥ 12h contínuas | `EpgTimeline.pad` preenche lacunas; fontes XMLTV de fallback registradas no boot |
 | Home por ranking | Top 10 filmes → Top 10 séries → Canais favoritos → Todos os filmes; **hero só com filmes**, botões "Assistir" e "Detalhes" em branco |
 | Home sem canal poluindo | A seção de canais mostra **apenas favoritos** — sem favoritos, a seção não aparece |
-| Player em tela cheia absoluta | Vídeo em `MATCH_PARENT`/`FILL_BOUNDS`, fora do overscan e da rail; controles glassmorphism com foco branco |
+| Player em tela cheia absoluta | Vídeo em `MATCH_PARENT`/`FILL_BOUNDS`, fora do overscan e da rail; `IVLCVout.setWindowSize` informa o tamanho real da janela ao libVLC (sem isso o vout desenha num viewport minúsculo no canto); controles glassmorphism com foco branco |
 | Arquitetura de addons estilo Kodi | `Addon`, `AddonManager`, `KodiRepoParser` (addons.xml + índice HTML) e persistência em Room |
 | Repositório de addons padrão | **Vikings** (`vikingskoditeam.github.io`), com addons BR/PT |
 | Canais / Filmes / Séries | Abas dedicadas com sidebar de categorias, contagem por grupo e EPG "agora" nos canais |
