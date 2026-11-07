@@ -364,29 +364,31 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                     }
                 }
 
-                // Player por cima de tudo (imersivo)
-                playerItem?.let { item ->
-                    val vm: PlayerViewModel = viewModel(factory = factory, key = "player-${item.ref.key}")
-                    Box(Modifier.fillMaxSize().background(Color.Black)) {
-                        PlayerScreen(
-                            viewModel = vm,
-                            item = item,
-                            onBack = { playerItem = null },
-                            onPreviousChannel = { playerItem = zapTarget(item, -1, channelZapList) },
-                            onNextChannel = { playerItem = zapTarget(item, +1, channelZapList) },
-                        )
-                    }
-                }
-
-                // Trailer do YouTube por cima de tudo
-                trailerId?.let { id ->
-                    YouTubePlayer(
-                        videoId = id,
-                        onClose = { trailerId = null },
-                        noAds = true,
-                    )
-                }
             }
+        }
+
+        // ---------------------------------------------------------------
+        // Player e trailer ficam FORA da Row: dentro dela herdavam o padding
+        // de overscan e a largura da SideRail, e o vídeo nunca ocupava a tela
+        // inteira. Aqui cobrem o app por completo (tela cheia absoluta).
+        // ---------------------------------------------------------------
+        playerItem?.let { item ->
+            val vm: PlayerViewModel = viewModel(factory = factory, key = "player-${item.ref.key}")
+            PlayerScreen(
+                viewModel = vm,
+                item = item,
+                onBack = { playerItem = null },
+                onPreviousChannel = { playerItem = zapTarget(item, -1, channelZapList) },
+                onNextChannel = { playerItem = zapTarget(item, +1, channelZapList) },
+            )
+        }
+
+        trailerId?.let { id ->
+            YouTubePlayer(
+                videoId = id,
+                onClose = { trailerId = null },
+                noAds = true,
+            )
         }
     }
 }

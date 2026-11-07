@@ -22,10 +22,16 @@ texto em **português do Brasil**.
 | App 100% pt-BR | `strings.xml` como fonte única, locale fixo em `MainActivity`, gate `tools/check-ptbr.py` no CI |
 | Player VLC | `VlcEngine` sobre `libvlc-all` 3.5.1 (codecs + reconexão), fallback automático para ExoPlayer |
 | Layouts por tipo de mídia | **Ao vivo**: zap ◀ ▶ / CH±, áudio, legendas, badge AO VIVO, resolução. **Filmes/Séries**: linha do tempo, capítulos, ±10s/+30s, áudio e legendas |
-| Três repositórios independentes | Canais, Filmes e Séries com URL própria; cada um alimenta só a sua aba |
+| Três modos de conteúdo por aba | **Normal** (listas públicas), **SmartED** (pública + repositórios) e **Repo** (só repositórios), escolhidos separadamente em Canais, Filmes e Séries |
+| Repositórios independentes | Canais, Filmes e Séries com URL própria; cada um alimenta só a sua aba |
+| Separação rigorosa de acervo | `ContentClassifier` recusa canal ao vivo em Filmes e exige MP4/MKV/VOD; Canais só recebem transmissão; Séries exigem estrutura de temporada |
+| Séries com temporadas | `SeriesGrouper` transforma episódios soltos (`S01E02`, `1x02`) em séries com temporadas e episódios, persistidas no cache |
+| EPG inteligente por nome | `EpgMatcher` normaliza o nome (remove HD/FHD/SD, `|`, `[tags]`) e cruza com o XMLTV por similaridade quando o `tvg-id` falta ou está errado |
 | Filtro PT-BR | `LanguageFilter` em cascata (metadados → grupo → título → palavras funcionais), com contagem de descartados |
 | EPG ≥ 12h contínuas | `EpgTimeline.pad` preenche lacunas; fontes XMLTV de fallback registradas no boot |
-| Home por ranking | Top 10 filmes → Top 10 séries → Canais favoritos → Todos os filmes; hero com backdrops rotativos, "Assistir" e "Detalhes" |
+| Home por ranking | Top 10 filmes → Top 10 séries → Canais favoritos → Todos os filmes; **hero só com filmes**, botões "Assistir" e "Detalhes" em branco |
+| Home sem canal poluindo | A seção de canais mostra **apenas favoritos** — sem favoritos, a seção não aparece |
+| Player em tela cheia absoluta | Vídeo em `MATCH_PARENT`/`FILL_BOUNDS`, fora do overscan e da rail; controles glassmorphism com foco branco |
 | Arquitetura de addons estilo Kodi | `Addon`, `AddonManager`, `KodiRepoParser` (addons.xml + índice HTML) e persistência em Room |
 | Repositório de addons padrão | **Vikings** (`vikingskoditeam.github.io`), com addons BR/PT |
 | Canais / Filmes / Séries | Abas dedicadas com sidebar de categorias, contagem por grupo e EPG "agora" nos canais |
@@ -199,7 +205,7 @@ compilado e testado de verdade com o compilador Kotlin:
 npm ci                           # web-tree-sitter + tree-sitter-wasms
 npm i kotlin-compiler            # ou tenha `kotlinc` no PATH
 
-./tools/verify-core.sh           # 87 asserções reais (M3U, XMLTV, EPG 12h, filtro PT-BR, addons.xml, textos)
+./tools/verify-core.sh           # 137 asserções reais (M3U, XMLTV, EPG 12h, cruzamento de canais, separação de acervo, séries)
 ./tools/verify-logic.sh          # typecheck de 29 arquivos (rede, TMDB, EPG, DB, VMs)
 node tools/kt-check.mjs app/src  # sintaxe de todos os .kt
 python3 tools/check-imports.py   # imports de Compose por arquivo

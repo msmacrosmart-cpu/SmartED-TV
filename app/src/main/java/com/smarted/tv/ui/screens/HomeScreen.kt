@@ -70,9 +70,9 @@ fun HomeScreen(
     LaunchedEffect(Unit) { viewModel.load() }
 
     // Entrega a lista ao root para o zap do player (canal anterior/próximo).
-    LaunchedEffect(state.channelRows) {
-        val all = state.channelRows.flatMap { it.second }
-        if (all.isNotEmpty()) onChannelsLoaded(all)
+    // Usa o acervo completo de canais, não só os favoritos exibidos na Home.
+    LaunchedEffect(state.liveChannels) {
+        if (state.liveChannels.isNotEmpty()) onChannelsLoaded(state.liveChannels)
     }
 
     LazyColumn(
@@ -201,34 +201,6 @@ fun HomeScreen(
             }
         }
 
-        if (state.channelRows.isNotEmpty()) {
-            item(key = "channels-header") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SectionHeader(
-                        title = stringResource(R.string.home_live_channels),
-                        trailing = "${state.liveCount} canais",
-                        modifier = Modifier.weight(1f),
-                    )
-                    SeeAllPill { onOpenDestination("live") }
-                }
-            }
-            itemsIndexed(state.channelRows, key = { _, row -> "ch-${row.first}" }) { _, row ->
-                Rail(title = row.first, onSeeAll = { onOpenDestination("live") }) {
-                    itemsIndexed(row.second, key = { i, item -> "ch-${row.first}-$i-${item.id}" }) { index, channel ->
-                        ChannelCard(
-                            item = channel,
-                            onClick = { onOpenChannel(channel) },
-                            nowPlaying = channel.subtitle,
-                            number = index + 1,
-                        )
-                    }
-                }
-            }
-        }
-
         if (state.series.isNotEmpty()) {
             item(key = "series") {
                 Rail(
@@ -243,14 +215,15 @@ fun HomeScreen(
             }
         }
 
-        if (state.favorites.isNotEmpty()) {
+        val favoriteTitles = state.favorites.filter { it.kind != MediaKind.LIVE }
+        if (favoriteTitles.isNotEmpty()) {
             item(key = "favorites") {
                 Rail(
                     title = stringResource(R.string.home_favorites),
-                    trailing = "${state.favorites.size} ${if (state.favorites.size == 1) "item" else "itens"}",
+                    trailing = "${favoriteTitles.size} ${if (favoriteTitles.size == 1) "item" else "itens"}",
                     onSeeAll = { onOpenDestination("favorites") },
                 ) {
-                    items(state.favorites, key = { "fav-${it.ref.key}" }) { item ->
+                    items(favoriteTitles, key = { "fav-${it.ref.key}" }) { item ->
                         PosterCard(
                             item = item,
                             onClick = { onOpenDetails(item) },
@@ -261,12 +234,17 @@ fun HomeScreen(
             }
         }
 
-        if (!state.loading && state.hero == null) {
+        // Estado vazio real: nada de canais, filmes ou séries. O banner só
+        // aparece com filme, então "sem hero" não significa "sem conteúdo".
+        val hasContent = state.liveChannels.isNotEmpty() ||
+            state.movies.isNotEmpty() ||
+            state.series.isNotEmpty() ||
+            state.favoriteChannels.isNotEmpty()
+        if (!state.loading && !hasContent) {
             item(key = "empty") {
                 EmptyState(
                     title = stringResource(R.string.home_empty_title),
-                    message = "Verifique sua conexão ou adicione fontes em Ajustes → Fontes públicas. " +
-                        "Os repositórios configurados sincronizam automaticamente na abertura.",
+                    message = stringResource(R.string.home_empty_message),
                 )
             }
         }

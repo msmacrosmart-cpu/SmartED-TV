@@ -222,12 +222,22 @@ fun PlayerScreen(
         if (usingVlc) vlc.seekBy(delta) else exo.seekTo((exo.currentPosition + delta).coerceAtLeast(0L))
     }
 
+    // Tela cheia absoluta: o Box raiz ocupa todo o espaço disponível e o
+    // vídeo é esticado até as bordas (match parent / fill bounds). Nada de
+    // letterbox por padrão — quem quiser a proporção original usa o ajuste de
+    // proporção nos controles.
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (usingVlc) {
             AndroidView(
                 factory = { ctx ->
                     SurfaceView(ctx).apply {
                         isFocusable = true
+                        // A superfície do VLC acompanha o tamanho do container;
+                        // sem isso o vídeo ficava no tamanho intrínseco.
+                        layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
                         requestFocus()
                         vlc.attachSurface(this)
                     }
@@ -239,7 +249,9 @@ fun PlayerScreen(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        // FILL: o vídeo ocupa 100% da tela (fill bounds),
+                        // mesmo que a proporção da fonte seja diferente.
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                         setShutterBackgroundColor(android.graphics.Color.BLACK)
                         player = exo
                         isFocusable = true

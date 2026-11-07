@@ -21,6 +21,10 @@ interface SettingsStoreLike {
     fun setRepository(url: String, name: String)
     /** Troca a URL de um dos três repositórios de conteúdo (canais/filmes/séries). */
     fun setContentRepository(kind: com.smarted.tv.core.model.MediaKind, url: String)
+    /** Troca a lista pública de um tipo (modos Normal e SmartED). */
+    fun setPublicSource(kind: com.smarted.tv.core.model.MediaKind, url: String)
+    /** Define o modo de conteúdo (Normal / SmartED / Repo) de uma aba. */
+    fun setContentMode(kind: com.smarted.tv.core.model.MediaKind, mode: com.smarted.tv.core.model.ContentMode)
     fun reload()
 }
 

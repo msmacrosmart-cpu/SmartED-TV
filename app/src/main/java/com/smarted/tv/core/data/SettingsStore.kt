@@ -2,6 +2,8 @@ package com.smarted.tv.core.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.smarted.tv.core.model.ContentMode
+import com.smarted.tv.core.model.MediaKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +31,12 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
         liveRepoUrl = prefs.getString(KEY_REPO_LIVE, DEFAULT_LIVE_REPO) ?: DEFAULT_LIVE_REPO,
         moviesRepoUrl = prefs.getString(KEY_REPO_MOVIES, DEFAULT_MOVIES_REPO) ?: DEFAULT_MOVIES_REPO,
         seriesRepoUrl = prefs.getString(KEY_REPO_SERIES, DEFAULT_SERIES_REPO) ?: DEFAULT_SERIES_REPO,
+        publicLiveUrl = prefs.getString(KEY_PUBLIC_LIVE, DEFAULT_PUBLIC_LIVE) ?: DEFAULT_PUBLIC_LIVE,
+        publicMoviesUrl = prefs.getString(KEY_PUBLIC_MOVIES, DEFAULT_PUBLIC_MOVIES) ?: DEFAULT_PUBLIC_MOVIES,
+        publicSeriesUrl = prefs.getString(KEY_PUBLIC_SERIES, DEFAULT_PUBLIC_SERIES) ?: DEFAULT_PUBLIC_SERIES,
+        modeChannels = ContentMode.fromKey(prefs.getString(KEY_MODE_LIVE, ContentMode.SMARTED.key)),
+        modeMovies = ContentMode.fromKey(prefs.getString(KEY_MODE_MOVIES, ContentMode.SMARTED.key)),
+        modeSeries = ContentMode.fromKey(prefs.getString(KEY_MODE_SERIES, ContentMode.SMARTED.key)),
         portugueseOnly = prefs.getBoolean(KEY_BR_ONLY, true),
         brazucaEnabled = prefs.getBoolean(KEY_BRAZUCA_ENABLED, true),
         tmdbKey = prefs.getString(KEY_TMDB_KEY, "") ?: "",
@@ -78,6 +86,34 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
         }
     }
 
+    /**
+     * Define o modo de conteúdo de uma aba (Normal / SmartED / Repo).
+     * Cada aba é independente: mudar Filmes não afeta Canais.
+     */
+    override fun setContentMode(kind: MediaKind, mode: ContentMode) {
+        update {
+            when (kind) {
+                MediaKind.LIVE -> it.copy(modeChannels = mode)
+                MediaKind.MOVIE -> it.copy(modeMovies = mode)
+                MediaKind.SERIES -> it.copy(modeSeries = mode)
+                else -> it
+            }
+        }
+    }
+
+    /** Grava a lista pública de um tipo (usada nos modos Normal e SmartED). */
+    override fun setPublicSource(kind: MediaKind, url: String) {
+        val normalized = url.trim()
+        update {
+            when (kind) {
+                MediaKind.LIVE -> it.copy(publicLiveUrl = normalized)
+                MediaKind.MOVIE -> it.copy(publicMoviesUrl = normalized)
+                MediaKind.SERIES -> it.copy(publicSeriesUrl = normalized)
+                else -> it
+            }
+        }
+    }
+
     /** Fontes do catálogo com base nos três repositórios configurados. */
     fun contentRepositories(): List<Pair<com.smarted.tv.core.model.MediaKind, String>> = listOf(
         com.smarted.tv.core.model.MediaKind.LIVE to settings.liveRepoUrl,
@@ -92,6 +128,12 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
             .putString(KEY_REPO_LIVE, s.liveRepoUrl)
             .putString(KEY_REPO_MOVIES, s.moviesRepoUrl)
             .putString(KEY_REPO_SERIES, s.seriesRepoUrl)
+            .putString(KEY_PUBLIC_LIVE, s.publicLiveUrl)
+            .putString(KEY_PUBLIC_MOVIES, s.publicMoviesUrl)
+            .putString(KEY_PUBLIC_SERIES, s.publicSeriesUrl)
+            .putString(KEY_MODE_LIVE, s.modeChannels.key)
+            .putString(KEY_MODE_MOVIES, s.modeMovies.key)
+            .putString(KEY_MODE_SERIES, s.modeSeries.key)
             .putBoolean(KEY_BR_ONLY, s.portugueseOnly)
             .putBoolean(KEY_BRAZUCA_ENABLED, s.brazucaEnabled)
             .putString(KEY_TMDB_KEY, s.tmdbKey)
@@ -139,13 +181,24 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
         const val DEFAULT_REPO_URL = "https://vikingskoditeam.github.io"
         const val DEFAULT_REPO_NAME = "Vikings"
 
-        // --- Três repositórios de conteúdo independentes (foco BR) ---
-        // Canais: lista pública brasileira (canais abertos, esportes, notícias).
-        const val DEFAULT_LIVE_REPO = "https://iptv-org.github.io/iptv/countries/br.m3u"
-        // Filmes: catálogo público em português (dublados/legendados PT-BR).
-        const val DEFAULT_MOVIES_REPO = "https://iptv-org.github.io/iptv/languages/por.m3u"
-        // Séries: catálogo público em português.
-        const val DEFAULT_SERIES_REPO = "https://iptv-org.github.io/iptv/languages/por.m3u"
+        // --- Repositórios do usuário (modos Repo e SmartED) ---
+        // Vazios por padrão: o app não presume que exista uma biblioteca VOD
+        // pública legítima. Quando o usuário aponta a dele (Xtream, painel
+        // próprio, lista curada), essas abas passam a usar só esse acervo.
+        const val DEFAULT_LIVE_REPO = ""
+        const val DEFAULT_MOVIES_REPO = ""
+        const val DEFAULT_SERIES_REPO = ""
+
+        // --- Listas públicas do Modo Normal (uma dedicada por tipo) ---
+        // Canais: canais abertos/esportes/notícias brasileiros.
+        const val DEFAULT_PUBLIC_LIVE = "https://iptv-org.github.io/iptv/countries/br.m3u"
+        // Filmes: catálogo VOD em português. Vazio por padrão porque não existe
+        // lista pública BR de filmes que seja legítima e estável — o app usa o
+        // catálogo de demonstração (domínio público) enquanto o usuário não
+        // apontar a lista dele em Ajustes → Conteúdo.
+        const val DEFAULT_PUBLIC_MOVIES = ""
+        // Séries: idem, estrutura de temporadas/episódios exige lista própria.
+        const val DEFAULT_PUBLIC_SERIES = ""
 
         const val DEFAULT_EPG_URL = "https://epg.best/brazil.xml"
 
@@ -157,6 +210,12 @@ class SettingsStore(context: Context) : com.smarted.tv.ui.state.SettingsStoreLik
         private const val KEY_REPO_LIVE = "content.repo.live"
         private const val KEY_REPO_MOVIES = "content.repo.movies"
         private const val KEY_REPO_SERIES = "content.repo.series"
+        private const val KEY_PUBLIC_LIVE = "content.public.live"
+        private const val KEY_PUBLIC_MOVIES = "content.public.movies"
+        private const val KEY_PUBLIC_SERIES = "content.public.series"
+        private const val KEY_MODE_LIVE = "content.mode.live"
+        private const val KEY_MODE_MOVIES = "content.mode.movies"
+        private const val KEY_MODE_SERIES = "content.mode.series"
         private const val KEY_BR_ONLY = "content.brOnly"
         private const val KEY_BRAZUCA_ENABLED = "brazuca.enabled"
         private const val KEY_TMDB_KEY = "tmdb.key"
@@ -193,6 +252,14 @@ data class Settings(
     val liveRepoUrl: String = SettingsStore.DEFAULT_LIVE_REPO,
     val moviesRepoUrl: String = SettingsStore.DEFAULT_MOVIES_REPO,
     val seriesRepoUrl: String = SettingsStore.DEFAULT_SERIES_REPO,
+    // --- listas públicas dos modos Normal e SmartED (uma por tipo) ---
+    val publicLiveUrl: String = SettingsStore.DEFAULT_PUBLIC_LIVE,
+    val publicMoviesUrl: String = SettingsStore.DEFAULT_PUBLIC_MOVIES,
+    val publicSeriesUrl: String = SettingsStore.DEFAULT_PUBLIC_SERIES,
+    // --- modo de conteúdo escolhido em cada aba ---
+    val modeChannels: ContentMode = ContentMode.SMARTED,
+    val modeMovies: ContentMode = ContentMode.SMARTED,
+    val modeSeries: ContentMode = ContentMode.SMARTED,
     val portugueseOnly: Boolean = true,
     val brazucaEnabled: Boolean = true,
     val tmdbKey: String = "",

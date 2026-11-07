@@ -10,7 +10,11 @@ import com.smarted.tv.core.util.DecodeUtils
 import com.smarted.tv.core.util.M3uParser
 import com.smarted.tv.core.util.SourceDetector
 import com.smarted.tv.core.epg.EpgTimeline
+import com.smarted.tv.core.epg.EpgMatcher
+import com.smarted.tv.core.model.MediaItem
+import com.smarted.tv.core.util.ContentClassifier
 import com.smarted.tv.core.util.LanguageFilter
+import com.smarted.tv.core.util.SeriesGrouper
 import com.smarted.tv.core.util.TextUtils
 import com.smarted.tv.core.util.XmltvParser
 
@@ -33,6 +37,9 @@ private fun eq(name: String, expected: Any?, actual: Any?) =
 fun main() {
     verifyLanguageFilter()
     verifyEpgTimeline()
+    verifyEpgMatcher()
+    verifyContentSeparation()
+    verifySeriesGrouper()
     println("== TextUtils ==")
     eq("acentos", "cancao", TextUtils.stripAccents("canção"))
     eq("normalize pontuação", "globo hd", TextUtils.normalize("Globo  HD!!!"))
@@ -309,4 +316,160 @@ private fun verifyEpgTimeline() {
 
     // Janela mínima de 12h nunca é reduzida
     check("MIN_HOURS é 12", EpgTimeline.MIN_HOURS == 12)
+}
+
+// ---------------------------------------------------------------------------
+// EPG inteligente: cruzamento por nome quando o tvg-id falta ou está errado
+// ---------------------------------------------------------------------------
+
+private fun verifyEpgMatcher() {
+    println("== EpgMatcher ==")
+
+    // Normalização: some o ruído de qualidade e os separadores da lista.
+    eq("normaliza HD", "globo", EpgMatcher.normalize("Globo HD"))
+    eq("normaliza pipes e backup", "globo", EpgMatcher.normalize("Globo FHD | Backup"))
+    eq("normaliza colchetes", "sbt", EpgMatcher.normalize("SBT [1080p]"))
+    eq("normaliza parênteses", "record", EpgMatcher.normalize("Record (720p)"))
+    check(
+        "remove prefixo de emissora",
+        EpgMatcher.normalize("TV Cultura") == EpgMatcher.normalize("Cultura"),
+        "tv cultura=${EpgMatcher.normalize("TV Cultura")} cultura=${EpgMatcher.normalize("Cultura")}",
+    )
+    eq("nome de exibição preserva o canal", "Globo", EpgMatcher.displayName("Globo HD | Backup"))
+
+    val channels = mapOf(
+        "globo" to XmltvParser.Channel("globo", "Globo"),
+        "globonews" to XmltvParser.Channel("globonews", "Globo News"),
+        "band" to XmltvParser.Channel("band", "Band"),
+        "bandnews" to XmltvParser.Channel("bandnews", "BandNews"),
+        "espn" to XmltvParser.Channel("espn", "ESPN"),
+        "espn2" to XmltvParser.Channel("espn2", "ESPN 2"),
+        "sbt" to XmltvParser.Channel("sbt", "SBT"),
+    )
+
+    // Casos reais de lista pública: nome sujo deve cair no canal certo.
+    eq("casa Globo HD → Globo", "globo", EpgMatcher.bestMatch("Globo HD", null, channels)?.id)
+    eq("casa com sufixo de espelho", "globo", EpgMatcher.bestMatch("Globo FHD | Backup", null, channels)?.id)
+    eq("casa SBT com tag de qualidade", "sbt", EpgMatcher.bestMatch("SBT [1080p]", null, channels)?.id)
+    eq("casa pelo tvg-id exato", "band", EpgMatcher.bestMatch("Canal qualquer", "band", channels)?.id)
+    eq("casa tvg-id com sufixo de país", "globo", EpgMatcher.bestMatch("x", "globo.br", channels)?.id)
+
+    // O que NÃO pode acontecer: confundir a matriz com o canal qualificador.
+    eq("não confunde Band com BandNews", "bandnews", EpgMatcher.bestMatch("Band News", null, channels)?.id)
+    eq("não confunde Globo com Globo News", "globonews", EpgMatcher.bestMatch("Globo News HD", null, channels)?.id)
+
+    // Sem candidato confiável → nenhum match (melhor vazio do que grade errada).
+    check(
+        "canal inexistente não casa",
+        EpgMatcher.bestMatch("Sportv3", null, channels) == null,
+        "obtido=${EpgMatcher.bestMatch("Sportv3", null, channels)?.id}",
+    )
+
+    // Score alto para o caso certo e baixo para o errado.
+    check(
+        "score do canal certo é alto",
+        EpgMatcher.score("Globo HD", "Globo") >= EpgMatcher.STRONG_THRESHOLD,
+        "score=${EpgMatcher.score("Globo HD", "Globo")}",
+    )
+    check(
+        "score entre canais diferentes é baixo",
+        EpgMatcher.score("Band", "Band News") < EpgMatcher.DEFAULT_THRESHOLD,
+        "score=${EpgMatcher.score("Band", "Band News")}",
+    )
+
+    // Índice para casamento exato rápido.
+    val index = EpgMatcher.buildIndex(channels)
+    eq("índice normalizado", "globonews", index["globo news"])
+}
+
+// ---------------------------------------------------------------------------
+// Separação rigorosa: canal ao vivo NUNCA na aba de filmes
+// ---------------------------------------------------------------------------
+
+private fun verifyContentSeparation() {
+    println("== ContentClassifier ==")
+
+    val liveUrl = "https://exemplo.com/globo/index.m3u8"
+    val movieUrl = "https://exemplo.com/movie/123/456.mkv"
+    val xtreamVod = "http://painel.tv:8080/movie/user/pass/789.mp4"
+    val rtmp = "rtmp://exemplo.com/live/espn"
+
+    check("stream HLS é reconhecido", ContentClassifier.isStream(liveUrl))
+    check("arquivo MKV é estático", ContentClassifier.isStaticFile(movieUrl))
+    check("extensão ignora query string", ContentClassifier.isStaticFile("https://x/f.mp4?token=abc"))
+    check("caminho de VOD detectado", ContentClassifier.hasVodPath(xtreamVod))
+
+    // O defeito original: canal ao vivo aparecendo em Filmes.
+    check("canal ao vivo recusado em Filmes", !ContentClassifier.acceptsMovie("Globo HD", liveUrl))
+    check("RTMP recusado em Filmes", !ContentClassifier.acceptsMovie("ESPN", rtmp))
+    check("MP4 aceito em Filmes", ContentClassifier.acceptsMovie("O Auto da Compadecida", movieUrl))
+    check("VOD Xtream aceito", ContentClassifier.acceptsMovie("Filme", xtreamVod))
+    check("HLS dentro de /movie/ é VOD", ContentClassifier.acceptsMovie("Filme", "https://x/movie/1/2.m3u8"))
+    check("episódio não entra em Filmes", !ContentClassifier.acceptsMovie("The Boys S01E02", movieUrl))
+
+    // Canais: o inverso também vale.
+    check("stream entra em Canais", ContentClassifier.acceptsLive(liveUrl))
+    check("arquivo de /movie/ não entra em Canais", !ContentClassifier.acceptsLive(movieUrl))
+
+    // Séries: só com estrutura de temporada/episódio.
+    check("S01E02 é série", ContentClassifier.acceptsSeries("The Boys S01E02", movieUrl))
+    check("1x02 é série", ContentClassifier.acceptsSeries("Round 6 1x03", liveUrl))
+    check("filme sem episódio não é série", !ContentClassifier.acceptsSeries("O Auto da Compadecida", movieUrl))
+
+    // classifyFor é o contrato usado pelo catálogo.
+    eq("classifyFor LIVE aceita canal", MediaKind.LIVE, ContentClassifier.classifyFor(MediaKind.LIVE, "Globo", liveUrl))
+    eq("classifyFor MOVIE recusa canal", null, ContentClassifier.classifyFor(MediaKind.MOVIE, "Globo", liveUrl))
+    eq("classifyFor SERIES recusa filme", null, ContentClassifier.classifyFor(MediaKind.SERIES, "Filme", movieUrl))
+
+    // Título de filme limpo e ano extraído.
+    eq("limpa prefixo de grupo", "Matrix", ContentClassifier.movieTitle("FILMES | Matrix"))
+    eq("extrai ano", 1999, ContentClassifier.yearOf("Matrix (1999) 1080p"))
+}
+
+// ---------------------------------------------------------------------------
+// Séries: episódios soltos → temporadas organizadas
+// ---------------------------------------------------------------------------
+
+private fun verifySeriesGrouper() {
+    println("== SeriesGrouper ==")
+
+    fun ep(id: String, title: String, url: String = "https://x/$id.mp4") = MediaItem(
+        id = id,
+        addonId = "a",
+        kind = MediaKind.SERIES,
+        title = title,
+        streamUrl = url,
+        poster = "https://art/$id.jpg",
+    )
+
+    val items = listOf(
+        ep("1", "The Boys S01E01 - A Lei de Homelander"),
+        ep("2", "The Boys S01E02 - Cherry"),
+        ep("3", "The Boys S02E01 - Prazo"),
+        ep("4", "Round 6 1x03"),
+        ep("5", "Round 6 1x01"),
+    )
+    val shows = SeriesGrouper.group(items, "a")
+
+    eq("agrupou em 2 séries", 2, shows.size)
+    val boys = shows.firstOrNull { it.title == "The Boys" }
+    check("série The Boys existe", boys != null)
+    eq("temporadas do The Boys", listOf(1, 2), boys?.details?.seasons?.map { it.number })
+    eq("episódios da T1", 2, boys?.details?.seasons?.first()?.episodes?.size)
+    eq("total de episódios no contador", 3, boys?.number)
+    eq("id estável da série", "show-the-boys", boys?.id)
+    check("marca como série na ficha", boys?.details?.isSeries == true)
+
+    val round6 = shows.firstOrNull { it.title?.startsWith("Round 6") == true }
+    check("série com formato 1x02 reconhecida", round6 != null, "títulos=${shows.map { it.title }}")
+    eq("episódios ordenados de Round 6", listOf(1, 3), round6?.details?.seasons?.first()?.episodes?.map { it.number })
+
+    // Episódio mantém o stream e o vínculo com a série.
+    val firstEp = boys?.details?.seasons?.first()?.episodes?.first()
+    eq("episódio guarda a URL", "https://x/1.mp4", firstEp?.streamUrl)
+    eq("episódio sabe de qual série é", "The Boys", firstEp?.showTitle)
+
+    // Título do show sem o marcador de episódio.
+    eq("remove marcador do título", "The Boys", SeriesGrouper.showTitle("The Boys S01E01 - A Lei"))
+    eq("remove marcador 1x02", "Round 6", SeriesGrouper.showTitle("Round 6 1x03"))
 }

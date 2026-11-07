@@ -3,12 +3,16 @@ package com.smarted.tv.addons.brazuca
 import com.smarted.tv.addons.brazuca.BrazucaPlayAddon.Companion.ID
 import com.smarted.tv.core.data.SourceRepository
 import com.smarted.tv.core.model.CatalogRow
+import com.smarted.tv.core.model.ContentMode
+import com.smarted.tv.core.model.DemoVod
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.model.PublicSource
 import com.smarted.tv.core.model.StreamSource
 import com.smarted.tv.core.net.Http
+import com.smarted.tv.core.util.ContentClassifier
 import com.smarted.tv.core.util.M3uParser
+import com.smarted.tv.core.util.SeriesGrouper
 import com.smarted.tv.core.util.TextUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -116,18 +120,16 @@ class BrazucaCatalog(
         _loading.value = true
         _status.value = "Sincronizando fontes…"
         try {
-            // Os três repositórios de conteúdo configurados têm prioridade: cada
-            // um alimenta exclusivamente a sua aba (canais / filmes / séries).
-            val configured = contentSources()
-            // Fontes públicas do indexador continuam valendo como complemento,
-            // mas nunca em detrimento do acervo BR configurado.
-            val enabled = (configured + sources.enabled().filterNot { extra ->
-                configured.any { it.url == extra.url }
-            })
+            // Cada aba escolhe o seu modo: Normal (lista pública), SmartED
+            // (pública + repositórios) ou Repo (só repositórios).
+            val enabled = KINDS.flatMap { kind -> sourcesFor(kind) }
+                .distinctBy { "${it.kind}|${it.url}" }
             sourceUrlsSignature = enabled.joinToString("|") { "${it.kind}:${it.url}" }
             if (enabled.isEmpty()) {
                 _status.value = "Nenhuma fonte habilitada"
-                return@withContext _snapshot.value
+                val empty = applyDemoFallback(Snapshot())
+                _snapshot.value = empty
+                return@withContext empty
             }
 
             val errors = java.util.Collections.synchronizedList(ArrayList<String>())
@@ -137,47 +139,67 @@ class BrazucaCatalog(
                     .map { source ->
                         async {
                             try {
-                                fetchSource(source)
+                                source.kind to fetchSource(source)
                             } catch (e: Exception) {
                                 errors.add("${source.name}: ${e.message ?: "falha"}")
-                                emptyList<MediaItem>()
+                                source.kind to emptyList<MediaItem>()
                             }
                         }
                     }
                     .awaitAll()
             }
 
-            val flat = results.flatten()
-
-            // Filtro rigoroso de idioma (requisito de produto): as abas mostram
-            // apenas conteúdo em português. Itens sem evidência são descartados
-            // quando `portugueseOnly` está ligado (padrão).
             val brOnly = settings?.settings?.portugueseOnly ?: true
-            val accepted = if (brOnly) flat.filter { item -> isPortuguese(item) } else flat
+            var totalRaw = 0
+            var totalAccepted = 0
+
+            // Filtro em duas etapas por aba:
+            //  1. tipo de conteúdo (ao vivo × filme × série) — o classificador
+            //     recusa canal ao vivo na aba de filmes e vice-versa;
+            //  2. idioma (PT-BR), quando `portugueseOnly` está ligado.
+            fun accept(perKind: Map<MediaKind, List<MediaItem>>): List<MediaItem> = buildList {
+                for (kind in KINDS) {
+                    for (raw in perKind[kind].orEmpty()) {
+                        totalRaw++
+                        val typed = applyKind(kind, raw) ?: continue
+                        if (brOnly && !isPortuguese(typed)) continue
+                        totalAccepted++
+                        add(typed)
+                    }
+                }
+            }
+
+            val typed = accept(results.groupBy({ it.first }, { it.second }).mapValues { it.value.flatten() })
             filterStats = FilterStats(
-                total = flat.size,
-                accepted = accepted.size,
-                rejected = flat.size - accepted.size,
+                total = totalRaw,
+                accepted = totalAccepted,
+                rejected = totalRaw - totalAccepted,
             )
 
-            val live = dedupe(accepted.filter { it.kind == MediaKind.LIVE })
-            val movies = dedupe(accepted.filter { it.kind == MediaKind.MOVIE })
-            val series = dedupe(accepted.filter { it.kind == MediaKind.SERIES })
+            val live = dedupe(typed.filter { it.kind == MediaKind.LIVE })
+            val movies = dedupe(typed.filter { it.kind == MediaKind.MOVIE })
+            // Séries são agrupadas em temporadas/episódios: a lista traz cada
+            // episódio numa linha e a aba precisa mostrar a série.
+            val series = SeriesGrouper.group(typed.filter { it.kind == MediaKind.SERIES }, ID)
 
-            val snapshot = Snapshot(
-                live = live.sortedWith(compareBy({ it.group ?: "~" }, { TextUtils.titleKey(it.title) })),
-                movies = movies.sortedBy { TextUtils.titleKey(it.title) },
-                series = series.sortedBy { TextUtils.titleKey(it.title) },
-                loadedAt = System.currentTimeMillis(),
-                degraded = errors.isNotEmpty(),
-                sourceErrors = errors.toList(),
+            val snapshot = applyDemoFallback(
+                Snapshot(
+                    live = live.sortedWith(compareBy({ it.group ?: "~" }, { TextUtils.titleKey(it.title) })),
+                    movies = movies.sortedBy { TextUtils.titleKey(it.title) },
+                    series = series.sortedBy { TextUtils.titleKey(it.title) },
+                    loadedAt = System.currentTimeMillis(),
+                    degraded = errors.isNotEmpty(),
+                    sourceErrors = errors.toList(),
+                ),
             )
             loadedAt = snapshot.loadedAt
             _snapshot.value = snapshot
             _status.value = buildString {
                 append("${snapshot.live.size} canais · ${snapshot.movies.size} filmes · ${snapshot.series.size} séries")
-                if (brOnly && filterStats.rejected > 0) {
-                    append(" · filtro PT-BR: ${filterStats.rejected} descartados")
+                val episodeCount = snapshot.series.sumOf { it.number ?: 0 }
+                if (episodeCount > 0) append(" ($episodeCount episódios)")
+                if (filterStats.rejected > 0) {
+                    append(" · ${filterStats.rejected} item(ns) fora do tipo/idioma")
                 }
                 if (errors.isNotEmpty()) append(" · ${errors.size} fonte(s) com erro")
             }
@@ -199,28 +221,128 @@ class BrazucaCatalog(
     var filterStats: FilterStats = FilterStats()
         private set
 
+    /** Abas de conteúdo do app (a "Biblioteca" não tem acervo próprio). */
+    private val KINDS = listOf(MediaKind.LIVE, MediaKind.MOVIE, MediaKind.SERIES)
+
+    /** Modo configurado para cada aba. */
+    fun modeFor(kind: MediaKind): ContentMode {
+        val current = settings?.settings ?: return ContentMode.SMARTED
+        return when (kind) {
+            MediaKind.LIVE -> current.modeChannels
+            MediaKind.MOVIE -> current.modeMovies
+            MediaKind.SERIES -> current.modeSeries
+            else -> ContentMode.SMARTED
+        }
+    }
+
+    /** URL pública configurada para cada tipo (modos Normal e SmartED). */
+    private fun publicUrlFor(kind: MediaKind): String {
+        val current = settings?.settings ?: return ""
+        return when (kind) {
+            MediaKind.LIVE -> current.publicLiveUrl
+            MediaKind.MOVIE -> current.publicMoviesUrl
+            MediaKind.SERIES -> current.publicSeriesUrl
+            else -> ""
+        }
+    }
+
+    /** URL do repositório do usuário para cada tipo (modos Repo e SmartED). */
+    private fun repositoryUrlFor(kind: MediaKind): String {
+        val current = settings?.settings ?: return ""
+        return when (kind) {
+            MediaKind.LIVE -> current.liveRepoUrl
+            MediaKind.MOVIE -> current.moviesRepoUrl
+            MediaKind.SERIES -> current.seriesRepoUrl
+            else -> ""
+        }
+    }
+
     /**
-     * Fontes derivadas dos três repositórios configurados em Ajustes.
-     * Cada URL é lida como M3U; o tipo esperado vem do campo, não do parser,
-     * para que a curadoria do usuário seja respeitada.
+     * Fontes de uma aba, conforme o modo escolhido nela.
+     *
+     * Além das fontes do modo, entram as fontes públicas extras cadastradas
+     * pelo indexador **quando o tipo delas é o mesmo da aba** — assim uma lista
+     * de canais adicionada à mão nunca vaza para a aba de filmes.
      */
-    private fun contentSources(): List<PublicSource> {
-        val store = settings ?: return emptyList()
-        val current = store.settings
-        fun source(kind: MediaKind, url: String, label: String) = PublicSource(
-            id = "repo-" + kind.name.lowercase(),
-            name = label,
-            url = url,
-            kind = kind,
-            format = com.smarted.tv.core.model.SourceFormat.M3U,
-            priority = 1,
-            enabled = url.isNotBlank(),
-        )
-        return listOf(
-            source(MediaKind.LIVE, current.liveRepoUrl, "Repositório de Canais"),
-            source(MediaKind.MOVIE, current.moviesRepoUrl, "Repositório de Filmes"),
-            source(MediaKind.SERIES, current.seriesRepoUrl, "Repositório de Séries"),
-        ).filter { it.enabled }
+    private fun sourcesFor(kind: MediaKind): List<PublicSource> {
+        val mode = modeFor(kind)
+        val out = ArrayList<PublicSource>(4)
+
+        if (ContentMode.includesPublic(mode)) {
+            val url = publicUrlFor(kind)
+            if (url.isNotBlank()) {
+                out.add(
+                    PublicSource(
+                        id = "public-" + kind.name.lowercase(),
+                        name = "Lista pública · ${kindLabel(kind)}",
+                        url = url.trim(),
+                        kind = kind,
+                        format = com.smarted.tv.core.model.SourceFormat.M3U,
+                        priority = 5,
+                    ),
+                )
+            }
+        }
+        if (ContentMode.includesRepository(mode)) {
+            val url = repositoryUrlFor(kind)
+            if (url.isNotBlank()) {
+                out.add(
+                    PublicSource(
+                        id = "repo-" + kind.name.lowercase(),
+                        name = "Repositório · ${kindLabel(kind)}",
+                        url = url.trim(),
+                        kind = kind,
+                        format = com.smarted.tv.core.model.SourceFormat.M3U,
+                        priority = 1,
+                    ),
+                )
+            }
+        }
+        // Fontes extras do indexador, respeitando o tipo declarado.
+        sources.enabled()
+            .filter { it.kind == kind }
+            .filterNot { extra -> out.any { it.url == extra.url } }
+            .forEach { out.add(it) }
+        return out
+    }
+
+    private fun kindLabel(kind: MediaKind): String = when (kind) {
+        MediaKind.LIVE -> "Canais"
+        MediaKind.MOVIE -> "Filmes"
+        MediaKind.SERIES -> "Séries"
+        else -> "Conteúdo"
+    }
+
+    /**
+     * Aplica o tipo da aba ao item bruto e o submete ao [ContentClassifier].
+     *
+     * Devolve `null` quando o item não pertence àquela aba — é aqui que um
+     * canal ao vivo deixa de aparecer em Filmes.
+     */
+    private fun applyKind(kind: MediaKind, raw: MediaItem): MediaItem? {
+        val url = raw.streamUrl
+        if (ContentClassifier.classifyFor(kind, raw.title, url) == null) return null
+        return when (kind) {
+            MediaKind.MOVIE -> raw.copy(
+                kind = MediaKind.MOVIE,
+                title = ContentClassifier.movieTitle(raw.title).ifBlank { raw.title },
+                year = raw.year ?: ContentClassifier.yearOf(raw.title),
+            )
+            MediaKind.SERIES -> raw.copy(kind = MediaKind.SERIES)
+            else -> raw.copy(kind = kind)
+        }
+    }
+
+    /**
+     * Rede de segurança da primeira execução: sem lista de VOD configurada, a
+     * aba Filmes ficaria vazia. Entram então os filmes de domínio público do
+     * [DemoVod] — sempre com arquivo estático, nunca canal ao vivo.
+     */
+    private fun applyDemoFallback(snapshot: Snapshot): Snapshot {
+        if (snapshot.movies.isNotEmpty() || snapshot.series.isNotEmpty()) return snapshot
+        if (!ContentMode.includesPublic(modeFor(MediaKind.MOVIE))) return snapshot
+        if (DemoVod.movies.isEmpty()) return snapshot
+        return snapshot.copy(movies = DemoVod.movies.sortedBy { TextUtils.titleKey(it.title) })
     }
 
     private fun isPortuguese(item: MediaItem): Boolean =
@@ -243,15 +365,14 @@ class BrazucaCatalog(
             downloaded
         }
         val parsed = M3uParser.parse(body, addonId = ID, defaultKind = source.kind)
-        // Repositórios configurados são escopados: tudo que vem de "Filmes" é
-        // filme, tudo de "Séries" é série, tudo de "Canais" é canal. Sem isso,
-        // um `group-title` como "Cinema" jogaria um canal na aba de filmes.
-        val scoped = source.id.startsWith("repo-")
+        // Toda fonte é "escopada" pelo campo em que foi cadastrada: a lista de
+        // Filmes só alimenta Filmes. O tipo final ainda passa pelo
+        // ContentClassifier em `applyKind`, que descarta o que não é VOD.
         val items = parsed.items.map { item ->
             val quality = item.quality ?: M3uParser.inferQuality(item.title)
             item.copy(
                 addonId = ID,
-                kind = if (scoped) source.kind else item.kind,
+                kind = source.kind,
                 group = item.group ?: source.group ?: source.name,
                 quality = quality,
                 poster = item.poster?.takeIf { it.startsWith("http") },
@@ -371,8 +492,65 @@ class BrazucaCatalog(
             append("\"q\":\"").append(esc(item.quality ?: "")).append("\",")
             append("\"tv\":\"").append(esc(item.tvgId ?: "")).append("\",")
             append("\"r\":").append(item.rating ?: 0.0)
+            // Séries levam a estrutura de temporadas junto: sem isso a aba
+            // abriria pelo cache sem episódios até a próxima sincronização.
+            val seasons = item.details?.seasons.orEmpty()
+            if (seasons.isNotEmpty()) {
+                append(",\"eps\":[")
+                var first = true
+                for (season in seasons) {
+                    for (ep in season.episodes) {
+                        if (!first) append(',')
+                        first = false
+                        append('[').append(season.number).append(',').append(ep.number).append(',')
+                        append('"').append(esc(ep.title)).append("\",\"")
+                        append(esc(ep.streamUrl ?: "")).append("\",\"")
+                        append(esc(ep.still ?: "")).append("\"]")
+                    }
+                }
+                append(']')
+            }
             append('}')
         }
+    }
+
+    /** Reconstrói a ficha de série (temporadas/episódios) a partir do cache. */
+    private fun detailsFromCache(
+        episodes: List<Triple<Int, Int, List<String>>>,
+        poster: String?,
+        rating: Double?,
+    ): com.smarted.tv.core.model.ItemDetails? {
+        if (episodes.isEmpty()) return null
+        val seasons = episodes
+            .groupBy { it.first }
+            .toSortedMap()
+            .map { (number, eps) ->
+                com.smarted.tv.core.model.Season(
+                    number = number,
+                    title = "Temporada $number",
+                    poster = eps.firstNotNullOfOrNull { it.third.getOrNull(2)?.takeIf { p -> p.isNotBlank() } },
+                    // Ordem gravada no cache: [título, url do stream, still].
+                    episodes = eps.sortedBy { it.second }.map { (season, epNumber, data) ->
+                        val url = data.getOrNull(1)?.takeIf { it.isNotBlank() }
+                        com.smarted.tv.core.model.Episode(
+                            id = url ?: "ep-$season-$epNumber",
+                            title = data.getOrNull(0).orEmpty().ifBlank { "Episódio $epNumber" },
+                            season = season,
+                            number = epNumber,
+                            streamUrl = url,
+                            still = data.getOrNull(2)?.takeIf { it.isNotBlank() },
+                            addonId = ID,
+                        )
+                    },
+                )
+            }
+        return com.smarted.tv.core.model.ItemDetails(
+            poster = poster,
+            rating = rating,
+            seasons = seasons,
+            isSeries = true,
+            source = "m3u",
+        )
     }
 
     private fun decode(raw: String): Snapshot {
@@ -389,7 +567,14 @@ class BrazucaCatalog(
         return Snapshot(
             live = arr("live", MediaKind.LIVE),
             movies = arr("movies", MediaKind.MOVIE),
-            series = arr("series", MediaKind.SERIES),
+            series = arr("series", MediaKind.SERIES).map { item ->
+                val eps = episodesOf(root, item.id)
+                if (eps.isEmpty()) item
+                else item.copy(
+                    details = detailsFromCache(eps, item.poster, item.rating),
+                    number = eps.size,
+                )
+            },
             loadedAt = (root["loadedAt"] as? kotlinx.serialization.json.JsonPrimitive)
                 ?.content?.toLongOrNull() ?: 0L,
         )
@@ -415,13 +600,38 @@ class BrazucaCatalog(
         )
     }
 
+    /** Lê o array `eps` de uma série no JSON do cache. */
+    private fun episodesOf(
+        root: kotlinx.serialization.json.JsonObject,
+        itemId: String,
+    ): List<Triple<Int, Int, List<String>>> {
+        val array = root["series"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+        val target = array.filterIsInstance<kotlinx.serialization.json.JsonObject>()
+            .firstOrNull { o ->
+                (o["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content == itemId
+            } ?: return emptyList()
+        val eps = target["eps"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+        return eps.mapNotNull { el ->
+            val row = el as? kotlinx.serialization.json.JsonArray ?: return@mapNotNull null
+            val season = (row.getOrNull(0) as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+                ?: return@mapNotNull null
+            val number = (row.getOrNull(1) as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+                ?: return@mapNotNull null
+            val data = row.drop(2).mapNotNull {
+                (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+            }
+            Triple(season, number, data)
+        }
+    }
+
     private fun esc(value: String): String = value
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
         .replace("\n", " ")
 
     companion object {
-        private const val CACHE_KEY = "brazuca.snapshot.v2"
+        // v3: separação estrita por tipo + séries agrupadas em temporadas.
+        private const val CACHE_KEY = "brazuca.snapshot.v3"
         private const val FETCH_TIMEOUT_MS = 60_000L
     }
 }

@@ -19,6 +19,38 @@ enum class MediaKind {
     }
 }
 
+/**
+ * De onde vem o conteúdo de uma aba (Canais, Filmes ou Séries).
+ *
+ * Cada aba escolhe o seu modo de forma independente — o usuário pode querer
+ * canais da lista pública e filmes do repositório, por exemplo.
+ *
+ *  - [NORMAL]  listas M3U públicas gratuitas, dedicadas por tipo.
+ *  - [SMARTED] combina a lista pública com o conteúdo dos repositórios
+ *              configurados (addons estilo Kodi).
+ *  - [REPO]    usa exclusivamente os repositórios configurados.
+ */
+@Serializable
+enum class ContentMode {
+    NORMAL,
+    SMARTED,
+    REPO;
+
+    /** Nome exibido na interface (a UI traduz via `strings.xml`). */
+    val key: String get() = name.lowercase()
+
+    companion object {
+        fun fromKey(raw: String?): ContentMode =
+            entries.firstOrNull { it.key == raw?.lowercase() } ?: SMARTED
+
+        /** Modo que usa a lista pública deste modo? */
+        fun includesPublic(mode: ContentMode): Boolean = mode == NORMAL || mode == SMARTED
+
+        /** Modo que usa os repositórios configurados? */
+        fun includesRepository(mode: ContentMode): Boolean = mode == REPO || mode == SMARTED
+    }
+}
+
 /** Referência estável a um item de catálogo (chave de cache/favoritos/progresso). */
 @Serializable
 data class ItemRef(

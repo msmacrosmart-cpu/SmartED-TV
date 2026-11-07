@@ -27,8 +27,11 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.smarted.tv.R
+import com.smarted.tv.core.model.ContentMode
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.ui.components.CategorySidebar
@@ -100,6 +103,10 @@ fun CatalogScreen(
                     subtitle = "${state.total} $subtitle",
                     modifier = Modifier.weight(1f),
                 )
+                ModeSelector(
+                    current = state.mode,
+                    onSelect = { viewModel.setContentMode(it) },
+                )
             }
 
             if (kind != MediaKind.LIVE) {
@@ -139,9 +146,14 @@ fun CatalogScreen(
             when {
                 state.loading && state.items.isEmpty() -> GridSkeleton()
                 state.items.isEmpty() -> EmptyState(
-                    title = "Nada por aqui ainda",
-                    message = "Nenhum item nesta categoria em português. Confira os repositórios " +
-                        "em Ajustes → Repositórios de conteúdo ou escolha outra categoria.",
+                    title = stringResource(R.string.nav_empty_title),
+                    // A explicação muda por aba: filme exige arquivo/VOD, série
+                    // exige estrutura de temporada — são motivos diferentes.
+                    message = when (kind) {
+                        MediaKind.MOVIE -> stringResource(R.string.empty_movies_hint)
+                        MediaKind.SERIES -> stringResource(R.string.empty_series_hint)
+                        else -> stringResource(R.string.empty_channels_hint)
+                    },
                 )
                 kind == MediaKind.LIVE -> LiveList(
                     items = state.items,

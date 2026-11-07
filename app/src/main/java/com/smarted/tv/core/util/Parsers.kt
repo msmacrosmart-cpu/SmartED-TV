@@ -65,10 +65,19 @@ object M3uParser {
     }
 
     private val SEASON_EPISODE = Regex("(?i)(?:s|t)\\s?(\\d{1,2})\\s?[ex]\\s?(\\d{1,3})")
+
+    /** Formato alternativo `1x02`, muito comum em listas de VOD. */
+    private val SEASON_X_EPISODE = Regex("(?i)\\b(\\d{1,2})x(\\d{1,3})\\b")
+
     private val EPISODE_ONLY = Regex("(?i)^(?:episode|ep|episodio|episódio)\\s?(\\d{1,3})")
 
     fun parseSeasonEpisode(title: String): Pair<Int, Int>? {
         SEASON_EPISODE.find(title)?.let {
+            val s = it.groupValues[1].toIntOrNull() ?: return null
+            val e = it.groupValues[2].toIntOrNull() ?: return null
+            return s to e
+        }
+        SEASON_X_EPISODE.find(title)?.let {
             val s = it.groupValues[1].toIntOrNull() ?: return null
             val e = it.groupValues[2].toIntOrNull() ?: return null
             return s to e

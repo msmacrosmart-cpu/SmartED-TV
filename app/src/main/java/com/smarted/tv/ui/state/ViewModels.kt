@@ -7,6 +7,7 @@ import com.smarted.tv.core.addons.AddonManager
 import com.smarted.tv.core.data.Settings
 import com.smarted.tv.core.model.CatalogPage
 import com.smarted.tv.core.model.EpgProgram
+import com.smarted.tv.core.model.ContentMode
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.model.MediaKind
 import com.smarted.tv.core.model.WatchProgress
@@ -48,9 +49,13 @@ data class HomeUiState(
     val topMovies: List<MediaItem> = emptyList(),
     /** Top 10 séries por nota. */
     val topSeries: List<MediaItem> = emptyList(),
-    /** Canais marcados como favorito pelo usuário. */
+    /** Canais marcados como favorito pelo usuário — única seção de canais da Home. */
     val favoriteChannels: List<MediaItem> = emptyList(),
-    val channelRows: List<Pair<String, List<MediaItem>>> = emptyList(),
+    /**
+     * Todos os canais ao vivo do acervo. Não é exibido na Home (a Home mostra
+     * só favoritos); serve para o zap do player (canal anterior/próximo).
+     */
+    val liveChannels: List<MediaItem> = emptyList(),
     val movies: List<MediaItem> = emptyList(),
     val series: List<MediaItem> = emptyList(),
     val status: String = "",
@@ -108,24 +113,16 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
     }
 
     private fun applySnapshot(snap: CatalogSnapshot) {
-        // O hero dá preferência a itens com backdrop: o banner é uma arte larga.
+        // O banner é SEMPRE de filme (requisito de produto): usa backdrop largo
+        // quando existe, senão o pôster. Canal ao vivo nunca vira destaque.
         val hero = pickHero(snap)
-        val channelRows = snap.live.groupBy { it.group ?: "Sem categoria" }
-            .entries
-            .sortedByDescending { it.value.size }
-            .take(4)
-            .map { it.key to it.value.take(24) }
         val previousHero = _state.value.hero
         _state.value = _state.value.copy(
             loading = false,
             hero = hero,
-            heroEyebrow = when {
-                hero == null -> "Destaque"
-                hero.kind == MediaKind.LIVE -> "Ao vivo agora"
-                else -> "Destaque"
-            },
+            heroEyebrow = heroEyebrowFor(hero),
             continueWatching = _state.value.continueWatching,
-            channelRows = channelRows,
+            liveChannels = snap.live,
             heroBackdrops = hero?.let { backdropsFor(it, snap) } ?: _state.value.heroBackdrops,
             topMovies = topRated(snap.movies, 10),
             topSeries = topRated(snap.series, 10),
@@ -158,19 +155,34 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
         )
         .take(limit)
 
+    /**
+     * Destaque da Home: **somente filmes**.
+     *
+     * O modo SmartED e o Repo podem não trazer capa; nesse caso o filme sem
+     * arte ainda é escolhido, mas sem inventar imagens de canal. Se não houver
+     * nenhum filme no acervo, a Home simplesmente não mostra banner.
+     */
     private fun pickHero(snap: CatalogSnapshot): MediaItem? {
-        // Banner precisa de arte larga: backdrop tem prioridade sobre poster.
-        snap.movies.firstOrNull { it.backdrop != null }?.let { return it }
-        snap.series.firstOrNull { it.backdrop != null }?.let { return it }
-        snap.live.firstOrNull { it.backdrop != null }?.let { return it }
-        snap.movies.firstOrNull { it.poster != null }?.let { return it }
-        snap.series.firstOrNull { it.poster != null }?.let { return it }
-        return snap.live.firstOrNull { it.poster != null } ?: snap.live.firstOrNull()
+        val movies = snap.movies
+        if (movies.isEmpty()) return null
+        movies.firstOrNull { it.backdrop != null }?.let { return it }
+        // Prioriza quem tem nota/votos: o destaque deve ser um filme relevante.
+        return movies.sortedWith(
+            compareByDescending<MediaItem> { it.rating ?: 0.0 }
+                .thenByDescending { if (it.poster != null) 1 else 0 }
+                .thenBy { TextUtils.titleKey(it.title) },
+        ).first()
     }
 
-    /** Backdrops para o banner rotativo (hero + vizinhos com arte larga). */
+    private fun heroEyebrowFor(hero: MediaItem?): String = when {
+        hero == null -> "Destaque"
+        hero.year != null -> "Filme em destaque · ${hero.year}"
+        else -> "Filme em destaque"
+    }
+
+    /** Arte do banner: só filmes, começando pelo próprio destaque. */
     private fun backdropsFor(hero: MediaItem, snap: CatalogSnapshot): List<String> {
-        val pool = (listOf(hero) + snap.movies + snap.series + snap.live)
+        val pool = (listOf(hero) + snap.movies)
             .mapNotNull { it.backdrop ?: it.poster }
             .distinct()
         return pool.take(6)
@@ -182,16 +194,9 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
             _state.value = _state.value.copy(heroProgress = progress?.fraction)
         }
         viewModelScope.launch {
-            if (hero.kind == MediaKind.LIVE) {
-                val (now, _) = graph.epg.nowNext(hero)
-                if (now != null) {
-                    _state.value = _state.value.copy(hero = hero.copy(subtitle = now.title))
-                }
-            } else {
-                val enriched = runCatching { graph.addon.details(hero) }.getOrNull()
-                if (enriched != null) {
-                    _state.value = _state.value.copy(hero = enriched)
-                }
+            val enriched = runCatching { graph.addon.details(hero) }.getOrNull()
+            if (enriched != null) {
+                _state.value = _state.value.copy(hero = enriched)
             }
         }
     }
@@ -204,9 +209,6 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
                 delay(60_000L)
                 val now = System.currentTimeMillis()
                 _state.value = _state.value.copy(
-                    channelRows = _state.value.channelRows.map { (group, items) ->
-                        group to items.map { it.copy(subtitle = it.subtitle, number = it.number) }
-                    },
                     heroProgress = _state.value.hero?.let { graph.library.progressFor(it.ref)?.fraction },
                 )
                 if (now > 0) Unit
@@ -224,6 +226,8 @@ class HomeViewModel(private val graph: AppServices) : ViewModel() {
 data class CatalogUiState(
     val kind: MediaKind = MediaKind.MOVIE,
     val loading: Boolean = true,
+    /** Modo de conteúdo ativo nesta aba: Normal, SmartED ou Repo. */
+    val mode: ContentMode = ContentMode.SMARTED,
     val items: List<MediaItem> = emptyList(),
     val categories: List<Pair<String, Int>> = emptyList(),
     val selectedCategory: String? = null,
@@ -258,9 +262,29 @@ class CatalogViewModel(private val graph: AppServices) : ViewModel() {
         load(kind)
     }
 
+    /**
+     * Troca o modo de conteúdo da aba atual.
+     *
+     * O modo é uma preferência (persiste), mas o catálogo é um retrato único
+     * das três abas: ao mudar qualquer uma, o snapshot é invalidado e recarregado
+     * para que a mistura pública/repositório seja refeita.
+     */
+    fun setContentMode(mode: ContentMode) {
+        val kind = _state.value.kind
+        if (_state.value.mode == mode) return
+        graph.settings.setContentMode(kind, mode)
+        graph.catalog.invalidate()
+        _state.value = _state.value.copy(mode = mode, loading = true, items = emptyList())
+        load(kind, force = true)
+    }
+
     fun load(kind: MediaKind = _state.value.kind, force: Boolean = false) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = _state.value.items.isEmpty(), kind = kind)
+            _state.value = _state.value.copy(
+                loading = _state.value.items.isEmpty(),
+                kind = kind,
+                mode = modeFor(kind),
+            )
             val snap = runCatching { graph.catalog.snapshot(force) }.getOrNull()
             if (snap == null) {
                 _state.value = _state.value.copy(loading = false, status = "Falha ao carregar catálogo")
@@ -282,6 +306,14 @@ class CatalogViewModel(private val graph: AppServices) : ViewModel() {
             applyFilters()
             if (kind == MediaKind.LIVE) startEpgPolling()
         }
+    }
+
+    /** Modo configurado para a aba (lido das preferências). */
+    private fun modeFor(kind: MediaKind): ContentMode = when (kind) {
+        MediaKind.LIVE -> graph.settings.settings.modeChannels
+        MediaKind.MOVIE -> graph.settings.settings.modeMovies
+        MediaKind.SERIES -> graph.settings.settings.modeSeries
+        else -> ContentMode.SMARTED
     }
 
     fun selectCategory(category: String?) {
@@ -627,9 +659,11 @@ class GuideViewModel(private val graph: AppServices) : ViewModel() {
                 channels = channels,
                 status = graph.epg.status.value,
             )
-            channels.firstOrNull()?.let { selectChannel(it) }
+            // Carrega o guia ANTES de montar a grade do primeiro canal: antes a
+            // ordem era invertida e o canal inicial abria sem programação.
             runCatching { graph.epg.ensureLoaded() }
             _state.value = _state.value.copy(status = graph.epg.status.value)
+            channels.firstOrNull()?.let { selectChannel(it) }
         }
         viewModelScope.launch {
             while (true) {
@@ -831,6 +865,26 @@ class SettingsViewModel(private val graph: AppServices) : ViewModel() {
             graph.catalog.invalidate()
             runCatching { graph.catalog.snapshot(force = true) }
             _state.value = _state.value.copy(message = null)
+        }
+    }
+
+    /** Grava a lista pública de um tipo (modos Normal e SmartED). */
+    fun setPublicSource(kind: MediaKind, url: String) {
+        graph.settings.setPublicSource(kind, url)
+        _state.value = _state.value.copy(message = "Lista pública atualizada. Reindexando…")
+        viewModelScope.launch {
+            graph.catalog.invalidate()
+            runCatching { graph.catalog.snapshot(force = true) }
+            _state.value = _state.value.copy(message = null)
+        }
+    }
+
+    /** Define o modo de conteúdo de uma aba em Ajustes. */
+    fun setContentMode(kind: MediaKind, mode: ContentMode) {
+        graph.settings.setContentMode(kind, mode)
+        viewModelScope.launch {
+            graph.catalog.invalidate()
+            runCatching { graph.catalog.snapshot(force = true) }
         }
     }
 

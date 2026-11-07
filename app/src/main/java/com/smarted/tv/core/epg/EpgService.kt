@@ -5,7 +5,6 @@ import com.smarted.tv.core.data.db.EpgSourceEntity
 import com.smarted.tv.core.model.EpgProgram
 import com.smarted.tv.core.model.MediaItem
 import com.smarted.tv.core.net.Http
-import com.smarted.tv.core.util.TextUtils
 import com.smarted.tv.core.util.XmltvParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +48,12 @@ class EpgService(
     private val mutex = Mutex()
     private val nameIndex = ConcurrentHashMap<String, String>()
     private val programCache = ConcurrentHashMap<String, List<EpgProgram>>()
+
+    /**
+     * Cache do cruzamento por nome: chave do canal → id do XMLTV (ou "" quando
+     * não houve casamento). Evita varrer a grade inteira a cada troca de canal.
+     */
+    private val matchCache = ConcurrentHashMap<String, String>()
 
     private val _guide = MutableStateFlow(Guide())
     val guide: StateFlow<Guide> = _guide.asStateFlow()
@@ -111,7 +116,8 @@ class EpgService(
                 message = null,
             )
             nameIndex.clear()
-            nameIndex.putAll(XmltvParser.buildChannelIndex(parsed.channels))
+            nameIndex.putAll(EpgMatcher.buildIndex(parsed.channels))
+            matchCache.clear()
             programCache.clear()
             programCache.putAll(parsed.programs)
             val cutoff = System.currentTimeMillis() - 12 * 60 * 60 * 1000L
@@ -141,37 +147,64 @@ class EpgService(
     suspend fun programsFor(channel: MediaItem, startMs: Long, endMs: Long): List<EpgProgram> {
         val guide = if (_guide.value.isEmpty) ensureLoaded() else _guide.value
         if (guide.isEmpty) return emptyList()
-        val ids = candidateIds(channel)
+        val ids = candidateIds(channel, guide.channelFields)
         for (id in ids) {
             val list = guide.byChannel[id] ?: continue
             if (list.isNotEmpty()) {
                 return list.filter { p -> p.endMs > startMs && p.startMs < endMs }
             }
         }
-        // último recurso: casamento por nome contra todos os canais
-        val key = TextUtils.titleKey(channel.title)
-        val match = guide.channelFields.entries.firstOrNull { (id, ch) ->
-            TextUtils.titleKey(ch.name) == key || TextUtils.titleKey(id) == key
-        }
-        if (match != null) {
-            return guide.byChannel[match.key].orEmpty().filter { p -> p.endMs > startMs && p.startMs < endMs }
-        }
         return emptyList()
     }
 
-    /** Resolve o id do XMLTV para um canal, considerando variações de sufixo. */
-    fun candidateIds(channel: MediaItem): List<String> {
+    /**
+     * Ids do XMLTV candidatos para o canal, do mais confiável ao mais fraco.
+     *
+     * Além do `tvg-id` e do nome exato, entra o **casamento automático por
+     * nome** ([EpgMatcher]): o nome limpo do canal (sem HD/FHD/SD, sem `|`) é
+     * comparado à grade pública e o melhor score acima do limiar é aceito.
+     * O resultado fica em cache por canal.
+     */
+    fun candidateIds(
+        channel: MediaItem,
+        channels: Map<String, XmltvParser.Channel> = _guide.value.channelFields,
+    ): List<String> {
         val out = LinkedHashSet<String>()
-        channel.tvgId?.let { out.add(it) }
-        channel.tvgId?.substringBefore('.')?.let { out.add(it) }
-        val key = TextUtils.titleKey(channel.title)
-        nameIndex[key]?.let { out.add(it) }
-        // "Globo HD" -> "globo"
+        channel.tvgId?.trim()?.takeIf { it.isNotBlank() }?.let { tvg ->
+            out.add(tvg)
+            out.add(tvg.substringBefore('@'))
+            out.add(tvg.substringBefore('.'))
+        }
+        // nome normalizado exato (índice construído com EpgMatcher)
+        EpgMatcher.normalize(channel.title).let { key ->
+            if (key.isNotBlank()) nameIndex[key]?.let { out.add(it) }
+        }
         channel.tvgId?.let { tvg ->
-            val normalized = TextUtils.titleKey(tvg.replace(".", " "))
-            nameIndex[normalized]?.let { out.add(it) }
+            EpgMatcher.normalize(tvg.replace('.', ' ').replace('@', ' ')).let { key ->
+                if (key.isNotBlank()) nameIndex[key]?.let { out.add(it) }
+            }
+        }
+        // casamento por similaridade (com cache)
+        val cacheKey = channel.tvgId?.takeIf { it.isNotBlank() } ?: channel.title
+        val cached = matchCache[cacheKey]
+        if (cached != null) {
+            if (cached.isNotBlank()) out.add(cached)
+        } else if (channels.isNotEmpty()) {
+            val match = EpgMatcher.bestMatch(channel.title, channel.tvgId, channels)
+            matchCache[cacheKey] = match?.id.orEmpty()
+            match?.let { out.add(it.id) }
         }
         return out.toList()
+    }
+
+    /**
+     * Melhor cruzamento para um canal (para diagnóstico na UI): devolve o id e
+     * o score usados, ou `null` quando a grade não tem candidato confiável.
+     */
+    fun resolveMatch(channel: MediaItem): EpgMatcher.Match? {
+        val channels = _guide.value.channelFields
+        if (channels.isEmpty()) return null
+        return EpgMatcher.bestMatch(channel.title, channel.tvgId, channels)
     }
 
     /** Próximo programa após `now` no canal. */
@@ -240,5 +273,6 @@ class EpgService(
         _guide.value = Guide()
         programCache.clear()
         nameIndex.clear()
+        matchCache.clear()
     }
 }
