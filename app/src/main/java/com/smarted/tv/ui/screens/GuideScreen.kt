@@ -219,7 +219,8 @@ private fun GuideRuler(programs: List<EpgProgram>, nowMs: Long) {
     if (programs.isEmpty()) return
     val start = programs.first().startMs
     val hourMs = 60L * 60L * 1000L
-    val currentHour = (nowMs - start) / hourMs
+    // Int para comparar com o índice da repetição (Long não compila no ==).
+    val currentHour = ((nowMs - start) / hourMs).toInt()
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth()) {
