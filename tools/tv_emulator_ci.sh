@@ -10,6 +10,10 @@ em_note() { # $1 title, $2 body
 }
 
 SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+# cmdline-tools novos gravam AVDs em ~/.config/.android enquanto o `emulator` lê ~/.android —
+# unificar no caminho legado ou o AVD criado "não existe" para o boot.
+export ANDROID_USER_HOME="$HOME/.android"
+export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
 CLI="$SDK/cmdline-tools/latest/bin"
 [ -x "$CLI/sdkmanager" ] || CLI="$(dirname "$(find "$SDK/cmdline-tools" -maxdepth 4 -name sdkmanager | head -1)")"
 
