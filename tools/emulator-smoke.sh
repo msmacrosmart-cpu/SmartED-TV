@@ -23,10 +23,14 @@ APK_PATH="$(ls dist/*.apk 2>/dev/null | head -1)"
 LEGACY_DB="legacy.db"
 
 dump_logs() {
-  echo "== logcat (app) =="
-  adb logcat -d -v brief 2>/dev/null \
-    | grep -iE "smarted|AndroidRuntime|FATAL|Room|SQLite|SQLiteException" \
-    | tail -80 || true
+  echo "== buffer de crash (stack trace) =="
+  adb logcat -d -b crash -v brief 2>/dev/null | tail -150 || true
+  echo "== dropbox data_app_crash =="
+  adb shell dumpsys dropbox --print data_app_crash 2>/dev/null | tail -150 || true
+  echo "== processos smarted =="
+  adb shell ps -A 2>/dev/null | grep -i smarted || echo "(nenhum processo smarted)"
+  echo "== logcat (fim do buffer principal) =="
+  adb logcat -d -v brief 2>/dev/null | tail -200 || true
 }
 
 fail() {
@@ -42,7 +46,11 @@ alive() {
   sleep "$seconds"
   local pid
   pid="$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')"
-  [[ -n "$pid" ]] || fail "app não está rodando (morreu ao abrir)"
+  if [[ -z "$pid" ]]; then
+    echo "pacote consultado: $PKG"
+    adb shell ps -A 2>/dev/null | grep -i smarted || echo "(nenhum processo smarted)"
+    fail "app não está rodando (morreu ao abrir)"
+  fi
   if adb logcat -d 2>/dev/null | grep -qE "FATAL EXCEPTION|ANR in $PKG"; then
     fail "crash/ANR registrado no logcat"
   fi
@@ -61,7 +69,9 @@ echo "$INSTALL_OUT"
 echo "== 2/4 instalação limpa: abre o app =="
 adb shell pm clear "$PKG" >/dev/null 2>&1 || true
 adb logcat -c
-adb shell am start -W -n "$ACTIVITY" >/dev/null 2>&1 || fail "não consegui iniciar a MainActivity"
+START_OUT="$(adb shell am start -W -n "$ACTIVITY" 2>&1)"
+echo "$START_OUT"
+[[ "$START_OUT" == *"Error"* ]] && fail "não consegui iniciar a MainActivity: $START_OUT"
 alive 25
 
 echo "== 3/4 a interface renderizou? =="

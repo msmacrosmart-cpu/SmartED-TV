@@ -486,7 +486,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ -f smoke.log ]] || exit 0
-          trecho="$(grep -iE 'OK:|PASS|FAIL|colunas de|user_version|^==|Success|Failure|Error|error|fatal|crash|Exception' smoke.log | tail -40 || true)"
+          trecho="$(grep -iE 'OK:|PASS|FAIL|colunas de|user_version|^==|Success|Failure|Error|error|fatal|Fatal|crash|Exception|Caused by|at com\.smarted|Status:|pacote consultado' smoke.log | tail -60 || true)"
           [[ -n "$trecho" ]] || trecho="$(tail -40 smoke.log)"
           payload="$(printf '%s\n' "$trecho" | jq -Rs \
             --arg sha "${GITHUB_SHA:0:7}" --arg outcome "${OUTCOME:-unknown}" \
