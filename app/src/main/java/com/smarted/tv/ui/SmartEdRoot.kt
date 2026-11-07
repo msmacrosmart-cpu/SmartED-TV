@@ -365,6 +365,7 @@ private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) 
                             AddonsScreen(
                                 viewModel = vm,
                                 onOpenRepository = { subScreen = "repository" },
+                                onOpenBrowser = { subScreen = "browser" },
                                 onBack = { destination = EdDestination.SETTINGS.name },
                             )
                         }
