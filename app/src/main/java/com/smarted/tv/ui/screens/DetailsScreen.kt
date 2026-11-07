@@ -52,6 +52,7 @@ import com.smarted.tv.ui.components.edBorder
 import com.smarted.tv.ui.components.edInteraction
 import com.smarted.tv.ui.state.DetailsViewModel
 import com.smarted.tv.ui.theme.Ed
+import androidx.compose.runtime.remember
 
 /**
  * Ficha do item: arte de fundo, logo/título, nota (TMDB), elenco em faixa
@@ -66,7 +67,7 @@ fun DetailsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val palette = Ed.palette
     val type = Ed.type
-    val playFocus = androidx.compose.runtime.remember { FocusRequester() }
+    val playFocus = remember { FocusRequester() }
 
     LaunchedEffect(item.ref.key) { viewModel.load(item) }
     LaunchedEffect(Unit) {

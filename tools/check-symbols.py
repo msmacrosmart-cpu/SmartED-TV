@@ -42,6 +42,59 @@ CHECKS = {
     "scale": ("androidx.compose.ui.draw.scale", r"\.\s*scale\s*\("),
 }
 
+
+# ---------------------------------------------------------------------------
+# Chamada de função de EXTENSÃO por nome totalmente qualificado.
+#
+# Kotlin aceita `androidx.compose.material3.Text(...)` (função top-level), mas
+# NÃO aceita `androidx.compose.ui.composed { }` — `composed` é `fun Modifier.composed`,
+# e a sintaxe de FQN só vale para funções sem receptor. O compilador responde
+# "Unresolved reference 'composed'", o que custou três rodadas de CI.
+# ---------------------------------------------------------------------------
+EXTENSION_FQNS = {
+    "androidx.compose.ui.composed",
+    "androidx.compose.ui.draw.clip",
+    "androidx.compose.ui.draw.alpha",
+    "androidx.compose.ui.draw.scale",
+    "androidx.compose.foundation.border",
+    "androidx.compose.foundation.background",
+    "androidx.compose.foundation.clickable",
+    "androidx.compose.foundation.layout.padding",
+    "androidx.compose.foundation.layout.width",
+    "androidx.compose.foundation.layout.height",
+    "androidx.compose.foundation.layout.size",
+    "androidx.compose.foundation.layout.offset",
+    "androidx.compose.foundation.layout.aspectRatio",
+    "androidx.compose.foundation.layout.fillMaxSize",
+    "androidx.compose.foundation.layout.fillMaxWidth",
+    "androidx.compose.foundation.layout.fillMaxHeight",
+    "androidx.compose.foundation.layout.weight",
+    "androidx.compose.foundation.lazy.items",
+    "androidx.compose.foundation.lazy.itemsIndexed",
+    "androidx.compose.foundation.lazy.grid.items",
+    "androidx.compose.foundation.lazy.grid.itemsIndexed",
+    "androidx.compose.ui.input.key.onKeyEvent",
+    "androidx.compose.ui.input.key.onPreviewKeyEvent",
+    "androidx.compose.ui.focus.focusRequester",
+    "androidx.compose.ui.focus.focusable",
+    "androidx.compose.ui.focus.onFocusChanged",
+}
+
+
+def check_extension_fqn(files):
+    """Aponta `pkg.extensao(` usado por FQN — sempre erro de compilação."""
+    problems = []
+    for path in files:
+        source = open(path, encoding="utf-8").read()
+        for number, line in enumerate(source.split("\n"), 1):
+            if line.strip().startswith("import ") or line.strip().startswith("//"):
+                continue
+            for fqn in EXTENSION_FQNS:
+                if re.search(r"(?<![\w.])" + re.escape(fqn) + r"\s*[({]", line):
+                    problems.append((os.path.relpath(path, ROOT), number, fqn))
+    return problems
+
+
 def main() -> int:
     problems = []
     files = sorted(glob.glob(os.path.join(SRC, "**", "*.kt"), recursive=True))
@@ -64,6 +117,9 @@ def main() -> int:
             if re.search(quoted, body, re.M):
                 continue
             problems.append((rel, symbol, package))
+
+    for rel, number, fqn in check_extension_fqn(files):
+        problems.append((f"{rel}:{number}", fqn, "função de extensão chamada por FQN"))
 
     print(f"{len(files)} arquivo(s) analisado(s)")
     if problems:

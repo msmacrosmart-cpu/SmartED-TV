@@ -35,6 +35,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.border
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -95,11 +100,7 @@ fun PlayerScreen(
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
             .build()
-            .apply {
-                playWhenReady = true
-                setSeekBackIncrementMs(10_000)
-                setSeekForwardIncrementMs(30_000)
-            }
+            .apply { playWhenReady = true }
     }
 
     LaunchedEffect(item.ref.key) { viewModel.prepare(item) }
@@ -317,7 +318,7 @@ private fun PlayPauseButton(playing: Boolean, onClick: () -> Unit) {
             .background(if (interaction.isFocused) palette.accent else Color.White, shape)
             .then(
                 if (interaction.isFocused) {
-                    Modifier.then(androidx.compose.foundation.border(3.dp, Color.White, shape))
+                    Modifier.border(3.dp, Color.White, shape)
                 } else {
                     Modifier
                 },
@@ -355,18 +356,18 @@ private fun LiveProgressHint() {
 }
 
 /** Mantém o HUD visível ao primeiro toque de tecla (como os players de TV). */
-private fun Modifier.wakeOnKey(show: () -> Unit): Modifier = androidx.compose.ui.composed {
+private fun Modifier.wakeOnKey(show: () -> Unit): Modifier = composed {
     this.then(
-        androidx.compose.ui.input.key.onPreviewKeyEvent { event ->
-            if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) show()
+        onPreviewKeyEvent { event ->
+            if (event.type == KeyEventType.KeyDown) show()
             false
         },
     )
 }
 
-private fun Modifier.androidxKeyHandler(handler: (Int) -> Boolean): Modifier = androidx.compose.ui.composed {
+private fun Modifier.androidxKeyHandler(handler: (Int) -> Boolean): Modifier = composed {
     this.then(
-        androidx.compose.ui.input.key.onKeyEvent { event ->
+        onKeyEvent { event ->
             val native = event.nativeKeyEvent
             if (native.action == KeyEvent.ACTION_DOWN) handler(native.keyCode) else false
         },

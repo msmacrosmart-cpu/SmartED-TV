@@ -34,6 +34,7 @@ import com.smarted.tv.ui.components.SearchField
 import com.smarted.tv.ui.components.ScreenTitle
 import com.smarted.tv.ui.state.SearchViewModel
 import com.smarted.tv.ui.theme.Ed
+import androidx.compose.foundation.lazy.grid.items as gridItems
 
 /**
  * Busca unificada: filtra canais, filmes e séries do catálogo indexado,
@@ -102,7 +103,7 @@ fun SearchScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                androidx.compose.foundation.lazy.grid.items(state.results, key = { it.id }) { item ->
+                gridItems(state.results, key = { it.id }) { item ->
                     PosterCard(
                         item = item,
                         onClick = {

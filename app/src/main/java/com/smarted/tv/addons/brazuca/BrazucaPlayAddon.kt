@@ -68,7 +68,7 @@ class BrazucaPlayAddon(
     }
 
     private suspend fun browseHome(): CatalogPage {
-        val snapshot = catalog.snapshot()
+        val snapshot = catalog.snapshot(force = false)
         return CatalogPage(
             title = "Início",
             kind = MediaKind.UNKNOWN,
@@ -88,7 +88,7 @@ class BrazucaPlayAddon(
 
     /** Canais: lista plana quando não há categoria; senão agrupada. */
     private suspend fun browseLive(request: BrowseRequest): CatalogPage {
-        val snapshot = catalog.snapshot()
+        val snapshot = catalog.snapshot(force = false)
         val all = snapshot.live
         if (request.category == null && request.section != BrowseRequest.Section.ITEMS) {
             val groups = all.groupBy { it.group ?: "Sem categoria" }
@@ -118,7 +118,7 @@ class BrazucaPlayAddon(
 
     /** Filmes e séries: categorias + itens (com paginação simples). */
     private suspend fun browseVod(request: BrowseRequest, kind: MediaKind): CatalogPage {
-        val snapshot = catalog.snapshot()
+        val snapshot = catalog.snapshot(force = false)
         val all = if (kind == MediaKind.MOVIE) snapshot.movies else snapshot.series
         val filtered = when {
             request.category == null -> all
@@ -141,7 +141,7 @@ class BrazucaPlayAddon(
     override suspend fun search(query: String, page: Int): List<MediaItem> {
         val q = TextUtils.titleKey(query)
         if (q.isBlank()) return emptyList()
-        val snapshot = catalog.snapshot()
+        val snapshot = catalog.snapshot(force = false)
         val pool = snapshot.live + snapshot.movies + snapshot.series
         return pool.asSequence()
             .map { item -> item to scoreSearch(item, q) }
@@ -222,7 +222,7 @@ class BrazucaPlayAddon(
         epg.programsFor(channel, startMs, endMs)
 
     override suspend fun epgChannelIds(): List<String> =
-        catalog.snapshot().live.mapNotNull { it.tvgId }.distinct()
+        catalog.snapshot(force = false).live.mapNotNull { it.tvgId }.distinct()
 
     override suspend fun healthCheck(): AddonHealth {
         val started = System.currentTimeMillis()

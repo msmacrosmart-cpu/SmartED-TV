@@ -87,7 +87,7 @@ class BrazucaCatalog(
     fun sourceUrls(): List<String> = sourceUrlsSignature.split('|').filter { it.isNotBlank() }
 
     /** Snapshot em memória; recarrega quando expirado ou forçado. */
-    override suspend fun snapshot(force: Boolean = false): Snapshot {
+    override suspend fun snapshot(force: Boolean): Snapshot {
         val current = _snapshot.value
         val fresh = !force && !current.isEmpty && System.currentTimeMillis() - loadedAt < ttlMs
         if (fresh) return current

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -114,7 +115,7 @@ fun SmartEdRoot(graph: AppGraph) {
  */
 @Composable
 private fun <T> kotlinx.coroutines.flow.StateFlow<T>.collectAsStateWithLifecycleCompat(): androidx.compose.runtime.State<T> =
-    androidx.compose.runtime.collectAsState(this)
+    collectAsState(this)
 
 @Composable
 private fun AppScaffold(graph: AppGraph, overscan: androidx.compose.ui.unit.Dp) {

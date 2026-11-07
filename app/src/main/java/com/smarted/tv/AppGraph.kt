@@ -122,7 +122,7 @@ class AppGraph(context: Context) : com.smarted.tv.ui.state.AppServices {
                 runCatching { addons.syncActive() }
             }
             launch {
-                runCatching { catalog.snapshot() }
+                runCatching { catalog.snapshot(force = false) }
                 if (settings.settings.maintenanceEnabled) {
                     val snap = catalog.snapshotFlow.value
                     runCatching {

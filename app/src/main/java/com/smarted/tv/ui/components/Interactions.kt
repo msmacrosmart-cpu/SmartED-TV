@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import com.smarted.tv.ui.theme.EdPalette
 import com.smarted.tv.ui.theme.edLiftScale
+import androidx.compose.ui.unit.Dp
 
 /**
  * Estados de interação reutilizáveis.
@@ -82,7 +83,7 @@ fun Modifier.edFocusableSurface(
     }
 }
 
-private val Int.dpBorder get() = androidx.compose.ui.unit.Dp(this.toFloat())
+private val Int.dpBorder get() = Dp(this.toFloat())
 
 /** Leve crescimento do card ao focar (scale 1.04, 180ms). */
 fun Modifier.edFocusLift(focused: Boolean): Modifier = composed {
