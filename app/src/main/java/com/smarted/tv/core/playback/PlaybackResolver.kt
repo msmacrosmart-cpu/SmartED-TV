@@ -19,7 +19,8 @@ class PlaybackResolver(private val api: StremioApi) {
         // If the origin omits resources but has catalogs, try its stream endpoint once (common in the wild).
         val tryOrigin = origin == null && addons.any { it.url == item.addonUrl && it.manifest.resources.isEmpty() }
         val urls = ordered.map { it.url } + if (tryOrigin) listOf(item.addonUrl) else emptyList()
-        for (url in urls.distinct()) {
+        // Inline HTTP streams are already playable; do not make playback depend on optional providers.
+        for (url in urls.distinct().filterNot { it == item.addonUrl && inline.any { stream -> stream.direct } }) {
             try { streams += api.streams(item.copy(addonUrl = url), id) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { warnings += "Fonte ${url.substringAfter("://").substringBefore('/')}: ${e.message ?: "indisponível"}" }

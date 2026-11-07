@@ -26,11 +26,13 @@ object AddonUrls {
         val builder = base.newBuilder()
         val lastIndex = base.pathSize - 1
         builder.removePathSegment(lastIndex)
-        builder.addPathSegment(resource).addPathSegment(type).addPathSegment("$id.json")
+        builder.addPathSegment(resource).addPathSegment(type)
         if (extra.isNotEmpty()) {
-            // Extra arguments form ONE path segment. Encoding the whole segment would encode & and =.
+            // Extras replace the id segment for catalog requests: /catalog/type/id/key=value.json.
             val args = extra.entries.sortedBy { it.key }.joinToString("&") { (key, value) -> "${encode(key)}=${encode(value)}" }
-            builder.addEncodedPathSegment("$args.json")
+            builder.addPathSegment(id).addEncodedPathSegment("$args.json")
+        } else {
+            builder.addPathSegment("$id.json")
         }
         return builder.build().toString()
     }

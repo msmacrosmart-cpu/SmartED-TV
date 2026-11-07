@@ -19,7 +19,7 @@ class CatalogPager(private val api: com.smarted.tv.core.protocol.StremioApi) {
         val sources = addons.filter { it.scope == scope }.flatMap { addon ->
             addon.manifest.catalogsFor(scope).map { addon to it }
         }
-        if (sources.isEmpty() || cursor?.complete == true) return CatalogPage(emptyList(), null)
+        if (sources.isEmpty() || (cursor != null && cursor.complete)) return CatalogPage(emptyList(), null)
         val progress = cursor?.sources?.toMutableList() ?: MutableList(sources.size) { SourceProgress() }
         var index = cursor?.index ?: 0
         val unique = linkedMapOf<String, MediaItem>()
