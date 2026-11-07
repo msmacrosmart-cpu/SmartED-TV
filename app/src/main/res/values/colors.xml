@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ed_bg">#FF0B0F14</color>
+    <color name="ed_accent">#FFEC92E5</color>
+    <color name="ed_surface">#FF151A1F</color>
+    <color name="ed_fg">#FFF3F5F8</color>
+</resources>

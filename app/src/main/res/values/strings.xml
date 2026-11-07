@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SmartED TV</string>
+    <string name="nav_home">Início</string>
+    <string name="nav_live">Canais</string>
+    <string name="nav_movies">Filmes</string>
+    <string name="nav_series">Séries</string>
+    <string name="nav_guide">Guia</string>
+    <string name="nav_search">Buscar</string>
+    <string name="nav_addons">Addons</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <string name="settings_repository">Trocar / Gerenciar Repositório</string>
+    <string name="settings_sources">Fontes públicas</string>
+    <string name="settings_epg">EPG / XMLTV</string>
+    <string name="settings_tmdb">Chave da API TMDB</string>
+    <string name="action_play">Assistir</string>
+    <string name="action_details">Detalhes</string>
+    <string name="action_back">Voltar</string>
+    <string name="action_sync">Sincronizar</string>
+    <string name="action_refresh">Atualizar</string>
+    <string name="player_live">AO VIVO</string>
+    <string name="player_resolving">Resolvendo link…</string>
+</resources>

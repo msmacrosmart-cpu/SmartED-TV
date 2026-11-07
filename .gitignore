@@ -1,0 +1,33 @@
+# --- Android / Gradle ---
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output.json
+lint-results*.html
+lint-results*.xml
+app/release/
+app/debug/
+keystore.properties
+*.jks
+*.keystore
+google-services.json
+
+# --- Kotlin ---
+.kotlin/
+
+# --- Local tooling / sandbox scratch ---
+.arena/
+node_modules/
+*.log
+tmp/

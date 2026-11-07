@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "note": "Repositórios sugeridos na tela Configurações → Trocar / Gerenciar Repositório.",
+  "repos": [
+    {
+      "id": "brazuca",
+      "name": "Brazuca Play",
+      "url": "https://vkodi.net/repo",
+      "isDefault": true,
+      "description": "Repositório padrão. Traz canais ao vivo, filmes e séries em português."
+    },
+    {
+      "id": "gsource",
+      "name": "GSource",
+      "url": "https://gsource.dpdns.org/repo",
+      "isDefault": false,
+      "description": "Alternativa com grade de EPG própria e catálogo VOD."
+    }
+  ]
+}

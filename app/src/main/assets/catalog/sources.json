@@ -1,0 +1,57 @@
+{
+  "version": 3,
+  "updated": "2026-11-07",
+  "channel": "stable",
+  "note": "Catálogo de fontes públicas do SmartED TV. Este arquivo é o mesmo consumido pela atualização remota em nuvem (Settings → Indexador → URL do catálogo).",
+  "sources": [
+    {
+      "id": "iptv-org-br",
+      "name": "Brasil · Canais ao vivo (iptv-org)",
+      "url": "https://iptv-org.github.io/iptv/countries/br.m3u",
+      "kind": "LIVE",
+      "format": "M3U",
+      "priority": 10,
+      "logo": "https://iptv-org.github.io/logo.png"
+    },
+    {
+      "id": "iptv-org-por",
+      "name": "Português · Canais ao vivo (iptv-org)",
+      "url": "https://iptv-org.github.io/iptv/languages/por.m3u",
+      "kind": "LIVE",
+      "format": "M3U",
+      "priority": 20
+    },
+    {
+      "id": "iptv-org-news",
+      "name": "Notícias · Canais ao vivo (iptv-org)",
+      "url": "https://iptv-org.github.io/iptv/categories/news.m3u",
+      "kind": "LIVE",
+      "format": "M3U",
+      "priority": 30
+    },
+    {
+      "id": "iptv-org-movies",
+      "name": "Cinema · Canais ao vivo (iptv-org)",
+      "url": "https://iptv-org.github.io/iptv/categories/movies.m3u",
+      "kind": "LIVE",
+      "format": "M3U",
+      "priority": 40
+    },
+    {
+      "id": "iptv-org-sports",
+      "name": "Esportes · Canais ao vivo (iptv-org)",
+      "url": "https://iptv-org.github.io/iptv/categories/sports.m3u",
+      "kind": "LIVE",
+      "format": "M3U",
+      "priority": 50
+    },
+    {
+      "id": "epg-best-brazil",
+      "name": "EPG Brasil (epg.best)",
+      "url": "https://epg.best/brazil.xml",
+      "kind": "LIVE",
+      "format": "XMLTV",
+      "priority": 5
+    }
+  ]
+}

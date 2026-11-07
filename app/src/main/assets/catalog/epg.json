@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "note": "Fontes XMLTV candidatas do EPG. A primeira que responder é usada; o restante fica como fallback.",
+  "sources": [
+    { "url": "https://epg.best/brazil.xml", "label": "EPG Brasil (epg.best)", "priority": 10 },
+    { "url": "https://iptv-org.github.io/epg/guides/br/tv.epg.xml", "label": "EPG Brasil (iptv-org)", "priority": 20 },
+    { "url": "https://iptv-org.github.io/epg/guides/pt/tv.epg.xml", "label": "EPG Portugal (iptv-org)", "priority": 30 }
+  ]
+}
