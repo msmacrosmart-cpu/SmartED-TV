@@ -98,9 +98,9 @@ class AppGraph(context: Context) {
         scope.launch {
             val prefs = preferences.value
             if (!prefs.elementumEnabled) return@launch
-            elementum.update { it.copy(updating = true) }
+            elementum.update { current -> current.copy(updating = true) }
             val ok = ElementumClient(prefs.elementumBaseUrl).triggerAutoUpdate()
-            elementum.update { it.copy(updating = false, message = if (ok) "Elementum atualizado (reload de provedores)." : "Elementum não respondeu ao reload.") }
+            elementum.update { current -> current.copy(updating = false, message = if (ok) "Elementum atualizado (reload de provedores)." else "Elementum não respondeu ao reload.") }
         }
     }
 
