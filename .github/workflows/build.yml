@@ -38,7 +38,8 @@ jobs:
           ./gradlew --max-workers=2 :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=2.0.0.${{ github.run_number }} 2>&1 | tee build.log
       - name: Annotate compiler/test failures
         if: failure()
-        run: python3 tools/ci_report.py build.log
+        run: |
+          python3 tools/ci_report.py build.log
           python3 - <<'PY'
           from pathlib import Path
           from xml.etree import ElementTree as ET
