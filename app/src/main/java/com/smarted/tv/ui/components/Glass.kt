@@ -106,6 +106,7 @@ fun SidebarItem(
             .clip(RoundedCornerShape(15.dp))
             .then(if (selected) Modifier.background(Color(0x2EFFFFFF)) else Modifier.background(Brush.linearGradient(listOf(TvColors.GlassTop, TvColors.GlassBottom))))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -115,7 +116,7 @@ fun SidebarItem(
             label, style = MaterialTheme.typography.labelMedium, color = if (focused || selected) Color.White else TvColors.Muted,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
-    }.let { base -> if (focusRequester != null) base.focusRequester(focusRequester) else base }
+    }
 }
 
 /** Linha de conteúdo da Home (título + contagem + carrossel). */
