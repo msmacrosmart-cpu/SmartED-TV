@@ -9,7 +9,7 @@ failures = []
 for i, line in enumerate(lines):
     if ' FAILED' in line or 'AssertionError' in line or 'ComparisonFailure' in line or 'expected:' in line or 'Exception:' in line:
         failures.extend(lines[i:min(i + 9, len(lines))])
-selected = ((failures + errors)[:60] or lines[-30:])
+selected = list(dict.fromkeys((errors + failures)[:80])) or lines[-30:]
 for line in selected:
     clean = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
     print('::error title=SmartED validation::' + clean[:1800])
