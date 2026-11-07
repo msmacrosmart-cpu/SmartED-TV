@@ -10,9 +10,8 @@ for i, line in enumerate(lines):
     if ' FAILED' in line or 'AssertionError' in line or 'ComparisonFailure' in line or 'expected:' in line or 'Exception:' in line:
         failures.extend(lines[i:min(i + 9, len(lines))])
 selected = list(dict.fromkeys((failures + errors)[:100])) or lines[-30:]
-for line in selected:
-    clean = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-    print('::error title=SmartED validation::' + clean[:1800])
+blob = '\n'.join(selected)[:55000]
+print('::error title=SmartED validation::' + blob.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
 summary = '\n'.join(selected + ['\n--- Final log lines ---'] + lines[-50:])
 if 'GITHUB_STEP_SUMMARY' in os.environ:
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:

@@ -28,7 +28,7 @@ class CatalogTest {
         val page = CatalogPager(api).load(listOf(unpaged), Scope.MOVIES, CatalogQuery(), null, emptySet())
         assertNull(page.nextCursor)
         val next = CatalogPager(api).load(listOf(unpaged), Scope.MOVIES, CatalogQuery(), page.nextCursor, emptySet())
-        assertTrue("debug next=" + next.items + " requests=" + api.requests, next.items.isEmpty())
+        assertTrue("next=" + next.items + " requests=" + api.requests + " cursor=" + page.nextCursor, next.items.isEmpty())
         assertEquals(1, api.requests.size)
     }
     @Test fun brokenRepeatedPaginationTerminates() = runTest {

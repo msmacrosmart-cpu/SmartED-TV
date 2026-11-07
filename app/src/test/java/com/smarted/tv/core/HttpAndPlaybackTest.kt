@@ -5,6 +5,7 @@ import com.smarted.tv.core.catalog.programWindow
 import com.smarted.tv.core.model.*
 import com.smarted.tv.core.playback.PlaybackResolver
 import com.smarted.tv.core.protocol.AddonException
+import com.smarted.tv.core.protocol.AddonUrls
 import com.smarted.tv.core.protocol.StremioClient
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
@@ -29,7 +30,7 @@ class HttpAndPlaybackTest {
             StremioClient().use { client ->
                 val addon = testAddon(Scope.MOVIES, server.url("/manifest.json").toString())
                 val items = client.catalog(addon, addon.manifest.catalogs.first(), mapOf("search" to "ação & aventura", "skip" to "100"))
-                assertEquals("debug items=" + items, "A & B", items.single().name)
+                assertEquals("items=" + items + " url=" + AddonUrls.resource(addon.url, "catalog", addon.manifest.catalogs.first().type, addon.manifest.catalogs.first().id, mapOf("search" to "ação & aventura", "skip" to "100")), "A & B", items.single().name)
                 assertEquals("/catalog/movie/top/search=a%C3%A7%C3%A3o%20%26%20aventura&skip=100.json", server.takeRequest().path)
             }
         }
