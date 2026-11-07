@@ -175,6 +175,16 @@ jobs:
           adb devices 2>&1
           find "$HOME/.android/avd" -maxdepth 2 -type f -name '*.ini' -print -exec cat {} \; 2>&1
           echo '::endgroup::'
+      - name: Collect stray logs
+        if: always()
+        run: |
+          set +e
+          mkdir -p app/build/tvevidence
+          cp tv-build.log app/build/tvevidence/ 2>/dev/null
+          find "$RUNNER_TEMP" -maxdepth 2 -name '*.log' -size +0c -exec head -c 200000 {} ';' > app/build/tvevidence/runner-temp-logs.txt 2>/dev/null
+          find "$HOME/.android" -maxdepth 3 -type f \( -name '*.log' -o -name '*.txt' \) -exec sh -c 'echo "== $1"; tail -c 4000 "$1"' _ {} ';' > app/build/tvevidence/android-dir-logs.txt 2>/dev/null
+          ls -la "$HOME/.android/avd" >> app/build/tvevidence/android-dir-logs.txt 2>/dev/null
+          true
       - name: Upload TV evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -185,6 +195,7 @@ jobs:
             app/build/outputs/androidTest-results/
             app/build/tv-player.png
             app/build/tv-logcat.txt
+            app/build/tvevidence/
           if-no-files-found: ignore
 
   release-candidate:
