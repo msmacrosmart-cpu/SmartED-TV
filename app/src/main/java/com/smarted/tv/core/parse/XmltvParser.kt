@@ -129,34 +129,37 @@ object XmltvParser {
 
         fun next(): Token? {
             (queued as Token?)?.let { queued = null; return it }
-            val buf = StringBuilder(64)
-            var c = reader.read()
-            while (c != -1 && c.toChar() != '<') {
-                buf.append(c.toChar())
-                c = reader.read()
-            }
-            if (c == -1) return if (buf.isEmpty()) null else Text(decodeXmlEntities(buf.toString()))
-            val tag = StringBuilder(128)
-            var quoteChar = -1
             while (true) {
-                c = reader.read()
-                if (c == -1) break
-                val ch = c.toChar()
-                tag.append(ch)
-                if (quoteChar != -1) { if (ch.code == quoteChar) quoteChar = -1; continue }
-                if (ch == '"' || ch == '\'') { quoteChar = ch.code; continue }
-                if (ch == '>') break
+                val buf = StringBuilder(64)
+                var c = reader.read()
+                while (c != -1 && c.toChar() != '<') {
+                    buf.append(c.toChar())
+                    c = reader.read()
+                }
+                if (c == -1) return if (buf.isEmpty()) null else Text(decodeXmlEntities(buf.toString()))
+                val tag = StringBuilder(128)
+                var quoteChar = -1
+                while (true) {
+                    c = reader.read()
+                    if (c == -1) break
+                    val ch = c.toChar()
+                    tag.append(ch)
+                    if (quoteChar != -1) { if (ch.code == quoteChar) quoteChar = -1; continue }
+                    if (ch == '"' || ch == '\'') { quoteChar = ch.code; continue }
+                    if (ch == '>') break
+                }
+                val tagToken = classify("<" + tag)
+                if (buf.isNotEmpty()) {
+                    queued = tagToken
+                    return Text(decodeXmlEntities(buf.toString()))
+                }
+                // prolog, comentário e DOCTYPE: classifica como null e segue para o próximo token
+                if (tagToken != null) return tagToken
             }
-            val tagToken = classify(tag.toString())
-            if (buf.isNotEmpty()) {
-                queued = tagToken
-                return Text(decodeXmlEntities(buf.toString()))
-            }
-            return tagToken
         }
 
         private fun classify(raw: String): Token? = when {
-            raw.startsWith("<![CDATA[") -> Text(decodeXmlEntities(raw.removePrefix("<![CDATA[").removeSuffix("]>")))
+            raw.startsWith("<![CDATA[") -> Text(decodeXmlEntities(raw.removePrefix("<![CDATA[").removeSuffix("]]>")))
             raw.startsWith("<?") || raw.startsWith("<!DOCTYPE") || raw.startsWith("<!--") -> null
             else -> {
                 val body = raw.removePrefix("<").removeSuffix(">").trim()

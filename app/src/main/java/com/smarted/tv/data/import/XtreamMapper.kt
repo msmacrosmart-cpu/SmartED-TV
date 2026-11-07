@@ -50,7 +50,7 @@ object XtreamMapper {
     }
 
     fun seasonsFromSeriesInfo(info: JsonObject): List<Pair<Int, String>> {
-        val seasons = (info.obj("seasons") as? JsonArray) ?: return emptyList()
+        val seasons = info["seasons"] as? JsonArray ?: return emptyList()
         return seasons.mapNotNull { el ->
             val obj = el as? JsonObject ?: return@mapNotNull null
             val number = obj.str("season_number").toIntOrNull() ?: return@mapNotNull null

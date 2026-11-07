@@ -47,7 +47,7 @@ object M3uParser {
                 line == "#EXTM3U" || line.startsWith("#EXTM3U ") -> Unit
                 line.startsWith(EXTINF) -> {
                     pending = parseExtInf(line)
-                    pendingGroup = null
+                    // #EXTGRP antes do par (estilo VLC) continua pendurado: só limpa após emitir a linha.
                     pendingHeaders = null
                     pendingNumber = null
                 }
@@ -120,14 +120,14 @@ object M3uParser {
         )
     }
 
-    /** Título após a última vírgula que não esteja dentro de aspas. */
+    /** Título após a primeira vírgula fora de aspas (padrão iptv-org: nomes podem conter vírgulas). */
     private fun extractTitle(body: String): String {
         var inQuotes = false
         var lastComma = -1
         for (i in body.indices) {
             when (body[i]) {
                 '"' -> inQuotes = !inQuotes
-                ',' -> if (!inQuotes) lastComma = i
+                ',' -> if (!inQuotes) { lastComma = i; break }
             }
         }
         return if (lastComma >= 0) body.substring(lastComma + 1) else body
