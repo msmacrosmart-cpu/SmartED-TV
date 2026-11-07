@@ -4,7 +4,7 @@ Este documento fixa a **nova estrutura visual** do SmartED TV e as regras que
 qualquer tela nova deve seguir. Ele substitui o layout anterior (rail sólida de
 76dp + grid de pôsteres 2:3 + hero em cartão arredondado).
 
-Prévia estática do resultado: [`docs/preview/home.html`](preview/home.html).
+Prévia estática do resultado: [`docs/preview/index.html`](preview/index.html).
 
 ---
 

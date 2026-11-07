@@ -19,7 +19,7 @@ texto em **português do Brasil**.
 | Requisito | Implementação |
 |---|---|
 | Identidade visual | Fundo `#07080B`, **acento branco puro `#FFFFFF`** em foco/seleção/ação, 3 camadas de vidro (`Glass.kt`), **doca flutuante de 96dp** com ícone + rótulo, anel de foco de 2–3dp e lift de 3–5% |
-| Layout da Home | **Palco cinematográfico full-bleed** (68% da altura) com backdrop rotativo, classificação indicativa, ano, duração, gêneros, sinopse e as ações "Assistir"/"Detalhes"; abaixo, trilhas horizontais de **cartões 16:10 com o título e os metadados dentro da arte** (`Stage.kt`, `FeatureCard.kt`, `HomeScreen.kt`) — ver [`docs/NOVO-LAYOUT.md`](docs/NOVO-LAYOUT.md) e a [prévia estática](docs/preview/home.html) |
+| Layout da Home | **Palco cinematográfico full-bleed** (68% da altura) com backdrop rotativo, classificação indicativa, ano, duração, gêneros, sinopse e as ações "Assistir"/"Detalhes"; abaixo, trilhas horizontais de **cartões 16:10 com o título e os metadados dentro da arte** (`Stage.kt`, `FeatureCard.kt`, `HomeScreen.kt`) — ver [`docs/NOVO-LAYOUT.md`](docs/NOVO-LAYOUT.md) e a [prévia estática](docs/preview/index.html) |
 | App 100% pt-BR | `strings.xml` como fonte única, locale fixo em `MainActivity`, gate `tools/check-ptbr.py` no CI |
 | Player VLC | `VlcEngine` sobre `libvlc-all` 3.5.1 (codecs + reconexão), fallback automático para ExoPlayer |
 | Layouts por tipo de mídia | **Ao vivo**: zap ◀ ▶ / CH±, áudio, legendas, badge AO VIVO, resolução. **Filmes/Séries**: linha do tempo, capítulos, ±10s/+30s, áudio e legendas |
