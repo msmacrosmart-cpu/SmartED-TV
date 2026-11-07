@@ -86,28 +86,34 @@ O `versionCode` usa o **número do run** do Actions, então é sempre crescente 
 Android aceita atualizar por cima (`adb install -r`). O `versionName` numa branch
 é `1.0.0.<run>`; numa tag é o próprio número da tag.
 
-### Secrets (opcionais, recomendados)
+### Assinatura: já vem configurada
+
+O APK do CI **já sai assinado com chave estável**, sem você configurar nada:
+`signing/release-keystore.json.enc` guarda um keystore PKCS12 cifrado
+(AES-256-GCM, chave derivada por PBKDF2) e o workflow o decifra no runner.
+Detalhes e como trocar a chave em [`signing/README.md`](signing/README.md).
+
+Isso significa que toda atualização pode ser instalada por cima da anterior
+(`adb install -r`).
+
+> ⚠️ A passphrase está no repositório de propósito (ele é público): o objetivo é
+> **estabilidade da assinatura**, não sigilo. Instale APKs apenas das Releases
+> oficiais deste repositório.
+
+### Secrets opcionais
 
 Em *Settings → Secrets and variables → Actions*:
 
 | Secret | Para quê |
 |---|---|
-| `KEYSTORE_BASE64` | keystore de release em base64 — **sem isso o APK usa o debug keystore** e não pode ser atualizado por cima de uma versão assinada antes |
-| `KEYSTORE_PASSWORD` | senha do keystore |
+| `TMDB_API_KEY` | habilita notas, elenco e trailers na ficha |
+| `KEYSTORE_BASE64` | usar um keystore **próprio** em vez do versionado (base64) |
+| `KEYSTORE_PASSWORD` | senha desse keystore |
 | `KEY_ALIAS` | alias da chave |
 | `KEY_PASSWORD` | senha da chave |
-| `TMDB_API_KEY` | habilita notas, elenco e trailers na ficha |
 
-Gerar o keystore e o base64:
-
-```bash
-keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
-        -validity 10000 -alias smarted -storetype JKS
-base64 -w0 release.jks > release.jks.b64   # cole o conteúdo em KEYSTORE_BASE64
-```
-
-> ⚠️ Guarde o `release.jks` e as senhas. Perder a chave impede atualizar o app
-> instalado — só é possível desinstalar e reinstalar (perdendo os dados).
+Se os quatro secrets de keystore existirem, eles têm prioridade sobre o arquivo
+versionado.
 
 ### Baixar o APK
 

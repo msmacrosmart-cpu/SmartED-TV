@@ -146,25 +146,60 @@ jobs:
         id: keystore
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
         run: |
           set -euo pipefail
           if [[ -n "${KEYSTORE_B64:-}" ]]; then
+            # 1) secrets do repositório (recomendado para quem quiser chave própria)
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "→ keystore do repositório (assinado com chave estável)"
+            STORE_PASS="${KEYSTORE_PASS:-}"
+            KEY_PASS_VALUE="${KEY_PASS:-$STOREPASS}"
+            ALIAS="${KEY_ALIAS_VALUE:-smarted}"
+            ORIGIN="secrets do repositório"
+          elif [[ -f signing/release-keystore.json.enc ]]; then
+            # 2) keystore versionado e cifrado (assinatura estável sem configurar nada)
+            python3 - <<'EOF' > "$RUNNER_TEMP/keystore.meta"
+          import base64, hashlib, json, os, sys
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+          blob = json.load(open("signing/release-keystore.json.enc", encoding="utf-8"))
+          salt = base64.b64decode(blob["kdf"]["salt"])
+          key = hashlib.pbkdf2_hmac(
+              "sha256", b"smarted-tv-ci-signing-v1", salt, blob["kdf"]["iterations"], 32
+          )
+          nonce = base64.b64decode(blob["cipher"]["nonce"])
+          plain = AESGCM(key).decrypt(nonce, base64.b64decode(blob["keystore_b64"]), None)
+          out = os.path.join(os.environ["RUNNER_TEMP"], "release.jks")
+          open(out, "wb").write(plain)
+          print("alias=" + blob.get("key_alias", "smarted"))
+          print("store_pass=smarted-tv-ci-signing-v1")
+          EOF
+            ALIAS=$(grep '^alias=' "$RUNNER_TEMP/keystore.meta" | cut -d= -f2)
+            STORE_PASS=$(grep '^store_pass=' "$RUNNER_TEMP/keystore.meta" | cut -d= -f2)
+            KEY_PASS_VALUE="$STORE_PASS"
+            ORIGIN="keystore versionado (signing/release-keystore.json.enc)"
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=APK sem assinatura estável::Configure os secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS e KEY_PASSWORD. O APK será assinado com o debug keystore e não poderá ser atualizado por cima de uma versão anterior."
+            echo "::warning title=APK sem assinatura estável::Sem KEYSTORE_BASE64 e sem signing/release-keystore.json.enc. O APK sai com o debug keystore e não pode ser atualizado por cima."
+            exit 0
           fi
+
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "store_pass=$STORE_PASS" >> "$GITHUB_OUTPUT"
+          echo "key_pass=$KEY_PASS_VALUE" >> "$GITHUB_OUTPUT"
+          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
+          echo "→ assinando com $ORIGIN (alias $ALIAS)"
 
       - name: Build release
         id: gradle
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           RELEASE_STORE_FILE: ${{ steps.keystore.outputs.signed == 'true' && format('{0}/release.jks', runner.temp) || '' }}
-          RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          RELEASE_STORE_PASSWORD: ${{ steps.keystore.outputs.store_pass }}
+          RELEASE_KEY_ALIAS: ${{ steps.keystore.outputs.alias }}
+          RELEASE_KEY_PASSWORD: ${{ steps.keystore.outputs.key_pass }}
         run: |
           set -o pipefail
           ./gradlew :app:assembleRelease \
