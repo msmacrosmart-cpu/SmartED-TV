@@ -15,6 +15,14 @@ Legenda: ✅ entregue e verificado · 🧪 entregue, aguardando teste no aparelh
 | 4 | Player em tela cheia absoluta + foco/seleção/bordas em **branco puro #FFFFFF** | ✅ | `PlayerScreen` (`fillMaxSize` + `setWindowSize` do vout), `EdColors.Accent = 0xFFFFFFFF` | Emulador (abertura) + revisão |
 | 5 | Remover listas **M3U** da arquitetura | ✅ | `SourcesScreen` reescrita, `BrazucaCatalog.configuredSources()` só com repositórios/addon embutido, seletor de modos removido de Catálogo/Ajustes | gates + CI |
 
+**Verificação final (run `42361396378`, release `1.0.0.67`):**
+
+| Job | Resultado |
+| --- | --- |
+| Núcleo (parsers e testes) | ✅ `185 testes OK · 0 falha(s)` |
+| APK de release | ✅ `SmartED-TV-1.0.0.67-release.apk` (41,8 MB) + `SHA256SUMS.txt` |
+| Emulador (celular, x86_64) | ✅ instalação limpa abre o app (pid vivo), interface renderiza, e o **upgrade de um banco v1 real** migra para `user_version = 2` com a coluna `repositories.kinds`, dados preservados e sem crash |
+
 ## Rodada 4 — navegador com seleção manual de mídia
 
 | # | Pedido | Status | Onde | Verificação |
