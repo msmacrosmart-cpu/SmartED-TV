@@ -393,13 +393,13 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
                ORDER BY epg_channel, start_ms""",
             args,
         ).use { cursor ->
-            buildMap {
-                while (cursor.moveToNext()) {
-                    val channel = cursor.getString(0)
-                    val programme = Programme(channel, cursor.getLong(1), cursor.getLong(2), cursor.getString(3), cursor.getString(4) ?: "", cursor.getString(5) ?: "")
-                    getOrPut(channel) { ArrayList() }.add(programme)
-                }
+            val grouped = LinkedHashMap<String, ArrayList<Programme>>()
+            while (cursor.moveToNext()) {
+                val channel = cursor.getString(0)
+                val programme = Programme(channel, cursor.getLong(1), cursor.getLong(2), cursor.getString(3), cursor.getString(4) ?: "", cursor.getString(5) ?: "")
+                grouped.getOrPut(channel) { ArrayList() }.add(programme)
             }
+            grouped
         }
     }
 

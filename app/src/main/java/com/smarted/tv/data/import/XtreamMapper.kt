@@ -21,8 +21,7 @@ object XtreamMapper {
 
     private fun seriesUrl(source: ListSource, episodeStreamId: String, ext: String): String {
         val base = source.url.trim().trimEnd('/')
-        val e = java.net.URLEncoder
-        return "$base/series/${e.encode(source.username, "UTF-8")}/${e.encode(source.password, "UTF-8")}/$episodeStreamId.${ext.ifBlank { "mp4" }}"
+        return "$base/series/${java.net.URLEncoder.encode(source.username, "UTF-8")}/${java.net.URLEncoder.encode(source.password, "UTF-8")}/$episodeStreamId.${ext.ifBlank { "mp4" }}"
     }
 
     fun episodesFromSeriesInfo(source: ListSource, info: JsonObject): List<Episode> {

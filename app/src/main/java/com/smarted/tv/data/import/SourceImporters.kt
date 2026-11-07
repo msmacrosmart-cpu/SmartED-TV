@@ -76,7 +76,7 @@ class SourceImporters(private val store: IptvStore) {
             val prefix = if (classifyGroup(entry.groupName, entry.streamUrl) == null) "ch" else "vod"
             val favKey = uniqueFavKey(source.id, prefix, entry.epgKey, usedKeys)
             when (classifyGroup(entry.groupName, entry.streamUrl)) {
-                null -> live += IptvStore.ImportedChannel(
+                null, Tab.CHANNELS -> live += IptvStore.ImportedChannel(
                     favKey = favKey, number = entry.number, name = entry.name, group = entry.groupName,
                     logo = entry.logoUrl, url = entry.streamUrl, headers = entry.headers, epgKey = entry.epgKey,
                 )
