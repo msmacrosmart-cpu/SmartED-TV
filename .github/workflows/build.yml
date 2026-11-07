@@ -177,33 +177,37 @@ jobs:
 
       # Em caso de falha, os erros de compilação ficam legíveis no resumo do run
       # e num artefato baixável (o log bruto do Actions expira e é grande demais).
-      - name: Resumo da falha de compilação
+      # Publica os erros como anotações do próprio step. Anotações são
+      # consultáveis pela API (o log bruto e os artefatos ficam em blob
+      # storage externo e podem ser inacessíveis).
+      - name: Anotar erros de compilação
         if: failure()
         run: |
           set -euo pipefail
           if [[ ! -f gradle-build.log ]]; then exit 0; fi
-          ERRORS=$(grep -E "^e: |error:|FAILURE:|Caused by:|> Task .* FAILED" gradle-build.log | head -120 || true)
-          if [[ -z "$ERRORS" ]]; then
-            ERRORS="sem linhas de erro reconhecidas; veja o artefato gradle-build-log"
-          fi
+
+          # limita a 12 anotações (teto da API) e 900 chars por mensagem
+          grep -E "^e: |^w: .*(Deprecat|Unresolved)|error:|FAILURE:|Caused by:" gradle-build.log \
+            | head -12 \
+            | while IFS= read -r line; do
+                clean="${line//'%'/%25}"
+                clean="${clean//$'\r'/}"
+                clean="${clean//$'\n'/%0A}"
+                echo "::error title=Gradle::${clean:0:900}"
+              done || true
+
+          echo "== build-tools / JDK =="
+          java -version 2>&1 | head -2 || true
+          echo "== últimas 40 linhas =="
+          tail -40 gradle-build.log || true
+
           {
             echo "## Falha no build"
             echo
             echo "~~~"
-            echo "$ERRORS"
+            grep -E "^e: |FAILURE:|Caused by:|> Task .* FAILED" gradle-build.log | head -60 || true
             echo "~~~"
           } >> "$GITHUB_STEP_SUMMARY"
-          mkdir -p dist
-          cp gradle-build.log dist/gradle-build.log
-
-      - name: Guardar log de falha
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-build-log
-          path: dist/gradle-build.log
-          retention-days: 7
-          if-no-files-found: ignore
 
       - name: Localizar e normalizar APK
         id: apk
