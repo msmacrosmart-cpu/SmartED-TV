@@ -2,9 +2,14 @@ name: SmartED TV — qualidade e APK
 
 "on":
   push:
-    branches: ["**"]
+    branches: ["arena/80abb3ad-smarted-tv"]
   pull_request:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publicar uma release somente após todos os testes'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      ORG_GRADLE_PROJECT_versionCode: ${{ github.run_number }}
+      ORG_GRADLE_PROJECT_versionCode: ${{ 9000 + github.run_number }}
       ORG_GRADLE_PROJECT_versionName: 3.0.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v7
@@ -97,10 +102,9 @@ jobs:
             app/build/outputs/apk/release/
           if-no-files-found: error
 
-  release:
-    name: Release assinado (APK único p/ atualizações)
+  release-candidate:
+    name: APK assinado — somente com qualidade aprovada
     needs: verify
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -152,12 +156,11 @@ jobs:
           name: SmartED-TV-validated-apk
           path: dist/
           if-no-files-found: error
-      - name: Publish signed release (direct download for installs/updates)
+      - name: Publish signed release (download imediato p/ instalar/atualizar)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="v3.0.0.${{ github.run_number }}"
-          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --latest \
+          gh release create "v3.0.0.${{ github.run_number }}" dist/* --target "$GITHUB_SHA" --latest \
             --title "SmartED TV 3.0.0.${{ github.run_number }}" \
-            --notes "Build assinado com a chave de compatibilidade do repositório (signing/release-keystore.json.enc): instalação nova ou atualização por cima de qualquer versão SmartED anterior com a mesma chave. Qualidade: compilação Kotlin +0 warning, testes JVM, lint e APK release verificados com apksigner. Instalar: 'adb install -r SmartED-TV-3.0.0.${{ github.run_number }}.apk' (ou baixar o .apk abaixo). Confira SHA256SUMS.txt."
+            --notes "APK assinado com a chave de compatibilidade do repositório (atualiza por cima de qualquer versão SmartED anterior da mesma chave). Pipeline: gate de arquitetura, compilação Kotlin sem warnings, testes JVM, lint e assembleRelease validado com apksigner. Instalar/atualizar: adb install -r SmartED-TV-3.0.0.${{ github.run_number }}.apk — SHA256 em SHA256SUMS.txt."
