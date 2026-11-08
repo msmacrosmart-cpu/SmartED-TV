@@ -1,6 +1,7 @@
 package com.smarted.tv.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -170,6 +171,7 @@ fun ContentRow(
  * (comportamento do Compose). Este Modifier anexa um BringIntoViewRequester ao item — ao
  * receber foco do D-pad, rola o contêiner pai para torná-lo visível.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.keepFocusInView(): Modifier {
     val requester = remember { BringIntoViewRequester() }
