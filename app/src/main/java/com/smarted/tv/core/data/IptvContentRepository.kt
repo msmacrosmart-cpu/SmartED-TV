@@ -296,7 +296,7 @@ class IptvContentRepository(
     }
 
     /** Nó de pasta no índice remoto, caminhando pathKey ("Pai/Filho") a partir da categoria. */
-    private fun remoteFolder(tab: Tab, pathKey: String): RepositoryNode? {
+    private suspend fun remoteFolder(tab: Tab, pathKey: String): RepositoryNode? {
         val skeleton = remoteSkeleton() ?: return null
         var node = skeleton.children.firstOrNull { it.kind == RepositoryNode.Kind.CATEGORY && it.tab == tab }
             ?: skeleton.children.firstOrNull { it.tab == tab }
