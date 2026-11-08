@@ -1,7 +1,7 @@
 package com.smarted.tv.ui.settings
 
 import androidx.lifecycle.ViewModel
-import com.smarted.tv.core.data.IptvSystem
+import com.smarted.tv.data.system.IptvSystem
 import com.smarted.tv.core.model.PlaylistSource
 
 /** Fachada fina sobre [IptvSystem]: a tela de Configurações não conhece o grafo. */

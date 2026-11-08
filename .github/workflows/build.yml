@@ -7,7 +7,7 @@ name: SmartED TV — APK Release assinado
 
 "on":
   push:
-    branches: ["arena/80abb3ad-smarted-tv"]
+    branches: ["arena/80abb3ad-smarted-tv", "arena/f8d4f8cd-smarted-tv"]
   workflow_dispatch:
 
 permissions:
@@ -33,6 +33,8 @@ jobs:
           echo "ORG_GRADLE_PROJECT_versionCode=$(( ${VERSION_CODE_BASE:-9000} + GITHUB_RUN_NUMBER ))" >> "$GITHUB_ENV"
           echo "ORG_GRADLE_PROJECT_versionName=3.0.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
+      - name: Gate de arquitetura (identidade/camadas — bloqueia)
+        run: python3 tools/check_architecture.py
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -98,3 +100,6 @@ jobs:
           gh release create "v3.0.0.${{ github.run_number }}" dist/* --target "$GITHUB_SHA" --latest \
             --title "SmartED TV 3.0.0.${{ github.run_number }}" \
             --notes "APK Release assinado com a chave de compatibilidade (instala como atualização por cima das versões SmartED anteriores). Compilação direta via ./gradlew assembleRelease — pipeline sem travas de qualidade/emulador, conforme diretriz. Instalar: baixar o .apk na TV (app Downloader) ou \`adb install -r\`. SHA256 em SHA256SUMS.txt."
+      - name: Testes unitários e lint (informativo — não bloqueia a publicação)
+        continue-on-error: true
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon --max-workers=2 --console=plain

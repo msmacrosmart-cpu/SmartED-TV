@@ -1,7 +1,5 @@
 package com.smarted.tv.core.model
 
-import androidx.compose.runtime.Immutable
-
 /**
  * Modelos da camada de UI (layout SmartED "Black Glass"). O adaptador
  * [com.smarted.tv.core.data.IptvContentRepository] projeta as entidades do banco
@@ -14,10 +12,8 @@ const val CAT_ALL = "__all__"
 
 enum class DeviceMode { PHONE, TV }
 
-@Immutable
 data class Category(val id: String, val name: String)
 
-@Immutable
 data class EpgProgram(
     val title: String,
     val startMs: Long,
@@ -29,7 +25,6 @@ data class EpgProgram(
         ((now - startMs).toFloat() / (endMs - startMs).coerceAtLeast(1L)).coerceIn(0f, 1f)
 }
 
-@Immutable
 data class Channel(
     val id: String,
     val number: Int,
@@ -49,7 +44,6 @@ data class Channel(
 
 enum class VodKind { MOVIE, SERIES }
 
-@Immutable
 data class Episode(
     val id: String,
     val number: Int,
@@ -59,10 +53,8 @@ data class Episode(
     val streamUrl: String?,
 )
 
-@Immutable
 data class Season(val number: Int, val episodes: List<Episode>)
 
-@Immutable
 data class VodItem(
     val id: String,
     val kind: VodKind,

@@ -10,14 +10,45 @@
     {
       "name": "Filmes",
       "kind": "m3u",
-      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/2ecf2332-smarted-tv/app/src/main/assets/sample_filmes.m3u",
+      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/f8d4f8cd-smarted-tv/app/src/main/assets/sample_filmes.m3u",
       "update_minutes": 720
     },
     {
       "name": "Séries",
       "kind": "m3u",
-      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/2ecf2332-smarted-tv/app/src/main/assets/sample_series.m3u",
+      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/f8d4f8cd-smarted-tv/app/src/main/assets/sample_series.m3u",
       "update_minutes": 720
     }
-  ]
+  ],
+  "tree": {
+    "name": "Addons",
+    "kind": "root",
+    "children": [
+      {
+        "name": "TV",
+        "kind": "category",
+        "tab": "channels",
+        "children": []
+      },
+      {
+        "name": "Filmes",
+        "kind": "category",
+        "tab": "movies",
+        "children": [
+          { "name": "Filmes · Aventura", "kind": "folder", "children": [] },
+          { "name": "Filmes · Ação", "kind": "folder", "children": [] },
+          { "name": "Filmes · Comédia", "kind": "folder", "children": [] }
+        ]
+      },
+      {
+        "name": "Séries",
+        "kind": "category",
+        "tab": "series",
+        "children": [
+          { "name": "Séries · Ação", "kind": "folder", "children": [] },
+          { "name": "Séries · Drama", "kind": "folder", "children": [] }
+        ]
+      }
+    ]
+  }
 }

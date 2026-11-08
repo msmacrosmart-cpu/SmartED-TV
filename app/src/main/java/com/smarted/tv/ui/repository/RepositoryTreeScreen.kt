@@ -39,13 +39,14 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
         factory = vmFactory { RepositoryTreeViewModel(AppGraph.content) },
     )
     val ui by vm.ui.collectAsState()
+    val message by vm.message.collectAsState()
     val d = LocalDimens.current
     val ctx = LocalContext.current
     val path = ui.path
     val current = path.last()
 
-    LaunchedEffect(ui.message) {
-        ui.message?.let { msg ->
+    LaunchedEffect(message) {
+        message?.let { msg ->
             Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
             vm.consumeMessage()
         }

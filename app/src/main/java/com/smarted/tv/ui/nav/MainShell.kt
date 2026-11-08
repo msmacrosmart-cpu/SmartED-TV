@@ -109,7 +109,7 @@ private fun AppNavHost(
             VodScreen(VodKind.SERIES, e.arguments?.getString("open"), onPlay)
         }
         composable(Dest.SETTINGS.route) { SettingsScreen(mode, onChangeMode) }
-        composable(Dest.REPOSITORY.route) { RepositoryTreeScreen(onPlay = { playback = it }) }
+        composable(Dest.REPOSITORY.route) { RepositoryTreeScreen(onPlay = onPlay) }
     }
 }
 

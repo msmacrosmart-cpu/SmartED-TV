@@ -3,7 +3,7 @@ package com.smarted.tv.ui
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import com.smarted.tv.core.data.AppGraph
-import com.smarted.tv.core.data.isSystemTelevision
+import com.smarted.tv.data.system.isSystemTelevision
 import com.smarted.tv.core.model.DeviceMode
 import com.smarted.tv.ui.mode.ModeSelectScreen
 import com.smarted.tv.ui.nav.MainShell
