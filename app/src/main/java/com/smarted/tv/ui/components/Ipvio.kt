@@ -272,13 +272,43 @@ fun PasteField(
 // ---------------------------------------------------------------- linha do header
 
 @Composable
-fun HeaderTitleBlock(title: String, subtitle: String, modifier: Modifier = Modifier) {
+fun HeaderTitleBlock(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
     Row(modifier.fillMaxWidth().padding(horizontal = dpx(30), vertical = dpx(12)), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, color = Color.White, fontSize = spx(30), fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp, maxLines = 1)
             if (subtitle.isNotBlank()) Text(subtitle, color = TvColors.Muted, fontSize = spx(15), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        ClockHeader(Modifier.padding(end = dpx(6)))
+        actions()
+        ClockHeader(Modifier.padding(horizontal = dpx(10)))
+    }
+}
+
+/** Botão de ícone do header (engrenagem etc.) — vidro fumê, anel branco no foco. */
+@Composable
+fun HeaderIconButton(icon: ImageVector, tag: String, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    val scale by animateFloatAsState(if (focused) 1.08f else 1f, label = "headerIcon")
+    Box(
+        Modifier
+            .testTag(tag)
+            .scale(scale)
+            .onFocusChanged { focused = it.isFocused }
+            .whiteFocus(focused, radius = dpx(20))
+            .padding(dpx(3))
+            .clip(RoundedCornerShape(dpx(16)))
+            .background(if (focused) Color.White else Color(0x14FFFFFF))
+            .border(1.dp, TvColors.Outline, RoundedCornerShape(dpx(16)))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .size(dpx(48)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = if (focused) Color.Black else Color.White, modifier = Modifier.size(dpx(26)))
     }
 }
 

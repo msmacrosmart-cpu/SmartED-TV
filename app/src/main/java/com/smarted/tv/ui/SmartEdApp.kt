@@ -80,6 +80,14 @@ fun SmartEdApp(graph: AppGraph) {
                             Destination.SERIES -> "Séries"
                             Destination.SETTINGS -> "Configurações"
                         },
+                        actions = {
+                            // Configurações sempre a um clique do D-pad — visível na Home e em todas as abas.
+                            if (destination != Destination.SETTINGS) {
+                                com.smarted.tv.ui.components.HeaderIconButton(Icons.Default.Settings, "header-open-settings") {
+                                    destination = Destination.SETTINGS
+                                }
+                            }
+                        },
                     )
                     if (!ui.ready) {
                         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, content = {
