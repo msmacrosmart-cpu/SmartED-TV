@@ -71,9 +71,16 @@ fun SmartEdApp(graph: AppGraph) {
                     SidebarItem("Configurações", Icons.Default.Settings, destination == Destination.SETTINGS, { destination = Destination.SETTINGS })
                 }
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        ClockHeader(Modifier.testTag("clock"))
-                    }
+                    com.smarted.tv.ui.components.HeaderTitleBlock(
+                        title = "SmartED TV",
+                        subtitle = when (destination) {
+                            Destination.HOME -> "Home"
+                            Destination.CHANNELS -> "Canais ao vivo"
+                            Destination.MOVIES -> "Filmes"
+                            Destination.SERIES -> "Séries"
+                            Destination.SETTINGS -> "Configurações"
+                        },
+                    )
                     if (!ui.ready) {
                         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, content = {
                             Text("SmartED TV", color = Color.White, style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
