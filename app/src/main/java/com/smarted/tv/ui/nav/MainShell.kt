@@ -123,7 +123,7 @@ private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifi
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            listOf(Dest.HOME, Dest.CHANNELS, Dest.MOVIES, Dest.SERIES, Dest.SETTINGS).forEach {
+            listOf(Dest.HOME, Dest.CHANNELS, Dest.MOVIES, Dest.SERIES).forEach {
                 RailItem(it, it == current) { onNavigate(it) }
             }
         }
