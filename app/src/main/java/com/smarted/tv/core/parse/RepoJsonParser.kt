@@ -57,6 +57,7 @@ object RepoJsonParser {
                     ?.takeIf { it.isNotBlank() }
                     ?: obj.strOrNull("path")
                     ?.takeIf { it.isNotBlank() }
+                    ?: ""
             if (url.isBlank()) return@mapNotNull null
 
             val kindName = obj.strOrNull("kind")
@@ -122,3 +123,4 @@ object RepoJsonParser {
             else -> null
         }
     }
+}
