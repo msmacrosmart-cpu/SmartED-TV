@@ -113,7 +113,7 @@ private fun AppNavHost(
     }
 }
 
-/** TV: menu lateral fixo em vidro fumê. Início/Canais/Filmes/Séries centralizados; Config. embaixo. */
+/** TV: rail enxuto — Início no centro; Séries embaixo (no lugar de Config., que foi para o relógio). */
 @Composable
 private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifier = Modifier) {
     val d = LocalDimens.current
@@ -123,12 +123,10 @@ private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifi
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            listOf(Dest.HOME, Dest.CHANNELS, Dest.MOVIES, Dest.SERIES).forEach {
-                RailItem(it, it == current) { onNavigate(it) }
-            }
+            RailItem(Dest.HOME, current == Dest.HOME) { onNavigate(Dest.HOME) }
         }
-        RailItem(Dest.SETTINGS, current == Dest.SETTINGS, Modifier.align(Alignment.BottomCenter)) {
-            onNavigate(Dest.SETTINGS)
+        RailItem(Dest.SERIES, current == Dest.SERIES, Modifier.align(Alignment.BottomCenter)) {
+            onNavigate(Dest.SERIES)
         }
     }
 }
@@ -140,7 +138,7 @@ private fun RailItem(dest: Dest, selected: Boolean, modifier: Modifier = Modifie
         onClick = onClick, selected = selected, modifier = modifier.size(d.railItem),
     ) { focused ->
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(dest.icon, dest.label, Modifier.size(26.dp), tint = Smoke.TextPrimary)
+            Icon(dest.icon, dest.label, Modifier.size(22.dp), tint = Smoke.TextPrimary)
             Text(
                 dest.label, fontSize = d.textCaption, maxLines = 1,
                 fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Normal,

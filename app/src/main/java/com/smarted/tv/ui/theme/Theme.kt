@@ -53,7 +53,7 @@ data class Dimens(
 val TvDimens = Dimens(
     screenH = 48.dp, screenV = 27.dp, gutter = 16.dp, corner = 14.dp,
     focusBorder = 3.dp, selectedBorder = 2.dp, hairline = 1.dp, focusScale = 1.06f,
-    railWidth = 96.dp, railItem = 72.dp, fieldHeight = 44.dp, chipHeight = 40.dp, rowHeight = 64.dp,
+    railWidth = 84.dp, railItem = 60.dp, fieldHeight = 44.dp, chipHeight = 40.dp, rowHeight = 64.dp,
     tileWidth = 160.dp, heroHeight = 300.dp,
     textHeadline = 38.sp, textTitle = 20.sp, textBody = 15.sp, textCaption = 13.sp,
     posterMinWidth = 104.dp,

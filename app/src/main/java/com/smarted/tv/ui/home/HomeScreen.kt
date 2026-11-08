@@ -8,13 +8,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.LiveTv
-import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material.icons.rounded.Theaters
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -30,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.smarted.tv.core.data.AppGraph
+import com.smarted.tv.core.model.DeviceMode
 import com.smarted.tv.core.model.PlaybackRequest
 import com.smarted.tv.core.model.VodItem
 import com.smarted.tv.core.model.VodKind
@@ -38,6 +34,7 @@ import com.smarted.tv.core.util.asRating
 import com.smarted.tv.ui.common.vmFactory
 import com.smarted.tv.ui.components.*
 import com.smarted.tv.ui.nav.Dest
+import com.smarted.tv.ui.theme.LocalDeviceMode
 import com.smarted.tv.ui.theme.LocalDimens
 import com.smarted.tv.ui.theme.Smoke
 import kotlinx.coroutines.delay
@@ -50,7 +47,6 @@ fun HomeScreen(
 ) {
     val vm: HomeViewModel = viewModel(factory = vmFactory { HomeViewModel(AppGraph.content) })
     val ui by vm.ui.collectAsState()
-    val favCount by vm.favoriteCount.collectAsState()
     val d = LocalDimens.current
 
     var heroIndex by remember { mutableIntStateOf(0) }
@@ -70,21 +66,6 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(d.gutter + 4.dp),
         ) {
             item { HeroBanner(hero, onPlay, onOpenTitle) }
-            item {
-                val tiles = listOf(
-                    Tile("Canais ao vivo", "${ui.channelCount} canais", Icons.Rounded.LiveTv) { onNavigate(Dest.CHANNELS) },
-                    Tile("Filmes", "${ui.movieCount} filmes", Icons.Rounded.Movie) { onNavigate(Dest.MOVIES) },
-                    Tile("Séries", "${ui.seriesCount} séries", Icons.Rounded.Theaters) { onNavigate(Dest.SERIES) },
-                    Tile("Navegar no Repositório", "Addons · TV · Filmes · Séries", Icons.Rounded.Storage) { onNavigate(Dest.REPOSITORY) },
-                    Tile("Favoritos", "$favCount itens", Icons.Rounded.Favorite) { onNavigate(Dest.CHANNELS) },
-                )
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = d.screenH, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(tiles, key = { it.title }) { QuickTile(it) }
-                }
-            }
             item { PosterRow("Top 10 de hoje", ui.top10, onOpenTitle) }
             item { PosterRow("Adicionados recentemente · Filmes", ui.newMovies, onOpenTitle) }
             item { PosterRow("Adicionados recentemente · Séries", ui.newSeries, onOpenTitle) }
@@ -96,7 +77,17 @@ fun HomeScreen(
             modifier = Modifier.align(Alignment.TopStart).padding(start = d.screenH, top = d.screenV)
                 .glass(RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 8.dp),
         )
-        ClockHeader(Modifier.align(Alignment.TopEnd).padding(top = d.screenV, end = d.screenH))
+        Row(
+            Modifier.align(Alignment.TopEnd).padding(top = d.screenV, end = d.screenH),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (LocalDeviceMode.current == DeviceMode.TV) {
+                TopAction(Dest.REPOSITORY.icon, "Navegar no Repositório") { onNavigate(Dest.REPOSITORY) }
+                TopAction(Dest.SETTINGS.icon, "Configurações") { onNavigate(Dest.SETTINGS) }
+            }
+            ClockHeader()
+        }
     }
 }
 
@@ -150,24 +141,15 @@ private fun HeroBanner(item: VodItem?, onPlay: (PlaybackRequest) -> Unit, onOpen
     }
 }
 
-private data class Tile(val title: String, val subtitle: String, val icon: ImageVector, val onClick: () -> Unit)
-
+/** TV: atalhos só de ícone ao lado do relógio — navegador de repositórios e Configurações. */
 @Composable
-private fun QuickTile(t: Tile) {
-    val d = LocalDimens.current
-    GlassClickable(
-        onClick = t.onClick,
-        modifier = Modifier.width(d.tileWidth).height(64.dp),
-        contentPadding = PaddingValues(horizontal = 14.dp),
-    ) {
-        Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
-            Icon(t.icon, null, Modifier.size(26.dp), tint = Smoke.TextPrimary)
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(t.title, fontSize = d.textBody, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary, maxLines = 1)
-                Text(t.subtitle, fontSize = d.textCaption, color = Smoke.TextSecondary, maxLines = 1)
-            }
-        }
+private fun TopAction(icon: ImageVector, contentDescription: String, onClick: () -> Unit) {
+    GlassClickable(onClick = onClick, modifier = Modifier.size(46.dp)) { focused ->
+        Icon(
+            icon, contentDescription,
+            Modifier.align(Alignment.Center).size(24.dp),
+            tint = if (focused) Smoke.TextPrimary else Smoke.TextSecondary,
+        )
     }
 }
 
