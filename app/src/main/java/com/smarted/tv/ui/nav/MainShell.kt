@@ -113,7 +113,11 @@ private fun AppNavHost(
     }
 }
 
-/** TV: rail com as opções da barra do celular — Início/Canais/Filmes no centro; Séries embaixo. */
+/**
+ * TV: rail com as opções da barra do celular — apenas Início, Canais, Filmes, Séries
+ * e Configurações, em UMA coluna centralizada e proporcional (borda whiteFocus no
+ * item atual/focado vem do GlassClickable).
+ */
 @Composable
 private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifier = Modifier) {
     val d = LocalDimens.current
@@ -126,9 +130,8 @@ private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifi
             RailItem(Dest.HOME, current == Dest.HOME) { onNavigate(Dest.HOME) }
             RailItem(Dest.CHANNELS, current == Dest.CHANNELS) { onNavigate(Dest.CHANNELS) }
             RailItem(Dest.MOVIES, current == Dest.MOVIES) { onNavigate(Dest.MOVIES) }
-        }
-        RailItem(Dest.SERIES, current == Dest.SERIES, Modifier.align(Alignment.BottomCenter)) {
-            onNavigate(Dest.SERIES)
+            RailItem(Dest.SERIES, current == Dest.SERIES) { onNavigate(Dest.SERIES) }
+            RailItem(Dest.SETTINGS, current == Dest.SETTINGS) { onNavigate(Dest.SETTINGS) }
         }
     }
 }
