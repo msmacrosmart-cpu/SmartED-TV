@@ -153,8 +153,9 @@ fun VodScreen(
                             snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
                                 .collect { last -> if (ui.entries.isNotEmpty() && last >= ui.entries.size - 14) vm.loadMore() }
                         }
+                        // Grade estilo Smarters Pro: colunas adaptativas ~150dp com pôster 2:3.
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(if (compact) 4 else 5),
+                            columns = GridCells.Adaptive(if (compact) 132.dp else 150.dp),
                             state = gridState,
                             modifier = Modifier.fillMaxWidth().weight(1f).testTag("vod-grid"),
                             horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),

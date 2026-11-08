@@ -45,14 +45,21 @@ class AppGraph(context: Context) {
 
     private var schedulerStarted = false
 
+    private companion object {
+        /** Rede só depois disto — Home/fontes já estarão renderizadas do banco local. */
+        const val STARTUP_GRACE_MS = 30_000L
+    }
+
     fun initialize() {
         if (schedulerStarted) return
         schedulerStarted = true
         scope.launch {
             preferences.value = settings.read()
-            // primeira passada logo após abrir; depois, minuto em minuto.
+            // Padrão IPVIO: o boot NUNCA toca a rede. Preferências e banco locais primeiro;
+            // auto-update e Elementum só após a janela de graça — Home instantânea mesmo com fontes expiradas.
+            delay(STARTUP_GRACE_MS)
             runAutoUpdateTick()
-            checkElementum()
+            if (preferences.value.elementumEnabled) checkElementum()
             while (true) {
                 delay(60_000)
                 runAutoUpdateTick()

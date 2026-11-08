@@ -54,7 +54,7 @@ fun SmartEdApp(graph: AppGraph) {
     val railFocus = remember { FocusRequester() }
     var railRequestFocus by remember { mutableStateOf(false) }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF22242B), TvColors.Background), radius = 1600f))) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF141519), TvColors.Background), radius = 1600f))) {
         val compact = maxHeight < 600.dp || maxWidth < 1000.dp
         SmartEdTheme(compact = compact) {
             Row(Modifier.fillMaxSize().padding(start = if (compact) 20.dp else 32.dp, end = if (compact) 28.dp else 48.dp, top = if (compact) 18.dp else 30.dp, bottom = if (compact) 16.dp else 26.dp)) {

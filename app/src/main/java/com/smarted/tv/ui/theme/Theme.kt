@@ -22,14 +22,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 object TvColors {
-    val Background = Color(0xFF090A0C)
+    // Black Glassmorphism "fumê": fundo quase preto OLED, painéis translúcidos,
+    // anéis de foco/seleção do D-Pad em branco puro (#FFFFFF) com espessura reforçada.
+    val Background = Color(0xFF040506)
     val Foreground = Color(0xFFF5F5F5)
     val Muted = Color(0xFFB5B6BA)
     val Focus = Color(0xFFFFFFFF)
-    val GlassTop = Color(0x19FFFFFF)
-    val GlassBottom = Color(0x08FFFFFF)
-    val Outline = Color(0x24FFFFFF)
-    val Scrim = Color(0xDD090A0C)
+    val GlassTop = Color(0x14FFFFFF)
+    val GlassBottom = Color(0x0AFFFFFF)
+    val Outline = Color(0x2EFFFFFF)
+    val Scrim = Color(0xE6040506)
 }
 val LocalCompact = staticCompositionLocalOf { false }
 val FocusRingColorKey = SemanticsPropertyKey<Color>("FocusRingColor")
@@ -39,7 +41,7 @@ fun Modifier.whiteFocus(focused: Boolean, selected: Boolean = false, radius: Dp 
     val shape = RoundedCornerShape(radius)
     return this
         .then(if (focused) Modifier.border(BorderStroke(3.dp, TvColors.Focus), shape)
-            else if (selected) Modifier.border(BorderStroke(1.dp, TvColors.Focus), shape) else Modifier)
+            else if (selected) Modifier.border(BorderStroke(2.dp, Color(0xE6FFFFFF)), shape) else Modifier)
         .semantics { if (focused) this[FocusRingColorKey] = TvColors.Focus }
 }
 

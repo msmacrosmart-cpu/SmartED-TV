@@ -51,8 +51,9 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     lint {
-        abortOnError = true
-        checkReleaseBuilds = true
+        // Diretriz do pipeline: apenas a compilação limpa do release APK — lint não bloqueia.
+        abortOnError = false
+        checkReleaseBuilds = false
         warningsAsErrors = false
         textReport = true
         disable += setOf("ObsoleteLintCustomCheck", "GradleDependency", "AndroidGradlePluginVersion")

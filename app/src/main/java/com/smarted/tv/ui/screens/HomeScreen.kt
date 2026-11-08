@@ -8,34 +8,35 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.smarted.tv.core.model.Tab
-import com.smarted.tv.core.model.VodEntry
-import com.smarted.tv.core.sources.StreamRules
 import com.smarted.tv.ui.components.ContinueCard
+import com.smarted.tv.ui.components.HomeGlassButton
 import com.smarted.tv.ui.components.HomeRow
-import com.smarted.tv.ui.components.RemoteImage
-import com.smarted.tv.ui.components.TvAction
-import com.smarted.tv.ui.components.VodPosterCard
 import com.smarted.tv.ui.state.AppViewModel
 import com.smarted.tv.ui.theme.LocalCompact
 import com.smarted.tv.ui.theme.TvColors
-import com.smarted.tv.ui.theme.smokedGlass
-import com.smarted.tv.ui.theme.whiteFocus
 
 /**
- * Início: boas-vindas + atalhos quando não há fontes; com dados, linhas de
- * favoritos ao vivo, continuar assistindo e últimas entradas do repositório local.
+ * Home — Glass TV (padrão da base IPVIO-Stream, sem chamadas de metadados no boot):
+ * Data/Hora no topo (renderizada pela casca), lista de botões fumê CENTRALIZADA para
+ * navegação imediata por D-pad e, abaixo, apenas o que já existe no banco local
+ * (favoritos ao vivo / continuar assistindo). Nada de rede para montar esta tela.
  */
 @Composable
 fun HomeScreen(
@@ -46,115 +47,124 @@ fun HomeScreen(
     onPlay: (PlayRequest) -> Unit,
 ) {
     val ui by app.ui.collectAsState()
+    val compact = LocalCompact.current
     val hasSources = ui.sources.any { it.enabled }
     val noContent = ui.counts.getOrDefault(Tab.CHANNELS, 0) == 0 &&
         ui.counts.getOrDefault(Tab.MOVIES, 0) == 0 && ui.counts.getOrDefault(Tab.SERIES, 0) == 0
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        if (!hasSources || noContent) {
-            WelcomeCard(app, onOpenSettings, hasSources)
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp)) {
+        if (!hasSources || noContent) WelcomeCard(app, onOpenSettings, hasSources)
+
+        // Lista de botões centralizada — vidro fumê, foco branco puro.
+        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier.width(if (compact) 420.dp else 560.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 9.dp else 13.dp),
+            ) {
+                HomeGlassButton(
+                    "Canais ao vivo", countLabel(ui.counts[Tab.CHANNELS], "canais prontos para o play", "Conecte uma fonte para assistir"),
+                    Icons.Default.LiveTv, "home-open-channels", onOpenChannels,
+                )
+                HomeGlassButton(
+                    "Filmes", countLabel(ui.counts[Tab.MOVIES], "títulos no catálogo local", "Busca instantânea na sua lista"),
+                    Icons.Default.Movie, "home-open-movies", { onOpenVod(Tab.MOVIES) },
+                )
+                HomeGlassButton(
+                    "Séries", countLabel(ui.counts[Tab.SERIES], "títulos no catálogo local", "Temporadas e episódios do painel"),
+                    Icons.Default.Tv, "home-open-series", { onOpenVod(Tab.SERIES) },
+                )
+                HomeGlassButton(
+                    "Configurações", if (hasSources) "Fontes, EPG, Elementum e interface" else "Adicionar M3U · Xtream · repositório OnePlay",
+                    Icons.Default.Settings, "home-open-settings", onOpenSettings,
+                )
+            }
         }
-        if (ui.favoriteChannels.isNotEmpty()) {
-            HomeRow("Canais favoritos ao vivo", ui.counts[Tab.CHANNELS], Modifier.testTag("row-fav-channels")) {
-                items(ui.favoriteChannels, key = { "fc-$it" }) { channel ->
-                    FavoriteChannelCard(channel.name, channel.logoUrl, onOpenChannels) {
-                        onPlay(
-                            PlayRequest(
-                                target = com.smarted.tv.core.model.PlaybackTarget(channel.streamUrl, channel.name, channel.headers, true),
-                                title = channel.name, favKey = channel.favKey, kind = "channel",
-                            )
-                        )
+
+        // Faixa inferior: só conteúdo local já carregado (sem sincronizar nada).
+        if (ui.favoriteChannels.isNotEmpty() || ui.continueWatching.isNotEmpty()) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .height(if (compact) 190.dp else 232.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (ui.continueWatching.isNotEmpty()) {
+                    HomeRow("Continuar assistindo", null, Modifier.testTag("row-continue")) {
+                        items(ui.continueWatching, key = { "cw-$it" }) { record ->
+                            ContinueCard(record.title, record.positionMs, record.durationMs, onClick = {
+                                onPlay(
+                                    PlayRequest(
+                                        target = com.smarted.tv.core.model.PlaybackTarget(record.url, record.title, isLive = false),
+                                        title = record.title, favKey = record.favKey, kind = record.kind,
+                                    )
+                                )
+                            })
+                        }
                     }
                 }
-            }
-        }
-        if (ui.continueWatching.isNotEmpty()) {
-            HomeRow("Continuar assistindo", null, Modifier.testTag("row-continue")) {
-                items(ui.continueWatching, key = { "cw-$it" }) { record ->
-                    ContinueCard(record.title, record.positionMs, record.durationMs, onClick = {
-                        onPlay(
-                            PlayRequest(
-                                target = com.smarted.tv.core.model.PlaybackTarget(record.url, record.title, isLive = false),
-                                title = record.title, favKey = record.favKey, kind = record.kind,
-                            )
-                        )
-                    })
+                if (ui.favoriteChannels.isNotEmpty()) {
+                    HomeRow("Canais favoritos ao vivo", ui.counts[Tab.CHANNELS], Modifier.testTag("row-fav-channels")) {
+                        items(ui.favoriteChannels, key = { "fc-$it" }) { channel ->
+                            FavoriteChannelCard(channel.name, channel.logoUrl) {
+                                onPlay(
+                                    PlayRequest(
+                                        target = com.smarted.tv.core.model.PlaybackTarget(channel.streamUrl, channel.name, channel.headers, true),
+                                        title = channel.name, favKey = channel.favKey, kind = "channel",
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-        }
-        if (ui.recentlyAddedMovies.isNotEmpty()) {
-            VodRow("Últimos adicionados · Filmes", ui.recentlyAddedMovies, "row-movies", onPlay = { onVodPlay(it, onPlay) }, onOpenTab = { onOpenVod(Tab.MOVIES) })
-        }
-        if (ui.recentlyAddedSeries.isNotEmpty()) {
-            VodRow("Últimos adicionados · Séries", ui.recentlyAddedSeries, "row-series", onPlay = { onVodPlay(it, onPlay) }, onOpenTab = { onOpenVod(Tab.SERIES) })
-        }
-        if (ui.topMovies.isNotEmpty() && ui.recentlyAddedMovies.isEmpty() && ui.recentlyAddedSeries.isEmpty()) {
-            VodRow("Mais votados · Filmes", ui.topMovies, "row-top", onPlay = { onVodPlay(it, onPlay) }, onOpenTab = { onOpenVod(Tab.MOVIES) })
-        }
-        Spacer(Modifier.height(if (LocalCompact.current) 20.dp else 42.dp))
-    }
-}
-
-private fun onVodPlay(entry: VodEntry, onPlay: (PlayRequest) -> Unit) {
-    if (entry.kind == Tab.SERIES) return // séries abrem pelo catálogo (seleção de episódio)
-    val target = entry.streamUrl.takeIf(StreamRules::isProbablyPlayable) ?: return
-    onPlay(PlayRequest(com.smarted.tv.core.model.PlaybackTarget(target, entry.name, isLive = false), entry.name, entry.favKey, "vod"))
-}
-
-@Composable
-private fun VodRow(title: String, entries: List<VodEntry>, tag: String, onPlay: (VodEntry) -> Unit, onOpenTab: () -> Unit) {
-    HomeRow(title, entries.size, Modifier.testTag(tag)) {
-        item {
-            TvAction("Abrir catálogo →", onOpenTab, compact = true)
-        }
-        items(entries, key = { "v-$it" }) { entry ->
-            Box(Modifier.width(if (LocalCompact.current) 168.dp else 196.dp)) {
-                VodPosterCard(entry, onClick = { if (entry.kind == Tab.SERIES) onOpenTab() else onPlay(entry) })
+                Spacer(Modifier.height(4.dp))
             }
         }
     }
+}
+
+private fun countLabel(count: Int?, noun: String, fallback: String): String {
+    if (count == null || count <= 0) return fallback
+    val formatted = "%,d".format(count).replace(',', '.')
+    return "$formatted $noun"
 }
 
 @Composable
 private fun WelcomeCard(app: AppViewModel, onOpenSettings: () -> Unit, hasSources: Boolean) {
-    var focused by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     Column(
         Modifier.fillMaxWidth().testTag("home-welcome")
-            .smokedGlass(22.dp).whiteFocus(focused, radius = 24.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0x12FFFFFF))
             .clickable(interactionSource = interaction, indication = null, onClick = onOpenSettings)
-            .padding(26.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 22.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(if (hasSources) "Sincronize suas listas" else "Bem-vindo ao SmartED TV", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-        Text(
-            if (hasSources) "Suas fontes estão cadastradas mas sem catálogo local. Atualize cada lista em Configurações → Fontes para importar canais, VOD e EPG."
-            else "Conecte uma playlist M3U/M3U8, um painel Xtream Codes ou um repositório de fontes (estilo OnePlay) em Configurações → Fontes. Tudo fica no banco local do app, com auto-update e EPG sincronizado pelo nome real dos canais.",
-            style = MaterialTheme.typography.bodyMedium, color = TvColors.Muted,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            TvAction("Abrir Configurações", onOpenSettings, primary = true, modifier = Modifier.testTag("home-open-settings"))
-            val ui by app.ui.collectAsState()
-            if (ui.busy.isNotBlank()) Text(ui.busy, color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(if (hasSources) "Sincronize suas listas" else "Bem-vindo ao SmartED TV", style = MaterialTheme.typography.titleLarge, color = Color.White)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                if (hasSources) "As fontes estão cadastradas mas o catálogo local está vazio. Atualize cada lista em Configurações → Fontes."
+                else "Conecte uma playlist M3U, um painel Xtream Codes ou um repositório estilo OnePlay. Tudo fica no banco local — a Home nunca espera rede.",
+                style = MaterialTheme.typography.bodyMedium, color = TvColors.Muted,
+                modifier = Modifier.weight(1f, fill = false), maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
         }
+        val ui by app.ui.collectAsState()
+        if (ui.busy.isNotBlank()) Text(ui.busy, color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-private fun FavoriteChannelCard(name: String, logoUrl: String?, onOpenChannels: () -> Unit, onPlay: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
+private fun FavoriteChannelCard(name: String, logoUrl: String?, onPlay: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Column(
-        Modifier.width(if (LocalCompact.current) 180.dp else 210.dp).testTag("fav-channel-${name.filter(Char::isLetterOrDigit).take(18)}")
-            .onFocusChanged { focused = it.isFocused }
-            .whiteFocus(focused, radius = 20.dp).padding(3.dp)
+        Modifier.width(if (LocalCompact.current) 180.dp else 210.dp)
+            .testTag("fav-channel-${name.filter(Char::isLetterOrDigit).take(18)}")
             .clip(RoundedCornerShape(16.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onPlay),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color(0xFF17181B))) {
-            RemoteImage(logoUrl, name, Modifier.matchParentSize(), androidx.compose.ui.layout.ContentScale.Fit)
+            com.smarted.tv.ui.components.RemoteImage(logoUrl, name, Modifier.matchParentSize(), androidx.compose.ui.layout.ContentScale.Fit)
             Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).background(Color(0xCC111214), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
                 Text("AO VIVO", color = Color.White, style = MaterialTheme.typography.labelMedium)
             }

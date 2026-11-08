@@ -2,6 +2,7 @@ package com.smarted.tv.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -145,6 +146,43 @@ val HomeRowIcons = mapOf(
     "search" to Icons.Default.Search,
     "play" to Icons.Default.PlayArrow,
 )
+
+/** Botão grande da Home centralizada — vidro fumê, foco D-pad branco puro (padrão da diretriz). */
+@Composable
+fun HomeGlassButton(
+    label: String,
+    subtitle: String,
+    icon: ImageVector,
+    tag: String,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    val scale by animateFloatAsState(if (focused) 1.03f else 1f, label = "homeBtnScale")
+    Row(
+        Modifier.fillMaxWidth().testTag(tag)
+            .scale(scale)
+            .onFocusChanged { focused = it.isFocused }
+            .whiteFocus(focused, radius = 22.dp)
+            .padding(3.dp)
+            .clip(RoundedCornerShape(19.dp))
+            .background(
+                if (focused) androidx.compose.ui.graphics.SolidColor(Color(0x2EFFFFFF))
+                else Brush.linearGradient(listOf(TvColors.GlassTop, TvColors.GlassBottom))
+            )
+            .border(1.dp, TvColors.Outline, RoundedCornerShape(19.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 26.dp, vertical = if (LocalCompact.current) 12.dp else 17.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(if (focused) 33.dp else 28.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = TvColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp), tint = if (focused) Color.White else TvColors.Muted)
+    }
+}
 
 @Composable
 fun VodPosterCard(entry: VodEntry, onClick: () -> Unit, modifier: Modifier = Modifier, onFocus: () -> Unit = {}) {
