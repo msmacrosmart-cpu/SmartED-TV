@@ -88,11 +88,7 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
 
         Box(Modifier.weight(1f).fillMaxSize().glass()) {
             if (!ui.loaded) {
-                Row(
-                    Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp))
                 }
             } else if (ui.children.isEmpty()) {

@@ -129,7 +129,7 @@ class RepositoryTreeViewModel(
             val base = foldersOf(node.tab)
             val seen = base.map { it.name.normalized() }.toMutableSet()
             val remoteChildren = remoteCategoryNode(node.tab, node.name)?.children.orEmpty()
-            val extras = remoteChildren.mapNotNull { child ->
+            val extras: List<RepoTreeNode> = remoteChildren.mapNotNull { child ->
                 val name = child.name
                 when {
                     isFolderNode(child) && name != null -> {
@@ -233,25 +233,22 @@ class RepositoryTreeViewModel(
         return RepoTreeNode.Item(kind, node.id ?: url, title, url)
     }
 
-    private fun foldersOf(tab: Tab): List<RepoTreeNode> {
-        val names = when (tab) {
+    private fun foldersOf(tab: Tab): List<RepoTreeNode.Folder> {
+        val names: List<String> = when (tab) {
             Tab.CHANNELS -> channels.value
                 .filter { it.categoryId.isNotBlank() }
-                .distinctBy { it.categoryId }
-                .sortedBy { it.categoryId }
+                .map { it.categoryId }
             Tab.MOVIES -> movies.value
                 .filter { it.categoryId.isNotBlank() }
-                .distinctBy { it.categoryId }
-                .sortedBy { it.categoryId }
+                .map { it.categoryId }
             Tab.SERIES -> series.value
                 .filter { it.categoryId.isNotBlank() }
-                .distinctBy { it.categoryId }
-                .sortedBy { it.categoryId }
-        }
-        return names.map { RepoTreeNode.Folder(it, tab) }
+                .map { it.categoryId }
+        }.distinct().sorted()
+        return names.map { name -> RepoTreeNode.Folder(name, tab) }
     }
 
-    private fun itemsOf(folder: RepoTreeNode.Folder): List<RepoTreeNode> = when (folder.tab) {
+    private fun itemsOf(folder: RepoTreeNode.Folder): List<RepoTreeNode.Item> = when (folder.tab) {
         Tab.CHANNELS -> channels.value
             .filter { it.categoryId == folder.name }
             .sortedBy { it.name }
