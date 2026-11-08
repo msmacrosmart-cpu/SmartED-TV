@@ -406,9 +406,13 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     data class EpgLinkByFavKey(val favKey: String, val epgChannel: String, val confidence: Int)
 
+    /**
+     * Reaplica todos os vínculos EPG: zera as colunas de vínculo (mantendo os canais —
+     * antes um DELETE removia as linhas vinculadas) e grava os novos vínculos.
+     */
     fun applyEpgLinks(links: List<EpgLinkByFavKey>) = withTransaction(writableDatabase) {
         val db = writableDatabase
-        db.delete("channels", "epg_channel IS NOT NULL", null)
+        db.execSQL("UPDATE channels SET epg_channel=NULL, epg_conf=0")
         for (link in links) {
             db.execSQL("UPDATE channels SET epg_channel=?, epg_conf=? WHERE fav_key=?", arrayOf(link.epgChannel, link.confidence, link.favKey))
         }

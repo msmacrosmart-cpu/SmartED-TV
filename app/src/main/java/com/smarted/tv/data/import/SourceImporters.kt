@@ -148,8 +148,12 @@ class SourceImporters(private val store: IptvStore) {
                 logo = item.strOrNull("icon"), url = base.liveUrl(streamId), headers = emptyMap(), epgKey = epgKey,
             )
         }
-        if (live.isEmpty()) warnings += "O painel não retornou canais ao vivo."
-        store.replaceChannels(source.id, live)
+        if (live.isEmpty()) {
+            // Lista vazia não limpa o cache: resposta vazia do painel mantém os canais existentes.
+            warnings += "O painel não retornou canais ao vivo — canais mantidos."
+        } else {
+            store.replaceChannels(source.id, live)
+        }
 
         val movies = importXtreamVod(source, base, Tab.MOVIES)
         val seriesCount = importXtreamVod(source, base, Tab.SERIES)
@@ -210,7 +214,8 @@ class SourceImporters(private val store: IptvStore) {
                 seasons = 0,
             )
         }
-        store.replaceVod(source.id, kind, entries)
+        // Lista vazia não limpa o catálogo: resposta vazia do painel mantém o VOD existente.
+        if (entries.isNotEmpty()) store.replaceVod(source.id, kind, entries)
         return entries.size
     }
 
@@ -244,9 +249,21 @@ class SourceImporters(private val store: IptvStore) {
         val endMs = nowMs + epgWindowHours.coerceIn(3, 72) * 60L * 60_000L
         val parsed = fetchXmltv(epgUrl, startMs, endMs)
         val refs = parsed.channels.values.toList()
+        if (refs.isEmpty() && parsed.programmes.isEmpty()) {
+            // EPG vazio/nulo (lista vazia ou fora da janela): nada é alterado —
+            // grade e vínculos existentes são mantidos até a próxima sincronização válida.
+            return ImportOutcome(
+                0, 0, 0, 0, 0, 0,
+                parsed.warnings + "EPG vazio ou fora da janela — nada foi atualizado.",
+            )
+        }
         val plan = EpgMatcher.buildPlans(store.epgTargets(), refs, store.currentEpgLinks())
-        store.replaceProgrammes(parsed.programmes, parsed.channels.entries.associate { (k, v) -> k to v.displayNames })
-        store.applyEpgLinks(plan.links.map { IptvStore.EpgLinkByFavKey(it.channelKey, it.epgChannel, it.confidence) })
+        if (parsed.programmes.isNotEmpty()) {
+            store.replaceProgrammes(parsed.programmes, parsed.channels.entries.associate { (k, v) -> k to v.displayNames })
+        }
+        if (refs.isNotEmpty()) {
+            store.applyEpgLinks(plan.links.map { IptvStore.EpgLinkByFavKey(it.channelKey, it.epgChannel, it.confidence) })
+        }
         store.trimProgrammesBefore(nowMs - 3 * 60 * 60 * 1000L)
         return ImportOutcome(0, 0, 0, refs.size, parsed.programmes.size, plan.unmatched.size, parsed.warnings)
     }
