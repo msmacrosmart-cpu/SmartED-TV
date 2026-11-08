@@ -20,6 +20,18 @@ import retrofit2.http.Url
 @Serializable
 data class OnePlayIndexDto(
     val name: String? = null,
+    /** Add-ons declarados pelo repositório (tipos universais Kodi: video, programs, radio, ...). */
+    val addons: List<OnePlayAddonDto>? = null,
+    /** Árvore legada (índices antigos sem `addons`): vira um único add-on. */
+    val tree: OnePlayNodeDto? = null,
+)
+
+/** Um add-on do repositório: nome + tipo livre + seu menu recursivo (`tree`). */
+@Serializable
+data class OnePlayAddonDto(
+    val name: String? = null,
+    /** Tipo universal: "video" | "programs" | "radio" | "live" | ... (livre, exatamente como no JSON). */
+    val type: String? = null,
     val tree: OnePlayNodeDto? = null,
 )
 
@@ -80,6 +92,14 @@ fun OnePlayIndexDto.toRepositoryNode(): RepositoryNode? {
     val tree = tree ?: return null
     return tree.toRepositoryNode(parentTab = null, parentPath = "", isRoot = true)
 }
+
+/**
+ * Mapeia a RAIZ do menu de um add-on (campo `tree` de [OnePlayAddonDto]) em nó
+ * ROOT com os filhos recursivos já convertidos em [RepositoryNode] — o menu é
+ * lido exatamente como o JSON declara (sem pastas fixas no app).
+ */
+fun OnePlayNodeDto.toRepositoryMenu(): RepositoryNode =
+    toRepositoryNode(parentTab = null, parentPath = "", isRoot = true)
 
 private fun OnePlayNodeDto.toRepositoryNode(
     parentTab: Tab?,

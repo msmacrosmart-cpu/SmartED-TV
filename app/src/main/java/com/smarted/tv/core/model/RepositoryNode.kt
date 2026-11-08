@@ -9,14 +9,17 @@ package com.smarted.tv.core.model
  * [com.smarted.tv.core.data.ContentRepository] — sem redirecionar para abas estáticas.
  *
  * kinds: `root` (nível 0) → `repository` (lista de repositórios) → `addon`
- * (OnePlay Vídeo Addon / OnePlay Live TV) → `category` (seções/menu do addon,
- * ex.: Canais ao Vivo, Filmes, Séries, Lançamentos) → `folder` → `item`.
+ * (tipos universais Kodi: video, programs, radio, live, ... — [addonType] livre
+ * vindo do JSON, nunca fixo em código) → `category`/`folder` (o fluxo EXATO de
+ * diretórios que o JSON do addon retornar) → `item`.
  *
  * @param id chave estável (LazyColumn + identidade do nó).
  * @param tab seção dona do conteúdo (category/folder/item): define o destino Canais/Filmes/Séries.
  * @param pathKey caminho/categoria crua da pasta ("Pai/Filho" ou groupId) — âncora para o banco e o índice.
  * @param mediaKind itens: "channel" | "movie" | "series" (categoria do conteúdo).
+ * @param addonType tipo universal do add-on ("video" | "programs" | "radio" | ...) — dado, não código.
  * @param repoUrl índice JSON do repositório dono do nó (lookups recursivos no índice).
+ * @param addonId id do add-on dono do menu (para achar a árvore certa no JSON).
  * @param children filhos dinâmicos, preenchidos por `repositoryChildren`.
  */
 data class RepositoryNode(
@@ -29,6 +32,9 @@ data class RepositoryNode(
     val url: String? = null,
     val headers: Map<String, String> = emptyMap(),
     val favKey: String = "",
+    val addonType: String? = null,
+    /** Id do nó ADDON dono deste menu (âncora para servir os filhos recursivos do JSON). */
+    val addonId: String = "",
     val repoUrl: String = "",
     val children: List<RepositoryNode> = emptyList(),
 ) {

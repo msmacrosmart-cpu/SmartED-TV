@@ -35,9 +35,10 @@ import com.smarted.tv.ui.theme.Smoke
 /**
  * Explorador de repositórios no estilo Kodi, 100% navegável via D-pad.
  *
- * Caminho (4 níveis): Repositório › Addons (OnePlay Vídeo Addon / OnePlay Live TV)
- * › menu do addon (Canais ao Vivo, Filmes, Séries, Lançamentos) › pastas/conteúdo
- * › título → diálogo de destino: Reproduzir ou Salvar em Canais/Filmes/Séries.
+ * Caminho (4 níveis): Repositório › Add-ons declarados no JSON (tipos universais
+ * Kodi: video, programs, radio, ...) › menu EXATO do add-on (o fluxo que o JSON
+ * retornar) › subpastas/listas/conteúdo › título → diálogo: Reproduzir ou Salvar
+ * em Canais/Filmes/Séries.
  */
 @Composable
 fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
@@ -159,9 +160,13 @@ private fun NavRow(title: String, icon: ImageVector, onClick: () -> Unit) =
 private fun RepoRow(node: RepositoryNode, onClick: () -> Unit) =
     TreeRow(node.name, Icons.Rounded.Storage, onClick)
 
-/** Nível 2: addon de vídeo (Extensão) ou de canais ao vivo (Live TV). */
-private fun addonIcon(node: RepositoryNode): ImageVector =
-    if (node.id.contains("|live|")) Icons.Rounded.LiveTv else Icons.Rounded.Extension
+/** Nível 2: addon — ícone pelo tipo UNIVERSAL declarado no JSON (desconhecido → puzzle). */
+private fun addonIcon(node: RepositoryNode): ImageVector = when (node.addonType?.lowercase()) {
+    "live", "tv", "channels" -> Icons.Rounded.LiveTv
+    "movies", "films" -> Icons.Rounded.Movie
+    "series" -> Icons.Rounded.Theaters
+    else -> Icons.Rounded.Extension
+}
 
 /**
  * Destino do conteúdo escolhido na árvore: reproduzir agora ou salvar na seção

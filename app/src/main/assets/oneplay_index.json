@@ -10,45 +10,78 @@
     {
       "name": "Filmes",
       "kind": "m3u",
-      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/f8d4f8cd-smarted-tv/app/src/main/assets/sample_filmes.m3u",
+      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/962c30bf-smarted-tv/app/src/main/assets/sample_filmes.m3u",
       "update_minutes": 720
     },
     {
       "name": "Séries",
       "kind": "m3u",
-      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/f8d4f8cd-smarted-tv/app/src/main/assets/sample_series.m3u",
+      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/962c30bf-smarted-tv/app/src/main/assets/sample_series.m3u",
       "update_minutes": 720
     }
   ],
-  "tree": {
-    "name": "Addons",
-    "kind": "root",
-    "children": [
-      {
-        "name": "TV",
-        "kind": "category",
-        "tab": "channels",
-        "children": []
-      },
-      {
-        "name": "Filmes",
-        "kind": "category",
-        "tab": "movies",
+  "addons": [
+    {
+      "name": "ONEPLAY",
+      "type": "video",
+      "tree": {
+        "name": "ONEPLAY",
+        "kind": "root",
         "children": [
-          { "name": "Filmes · Aventura", "kind": "folder", "children": [] },
-          { "name": "Filmes · Ação", "kind": "folder", "children": [] },
-          { "name": "Filmes · Comédia", "kind": "folder", "children": [] }
-        ]
-      },
-      {
-        "name": "Séries",
-        "kind": "category",
-        "tab": "series",
-        "children": [
-          { "name": "Séries · Ação", "kind": "folder", "children": [] },
-          { "name": "Séries · Drama", "kind": "folder", "children": [] }
+          { "name": "::BEM-VINDO AO ONEPLAY::", "kind": "folder", "children": [] },
+          { "name": "VIP", "kind": "folder", "children": [] },
+          {
+            "name": "TV ao vivo",
+            "kind": "category",
+            "tab": "channels",
+            "children": []
+          },
+          {
+            "name": "Filmes",
+            "kind": "category",
+            "tab": "movies",
+            "children": [
+              { "name": "Filmes - Em Alta", "kind": "folder", "children": [] },
+              { "name": "Filmes - Top Avaliados", "kind": "folder", "children": [] },
+              { "name": "Filmes - Em Cartaz", "kind": "folder", "children": [] },
+              { "name": "Filmes - Próximos Lançamentos", "kind": "folder", "children": [] },
+              {
+                "name": "Filmes - Pluto TV",
+                "kind": "folder",
+                "children": [
+                  { "name": "LISTA 1", "kind": "folder", "children": [] },
+                  { "name": "LISTA 2", "kind": "folder", "children": [] },
+                  { "name": "LISTA 3", "kind": "folder", "children": [] },
+                  { "name": "LISTA 4", "kind": "folder", "children": [] },
+                  { "name": "LISTA 5", "kind": "folder", "children": [] },
+                  { "name": "LISTA 6", "kind": "folder", "children": [] },
+                  { "name": "LISTA 7", "kind": "folder", "children": [] }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Séries",
+            "kind": "category",
+            "tab": "series",
+            "children": []
+          },
+          { "name": "Atualização", "kind": "folder", "children": [] },
+          { "name": "Configurações", "kind": "folder", "children": [] }
         ]
       }
-    ]
-  }
+    },
+    {
+      "name": "OnePlay Rádio",
+      "type": "radio",
+      "tree": {
+        "name": "OnePlay Rádio",
+        "kind": "root",
+        "children": [
+          { "name": "Rádios Nacionais", "kind": "folder", "children": [] },
+          { "name": "Rádios Internacionais", "kind": "folder", "children": [] }
+        ]
+      }
+    }
+  ]
 }

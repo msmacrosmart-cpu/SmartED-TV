@@ -12,8 +12,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Explorador de repositórios (estilo Kodi) sobre [RepositoryNode], 4 níveis:
- * [Repositório] (fontes cadastradas) → [Addons] (OnePlay Vídeo Addon / Live TV) →
- * [menu do addon] (Canais ao Vivo, Filmes, Séries, Lançamentos) → pastas → [item].
+ * [Repositório] (fontes cadastradas) → [Addons] do JSON (tipos universais:
+ * video, programs, radio, ...) → [menu EXATO do add-on] (o fluxo que o JSON
+ * retornar) → pastas → [item].
  *
  * Cada nó aberto carrega seus `children` DINAMICAMENTE via
  * [ContentRepository.repositoryChildren] (índice do repositório + banco local) — a UI

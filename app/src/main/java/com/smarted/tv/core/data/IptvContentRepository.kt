@@ -4,8 +4,9 @@ import com.smarted.tv.core.model.*
 import com.smarted.tv.core.util.normalized
 import com.smarted.tv.core.util.toCategoryName
 import com.smarted.tv.data.OnePlayBootstrap
+import com.smarted.tv.data.repo.OnePlayIndexDto
 import com.smarted.tv.data.repo.OnePlayTreeClient
-import com.smarted.tv.data.repo.toRepositoryNode
+import com.smarted.tv.data.repo.toRepositoryMenu
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -165,22 +166,35 @@ class IptvContentRepository(
     // ---------------------------------- Árvore recursiva de repositórios (Kodi)
     //
     // Nível 1: REPOSITÓRIOS — fontes cadastradas kind=REPOSITORY (nunca a pasta "Addons").
-    // Nível 2: ADDONS do repositório — "OnePlay Vídeo Addon", "OnePlay Live TV".
-    // Nível 3: menu/seções do addon — Canais ao Vivo, Filmes, Séries, Lançamentos.
+    // Nível 2: ADDONS do repositório — lidos do JSON (tipos universais Kodi:
+    //          video, programs, radio, ... — nada fixo em código).
+    // Nível 3: menu EXATO do add-on conforme o JSON (subpastas/listas dinâmicas).
     // Nível 4: pastas → itens (diálogo: Reproduzir / Salvar em Canais|Filmes|Séries).
 
-    /** Esqueleto do índice (JSON → RepositoryNode) do repositório dono ([repoUrl]). */
+    /** Índice JSON do repositório dono ([repoUrl]) — cache de melhor esforço. */
     private var indexAttemptedFor: String? = null
-    private var cachedSkeleton: RepositoryNode? = null
+    private var cachedIndex: OnePlayIndexDto? = null
 
-    private suspend fun skeletonFor(repoUrl: String?): RepositoryNode? {
+    private suspend fun indexFor(repoUrl: String?): OnePlayIndexDto? {
         val url = repoUrl?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL
-        if (indexAttemptedFor == url) return cachedSkeleton
+        if (indexAttemptedFor == url) return cachedIndex
         indexAttemptedFor = url
-        cachedSkeleton = runCatching {
-            withTimeoutOrNull(10_000L) { OnePlayTreeClient.load(url) }?.toRepositoryNode()
+        cachedIndex = runCatching {
+            withTimeoutOrNull(10_000L) { OnePlayTreeClient.load(url) }
         }.getOrNull()
-        return cachedSkeleton
+        return cachedIndex
+    }
+
+    /**
+     * Raiz do MENU do add-on dono do nó ([RepositoryNode.addonId]) — do JSON
+     * `addons[i].tree` (formato atual) ou do `tree` legado. É a partir dela que
+     * cada pasta pede seus filhos reais, em qualquer profundidade.
+     */
+    private suspend fun menuRootFor(node: RepositoryNode): RepositoryNode? {
+        val index = indexFor(node.repoUrl) ?: return null
+        val idx = node.addonId.substringAfter("addon|", "").substringBefore("|").toIntOrNull()
+        val tree = (idx?.let { index.addons?.getOrNull(it) }?.tree) ?: index.tree
+        return tree?.toRepositoryMenu()
     }
 
     /** Nível 1: a raiz lista os REPOSITÓRIOS cadastrados (nunca a pasta "Addons"). */
@@ -201,7 +215,8 @@ class IptvContentRepository(
                 id = "repo|${s.id}",
                 name = s.name,
                 kind = RepositoryNode.Kind.REPOSITORY,
-                url = s.url,
+                // O phantom OnePlay sempre usa o índice ATUAL deste branch.
+                url = if (s.name == OnePlayBootstrap.PHANTOM_NAME) OnePlayBootstrap.INDEX_URL else s.url,
             )
         }
         // Nunca um beco sem saída: sem repositório cadastrado, expõe o OnePlay padrão.
@@ -224,114 +239,107 @@ class IptvContentRepository(
                 RepositoryNode.Kind.ROOT -> repositorySources()
                 RepositoryNode.Kind.REPOSITORY -> repositoryAddons(node)
                 RepositoryNode.Kind.ADDON -> addonChildren(node)
-                RepositoryNode.Kind.CATEGORY ->
-                    if (node.id == RELEASES_ID) releasesChildren() else categoryChildren(node)
+                RepositoryNode.Kind.CATEGORY -> categoryChildren(node)
                 RepositoryNode.Kind.FOLDER -> folderChildren(node)
                 RepositoryNode.Kind.ITEM -> emptyList()
             }
         }
 
-    /** Nível 2: addons do repositório — vídeo + live (ex.: OnePlay Vídeo Addon, OnePlay Live TV). */
-    private fun repositoryAddons(repo: RepositoryNode): List<RepositoryNode> {
-        val repoUrl = repo.url?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL
-        return listOf(
-            RepositoryNode(
-                id = "addon|video|${repo.id}",
-                name = "${repo.name} Vídeo Addon",
-                kind = RepositoryNode.Kind.ADDON,
-                repoUrl = repoUrl,
-            ),
-            RepositoryNode(
-                id = "addon|live|${repo.id}",
-                name = "${repo.name} Live TV",
-                kind = RepositoryNode.Kind.ADDON,
-                repoUrl = repoUrl,
-            ),
-        )
-    }
-
-    /** Nível 3: menu nativo do addon (seções) — estilo Kodi. */
-    private suspend fun addonChildren(node: RepositoryNode): List<RepositoryNode> {
-        // Live TV: direto nos grupos de canais (pastas) do addon de canais ao vivo.
-        if (node.id.contains("|live|")) {
-            return categoryChildren(sectionNode("Canais ao Vivo", Tab.CHANNELS, node.repoUrl))
-        }
-        // Vídeo: seções canônicas do addon + categorias extras declaradas no índice.
-        val sections = mutableListOf(
-            sectionNode("Canais ao Vivo", Tab.CHANNELS, node.repoUrl),
-            sectionNode("Filmes", Tab.MOVIES, node.repoUrl),
-            sectionNode("Séries", Tab.SERIES, node.repoUrl),
-            RepositoryNode(
-                id = RELEASES_ID,
-                name = "Lançamentos",
-                kind = RepositoryNode.Kind.CATEGORY,
-                repoUrl = node.repoUrl,
-            ),
-        )
-        val canonical = setOf("tv", "filmes", "series", "séries", "canais ao vivo")
-        for (cat in skeletonFor(node.repoUrl)?.children.orEmpty()) {
-            if (cat.kind != RepositoryNode.Kind.CATEGORY || cat.name.normalized() in canonical) continue
-            sections += cat.copy(repoUrl = node.repoUrl)
-        }
-        return sections
-    }
-
-    private fun sectionNode(name: String, tab: Tab, repoUrl: String) = RepositoryNode(
-        id = "cat|${tab.name}|$name",
-        name = name,
-        kind = RepositoryNode.Kind.CATEGORY,
-        tab = tab,
-        repoUrl = repoUrl,
-    )
-
-    /** Nível 4 da seção Lançamentos: VOD ordenado por data de inclusão (recentes primeiro). */
-    private suspend fun releasesChildren(): List<RepositoryNode> =
-        (vod(VodKind.MOVIE) + vod(VodKind.SERIES))
-            .sortedByDescending { it.addedAtMs }
-            .take(40)
-            .map { v ->
-                val isSeries = v.kind == VodKind.SERIES
+    /**
+     * Nível 2: add-ons declarados NO JSON do repositório (tipos universais Kodi —
+     * video, programs, radio, ...). Sem `addons` no JSON, cai no `tree` legado
+     * (um único add-on); sem índice, um add-on com o conteúdo real do banco.
+     */
+    private suspend fun repositoryAddons(repo: RepositoryNode): List<RepositoryNode> {
+        val url = repo.url?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL
+        val index = indexFor(url)
+        val declared = index?.addons.orEmpty()
+        if (declared.isNotEmpty()) {
+            return declared.mapIndexed { idx, addon ->
                 RepositoryNode(
-                    id = (if (isSeries) "series" else "movie") + "|" + v.id,
-                    name = v.title,
-                    kind = RepositoryNode.Kind.ITEM,
-                    tab = if (isSeries) Tab.SERIES else Tab.MOVIES,
-                    mediaKind = if (isSeries) "series" else "movie",
-                    url = v.streamUrl,
-                    headers = v.headers,
-                    favKey = v.favKey,
+                    id = "addon|$idx|${repo.id}",
+                    name = addon.name?.takeIf { it.isNotBlank() } ?: "${repo.name} Add-on",
+                    kind = RepositoryNode.Kind.ADDON,
+                    addonType = addon.type,
+                    repoUrl = url,
                 )
             }
+        }
+        // Índice legado (só `tree`): um único add-on com aquele menu.
+        if (index?.tree != null) {
+            return listOf(
+                RepositoryNode(
+                    id = "addon|0|${repo.id}",
+                    name = index.name?.takeIf { it.isNotBlank() } ?: repo.name,
+                    kind = RepositoryNode.Kind.ADDON,
+                    repoUrl = url,
+                ),
+            )
+        }
+        // Offline sem índice: add-on único com as pastas REAIS do banco (nada simulado).
+        return listOf(
+            RepositoryNode(
+                id = "addon|0|${repo.id}",
+                name = repo.name,
+                kind = RepositoryNode.Kind.ADDON,
+                repoUrl = url,
+            ),
+        )
+    }
+
+    /**
+     * Nível 3: o menu do add-on é EXATAMENTE o fluxo de diretórios que o JSON
+     * retornar (subpastas, listas, itens) — nenhuma pasta é criada no código.
+     * Sem índice (offline), expõe as pastas reais importadas no banco.
+     */
+    private suspend fun addonChildren(node: RepositoryNode): List<RepositoryNode> {
+        val idx = node.id.substringAfter("addon|", "").substringBefore("|").toIntOrNull() ?: 0
+        val index = indexFor(node.repoUrl)
+        val menuRoot = index?.addons?.getOrNull(idx)?.tree ?: index?.tree
+        if (menuRoot == null) {
+            return Tab.entries.flatMap { localFolders(it) }
+        }
+        return menuRoot.toRepositoryMenu().children.map { it.withAnchor(node.repoUrl, node.id) }
+    }
+
+    /** Propaga repositório + add-on dono para a subárvore mapeada (lookups recursivos). */
+    private fun RepositoryNode.withAnchor(repoUrl: String, addonId: String): RepositoryNode = copy(
+        repoUrl = repoUrl,
+        addonId = addonId,
+        children = children.map { it.withAnchor(repoUrl, addonId) },
+    )
 
     /** Seções: pastas locais da aba + categorias/filhos do índice do repositório. */
     private suspend fun categoryChildren(node: RepositoryNode): List<RepositoryNode> {
-        val skeleton = skeletonFor(node.repoUrl)
+        val menu = menuRootFor(node)
         val tab = node.tab
         if (tab == null) {
             // Categoria do índice sem aba canônica: serve os filhos do índice direto.
-            val skeletonCat = skeleton?.children?.firstOrNull {
+            val skeletonCat = menu?.children?.firstOrNull {
                 it.kind == RepositoryNode.Kind.CATEGORY && it.name.normalized() == node.name.normalized()
             } ?: return emptyList()
             return skeletonCat.children.map { child ->
                 if (child.kind == RepositoryNode.Kind.FOLDER && child.url.isNullOrBlank()) {
-                    child.copy(repoUrl = node.repoUrl)
+                    child.copy(repoUrl = node.repoUrl, addonId = node.addonId)
                 } else {
-                    child
+                    child.copy(repoUrl = node.repoUrl, addonId = node.addonId)
                 }
             }
         }
         val out = LinkedHashMap<String, RepositoryNode>()
-        for (folder in localFolders(tab)) out.getOrPut(folder.id) { folder }
-        val remoteCat = skeleton?.children?.firstOrNull {
+        for (folder in localFolders(tab)) {
+            out.getOrPut(folder.id) { folder.copy(repoUrl = node.repoUrl, addonId = node.addonId) }
+        }
+        val remoteCat = menu?.children?.firstOrNull {
             it.kind == RepositoryNode.Kind.CATEGORY && it.tab == tab &&
                 it.name.normalized() == node.name.normalized()
-        } ?: skeleton?.children?.firstOrNull { it.kind == RepositoryNode.Kind.CATEGORY && it.tab == tab }
+        } ?: menu?.children?.firstOrNull { it.kind == RepositoryNode.Kind.CATEGORY && it.tab == tab }
         for (child in remoteCat?.children.orEmpty()) {
             when {
                 child.kind == RepositoryNode.Kind.FOLDER && child.url.isNullOrBlank() ->
                     out.getOrPut(child.id) { child.copy(repoUrl = node.repoUrl) }
                 child.kind == RepositoryNode.Kind.ITEM ->
-                    out.getOrPut(child.id) { child }
+                    out.getOrPut(child.id) { child.copy(repoUrl = node.repoUrl, addonId = node.addonId) }
                 else -> Unit
             }
         }
@@ -343,40 +351,50 @@ class IptvContentRepository(
      * + itens do banco pertencentes à pasta — carregados sob demanda.
      */
     private suspend fun folderChildren(node: RepositoryNode): List<RepositoryNode> {
-        val tab = node.tab ?: return emptyList()
+        val tab = node.tab
         val subFolders = mutableListOf<RepositoryNode>()
         val remoteItems = mutableListOf<RepositoryNode>()
-        val remote = remoteFolder(tab, node.pathKey, node.repoUrl)
+        val remote = menuFolder(node)
         for (child in remote?.children.orEmpty()) {
             when {
                 child.kind == RepositoryNode.Kind.FOLDER && child.url.isNullOrBlank() -> {
                     val nested = child.copy(
-                        id = "folder|${tab.name}|${node.pathKey}/${child.name}",
+                        id = "folder|${tab?.name ?: "?"}|${node.pathKey}/${child.name}",
                         pathKey = "${node.pathKey}/${child.name}",
                         repoUrl = node.repoUrl,
+                        addonId = node.addonId,
                     )
                     subFolders.add(nested)
                 }
-                child.kind == RepositoryNode.Kind.ITEM -> remoteItems.add(child)
+                child.kind == RepositoryNode.Kind.ITEM -> remoteItems.add(child.copy(addonId = node.addonId, repoUrl = node.repoUrl))
                 else -> Unit
             }
         }
-        val dbItems = localItems(tab, node.pathKey.ifBlank { node.name })
+        val dbItems = if (tab != null) localItems(tab, node.pathKey.ifBlank { node.name }) else emptyList()
         val titles = dbItems.map { it.name.normalized() }.toMutableSet()
         val extraItems = remoteItems.filter { titles.add(it.name.normalized()) }
         return subFolders + dbItems + extraItems
     }
 
-    /** Nó de pasta no índice remoto, caminhando pathKey ("Pai/Filho") a partir da categoria. */
-    private suspend fun remoteFolder(tab: Tab, pathKey: String, repoUrl: String): RepositoryNode? {
-        val skeleton = skeletonFor(repoUrl) ?: return null
-        var node = skeleton.children.firstOrNull { it.kind == RepositoryNode.Kind.CATEGORY && it.tab == tab }
-            ?: skeleton.children.firstOrNull { it.tab == tab }
-            ?: return null
-        for (segment in pathKey.split("/")) {
-            node = node.children.firstOrNull { it.name.normalized() == segment.normalized() } ?: return null
+    /**
+     * Nó da pasta DENTRO do menu do add-on: desce pathKey ("Pai/Filho") a partir
+     * da categoria (quando tem tab) ou da própria raiz do menu (pastas de topo
+     * sem tab, ex.: "VIP", "Rádios Nacionais") — servindo os filhos REAIS do JSON.
+     */
+    private suspend fun menuFolder(node: RepositoryNode): RepositoryNode? {
+        val menu = menuRootFor(node) ?: return null
+        var cur = if (node.tab != null) {
+            menu.children.firstOrNull { it.kind == RepositoryNode.Kind.CATEGORY && it.tab == node.tab }
+                ?: menu.children.firstOrNull { it.tab == node.tab }
+                ?: menu
+        } else {
+            menu
         }
-        return node
+        for (segment in node.pathKey.split("/")) {
+            if (segment.isBlank()) continue
+            cur = cur.children.firstOrNull { it.name.normalized() == segment.normalized() } ?: return null
+        }
+        return cur
     }
 
     /**
@@ -385,15 +403,17 @@ class IptvContentRepository(
      * valor crua para casar com os itens do banco.
      */
     private suspend fun localFolders(tab: Tab): List<RepositoryNode> {
-        val names = when (tab) {
+        val cats = when (tab) {
             Tab.CHANNELS -> channels().map { it.categoryId }
             Tab.MOVIES -> vod(VodKind.MOVIE).map { it.categoryId }
             Tab.SERIES -> vod(VodKind.SERIES).map { it.categoryId }
-        }.filter { it.isNotBlank() }.distinct().sorted()
-        return names.map { raw ->
+        }.filter { it.isNotBlank() }
+        val counts = cats.groupingBy { it }.eachCount()
+        return counts.keys.sorted().map { raw ->
             RepositoryNode(
                 id = "folder|${tab.name}|$raw",
-                name = raw.toCategoryName(),
+                // Ex.: "Canais | Abertos (119)" — contagem real de itens do grupo.
+                name = "${raw.toCategoryName()} (${counts[raw] ?: 0})",
                 kind = RepositoryNode.Kind.FOLDER,
                 tab = tab,
                 pathKey = raw,
@@ -458,7 +478,6 @@ class IptvContentRepository(
     private fun VodKind.toTab(): Tab = if (this == VodKind.SERIES) Tab.SERIES else Tab.MOVIES
 
     private companion object {
-        const val RELEASES_ID = "cat|RELEASES|Lançamentos"
         const val CHAN = "c:"
         const val MOVIE = "m:"
         const val SERIES = "s:"

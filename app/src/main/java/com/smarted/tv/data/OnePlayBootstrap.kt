@@ -23,11 +23,13 @@ object OnePlayBootstrap {
     const val PHANTOM_NAME = "OnePlay"
 
     /**
-     * Índice JSON (RAW) do repositório OnePlay. Este branch carrega a árvore
-     * recursiva `tree` lida pelo módulo Repository/Tree (Retrofit + kotlinx-serialization).
+     * Índice JSON (RAW) do repositório OnePlay — ADDONS com tipos universais
+     * (video, programs, radio, ...) e menus recursivos lidos pelo módulo
+     * Repository/Tree (Retrofit + kotlinx-serialization). Aponta para o branch
+     * deste build para o índice evoluir junto com o app.
      */
     const val INDEX_URL =
-        "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/f8d4f8cd-smarted-tv/app/src/main/assets/oneplay_index.json"
+        "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/962c30bf-smarted-tv/app/src/main/assets/oneplay_index.json"
 
     fun isInitialized(ctx: Context): Boolean =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_INIT, false)
