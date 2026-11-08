@@ -7,7 +7,7 @@ name: SmartED TV — APK Release assinado
 
 "on":
   push:
-    branches: ["arena/80abb3ad-smarted-tv", "arena/f8d4f8cd-smarted-tv"]
+    branches: ["arena/80abb3ad-smarted-tv", "arena/f8d4f8cd-smarted-tv", "arena/962c30bf-smarted-tv"]
   workflow_dispatch:
 
 permissions:
