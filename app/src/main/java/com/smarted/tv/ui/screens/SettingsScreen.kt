@@ -4,7 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.bringIntoViewIfChildrenAreFocused
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -83,7 +88,11 @@ fun SettingsScreen(app: AppViewModel) {
             Modifier.fillMaxHeight().weight(1f).clip(RoundedCornerShape(dpx(26)))
                 .background(Brush.verticalGradient(listOf(Color(0x14FFFFFF), Color(0x08FFFFFF))))
                 .border(1.dp, TvColors.Outline, RoundedCornerShape(dpx(26)))
-                .padding(dpx(24)),
+                .padding(dpx(24))
+                // tudo cabe? ótimo — e o que não couber rola, seguindo o foco do D-pad.
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .bringIntoViewIfChildrenAreFocused(),
             verticalArrangement = Arrangement.spacedBy(dpx(12)),
         ) {
             if (ui.busy.isNotBlank()) {
@@ -95,7 +104,7 @@ fun SettingsScreen(app: AppViewModel) {
             if (ui.message.isNotBlank()) Text("✓ ${ui.message}", color = Color(0xFF9FE8B0), fontSize = spx(16), modifier = Modifier.testTag("settings-message"))
             if (ui.error.isNotBlank()) Text("✕ ${ui.error}", color = Color(0xFFFFC9C9), fontSize = spx(16), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("settings-error"))
             when (page) {
-                SettingsPage.SOURCES -> SourcesPanel(app, ui, Modifier.fillMaxWidth().weight(1f))
+                SettingsPage.SOURCES -> SourcesPanel(app, ui, Modifier.fillMaxWidth())
                 SettingsPage.ELEMENTUM -> ElementumPanel(app, ui)
                 SettingsPage.PLAYBACK -> { val prefs by app.preferences.collectAsState(); PlaybackPanel(prefs, app) }
                 SettingsPage.INTERFACE -> { val prefs by app.preferences.collectAsState(); InterfacePanel(prefs, app) }
@@ -136,9 +145,9 @@ private fun SourcesPanel(app: AppViewModel, ui: AppUi, modifier: Modifier = Modi
             color = TvColors.Muted, fontSize = spx(16),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
-            AddTile("Adicionar lista M3U", "URL da playlist + EPG opcional", Icons.Default.Add, "form-open-m3u") { editing = SettingsForm.M3U }
-            AddTile("Painel Xtream Codes", "http://host:porta + usuário e senha", Icons.Default.Add, "form-open-xtream") { editing = SettingsForm.XTREAM }
-            AddTile("Repositório (OnePlay)", "JSON de fontes com auto-update", Icons.Default.Add, "form-open-repo") { editing = SettingsForm.REPO }
+            AddTile("Lista M3U", "URL + EPG opcional", Icons.Default.Add, "form-open-m3u") { editing = SettingsForm.M3U }
+            AddTile("Painel Xtream", "host:porta + senha", Icons.Default.Add, "form-open-xtream") { editing = SettingsForm.XTREAM }
+            AddTile("Repositório", "JSON estilo OnePlay", Icons.Default.Add, "form-open-repo") { editing = SettingsForm.REPO }
         }
         val form = editing
         if (form != null) {
@@ -153,10 +162,8 @@ private fun SourcesPanel(app: AppViewModel, ui: AppUi, modifier: Modifier = Modi
         }
         if (ui.sources.isNotEmpty()) {
             SectionHead("Fontes (${ui.sources.size})")
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                items(ui.sources, key = { "src-${it.id}" }) { source ->
-                    SourceCard(source, app, interactive = form == null)
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                ui.sources.forEach { source -> SourceCard(source, app, interactive = form == null) }
             }
         }
     }
@@ -298,7 +305,11 @@ private fun SourceCard(source: ListSource, app: AppViewModel, interactive: Boole
         Text(source.url, color = TvColors.Muted, fontSize = spx(15), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (source.status.isNotBlank()) Text(source.status, color = Color(0xFF9FE8B0), fontSize = spx(15), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("source-status-${source.id}"))
         if (source.error.isNotBlank()) Text(source.error, color = Color(0xFFFFC9C9), fontSize = spx(15), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Row(horizontalArrangement = Arrangement.spacedBy(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+        // linha de ações com rolagem horizontal — nunca corta "Remover" em telas menores
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(dpx(10)), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.horizontalScroll(rememberScrollState()).bringIntoViewIfChildrenAreFocused(),
+        ) {
             FilterPill("⟳ Atualizar agora", false, "source-refresh-${source.id}") { if (interactive) app.refreshSource(source.id) }
             if (source.kind != SourceKind.REPOSITORY) FilterPill("Só EPG", false, "source-epg-${source.id}") { if (interactive) app.refreshEpgOnly(source.id) }
             FilterPill(if (source.enabled) "Pausar" else "Ativar", !source.enabled, "source-toggle-${source.id}") { if (interactive) app.toggleSource(source) }
@@ -308,7 +319,6 @@ private fun SourceCard(source: ListSource, app: AppViewModel, interactive: Boole
             if (source.kind == SourceKind.M3U) {
                 FilterPill(if (source.epgUrl.isBlank()) "Especificar EPG" else "Editar EPG", editEpg, "source-epg-edit-open-${source.id}") { editEpg = !editEpg }
             }
-            Spacer(Modifier.weight(1f))
             FilterPill("Remover", false, "source-remove-${source.id}") { if (interactive) app.removeSource(source) }
         }
         if (editEpg) {

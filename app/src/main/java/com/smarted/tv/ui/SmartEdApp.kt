@@ -2,6 +2,9 @@ package com.smarted.tv.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.bringIntoViewIfChildrenAreFocused
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Text
@@ -60,14 +63,15 @@ fun SmartEdApp(graph: AppGraph) {
             Row(Modifier.fillMaxSize().padding(start = if (compact) 20.dp else 32.dp, end = if (compact) 28.dp else 48.dp, top = if (compact) 18.dp else 30.dp, bottom = if (compact) 16.dp else 26.dp)) {
                 // rail lateral — Início/Canais/Filmes/Séries centralizados, Configurações no fim.
                 Column(
-                    Modifier.fillMaxHeight().width(if (compact) 92.dp else 104.dp).padding(top = 44.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp, Alignment.CenterVertically),
+                    Modifier.fillMaxHeight().width(if (compact) 92.dp else 104.dp).padding(top = 18.dp, bottom = 8.dp)
+                        .verticalScroll(rememberScrollState()).bringIntoViewIfChildrenAreFocused(),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp, Alignment.CenterVertically),
                 ) {
                     SidebarItem("Início", Icons.Default.Home, destination == Destination.HOME, { destination = Destination.HOME }, focusRequester = railFocus)
                     SidebarItem("Canais", Icons.Default.LiveTv, destination == Destination.CHANNELS, { destination = Destination.CHANNELS })
                     SidebarItem("Filmes", Icons.Default.Movie, destination == Destination.MOVIES, { destination = Destination.MOVIES })
                     SidebarItem("Séries", Icons.Default.Tv, destination == Destination.SERIES, { destination = Destination.SERIES })
-                    Spacer(Modifier.height(if (compact) 18.dp else 34.dp))
+                    Spacer(Modifier.height(if (compact) 10.dp else 16.dp))
                     SidebarItem("Configurações", Icons.Default.Settings, destination == Destination.SETTINGS, { destination = Destination.SETTINGS })
                 }
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {

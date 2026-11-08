@@ -108,7 +108,7 @@ fun SidebarItem(
             .then(if (selected) Modifier.background(Color(0x2EFFFFFF)) else Modifier.background(Brush.linearGradient(listOf(TvColors.GlassTop, TvColors.GlassBottom))))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

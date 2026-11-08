@@ -1,6 +1,7 @@
 package com.smarted.tv.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.bringIntoViewIfChildrenAreFocused
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -95,7 +96,7 @@ fun HomeScreen(
             ui.recentlyAddedMovies.isNotEmpty() || ui.recentlyAddedSeries.isNotEmpty()
         if (hasRows) {
             Column(
-                Modifier.fillMaxWidth().height(dpx(330)).verticalScroll(rememberScrollState()),
+                Modifier.fillMaxWidth().height(dpx(330)).verticalScroll(rememberScrollState()).bringIntoViewIfChildrenAreFocused(),
                 verticalArrangement = Arrangement.spacedBy(dpx(16)),
             ) {
                 if (ui.continueWatching.isNotEmpty()) {
