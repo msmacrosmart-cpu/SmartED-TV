@@ -17,13 +17,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smarted.tv.core.data.AppGraph
 import com.smarted.tv.core.model.PlaybackRequest
 import com.smarted.tv.core.model.Tab
 import com.smarted.tv.ui.repository.RepositoryTreeViewModel.RepoTreeNode
 import com.smarted.tv.ui.common.vmFactory
+import com.smarted.tv.ui.components.GlassButton
 import com.smarted.tv.ui.components.GlassClickable
+import com.smarted.tv.ui.components.GlassPanel
 import com.smarted.tv.ui.components.glass
 import com.smarted.tv.ui.theme.LocalDimens
 import com.smarted.tv.ui.theme.Smoke
@@ -31,8 +35,8 @@ import com.smarted.tv.ui.theme.Smoke
 /**
  * Navegador de repositório no estilo Kodi (árvore de pastas), 100% navegável via D-pad.
  *
- * Caminho obrigatório:
- *   Repositório › Addons › TV / Filmes / Séries › pasta interna (ex. Canais Globo, Aventura) › título (reproduzir)
+ * Caminho: Repositório › Addons › subpastas reais do repositório (ex. Filmes · Aventura)
+ * › título → diálogo de destino: Reproduzir ou Salvar em Canais/Filmes/Séries.
  */
 @Composable
 fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
@@ -41,6 +45,7 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
     )
     val ui by vm.ui.collectAsState()
     val message by vm.message.collectAsState()
+    val pending by vm.pending.collectAsState()
     val d = LocalDimens.current
     val ctx = LocalContext.current
     val path = ui.path
@@ -107,7 +112,7 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
                 ) {
                     items(items = ui.children, key = { it.key() }) { node ->
                         when (node) {
-                            is RepoTreeNode.Item -> ItemRow(node) { vm.select(node, onPlay) }
+                            is RepoTreeNode.Item -> ItemRow(node) { vm.select(node) }
                             RepoTreeNode.Addons -> NavRow("Addons", Icons.Rounded.Extension) {
                                 vm.navigateInto(node)
                             }
@@ -125,6 +130,18 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
         }
     }
 
+    // Diálogo de destino do conteúdo escolhido: reproduzir ou salvar na seção da categoria.
+    pending?.let { item ->
+        ItemActionDialog(
+            item = item,
+            section = vm.sectionOf(item),
+            saved = vm.isSaved(item),
+            onPlay = { vm.confirmPlay(onPlay) },
+            onSave = { vm.saveSelected() },
+            onDismiss = { vm.dismissSelection() },
+        )
+    }
+
     // Dentro da árvore, Voltar sobe um nível; na raiz, o MainShell devolve ao Início.
     BackHandler(enabled = path.size > 1) { vm.goBack() }
 }
@@ -132,6 +149,61 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
 @Composable
 private fun NavRow(title: String, icon: ImageVector, onClick: () -> Unit) =
     TreeRow(title, icon, onClick)
+
+/**
+ * Destino do conteúdo escolhido na árvore: reproduzir agora ou salvar na seção
+ * da categoria (Canais/Filmes/Séries) — o usuário escolhe onde o conteúdo vai parar.
+ */
+@Composable
+private fun ItemActionDialog(
+    item: RepoTreeNode.Item,
+    section: String,
+    saved: Boolean,
+    onPlay: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val d = LocalDimens.current
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        GlassPanel(Modifier.fillMaxWidth().widthIn(max = 640.dp), padding = 16.dp) {
+            Column(
+                Modifier.fillMaxWidth().padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    item.title,
+                    fontSize = d.textTitle,
+                    fontWeight = FontWeight.Bold,
+                    color = Smoke.TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "Conteúdo ${item.mediaKindLabel()} — escolha reproduzir ou salvar em $section.",
+                    fontSize = d.textCaption,
+                    color = Smoke.TextSecondary,
+                )
+                GlassButton("Reproduzir", Icons.Rounded.PlayArrow, onPlay)
+                GlassButton(
+                    if (saved) "Remover de $section" else "Salvar em $section",
+                    if (saved) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    onSave,
+                )
+                GlassButton("Cancelar", Icons.Rounded.Close, onDismiss)
+            }
+        }
+    }
+}
+
+/** Rótulo amigável da categoria do item (para o diálogo de destino). */
+private fun RepoTreeNode.Item.mediaKindLabel() = when (mediaKind) {
+    "channel" -> "de canais"
+    "series" -> "de séries"
+    else -> "de filmes"
+}
 
 @Composable
 private fun CategoryRow(node: RepoTreeNode.Category, onClick: () -> Unit) =

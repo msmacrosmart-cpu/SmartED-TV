@@ -21,11 +21,19 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Navegação por árvore do repositório (estilo Kodi):
- * [Repositório] → [Addons] → [TV / Filmes / Séries] → [subpastas] → [título].
+ * [Repositório] → [Addons] → [subpastas reais do índice/banco] → [subpastas] → [título].
+ *
+ * O nível Addons NÃO cai mais nas categorias engessadas "TV / Filmes / Séries": ele
+ * reflete a estrutura de pastas real do repositório (índice OnePlay, na ordem declarada)
+ * somada às pastas das fontes importadas no banco — exploração livre como no Kodi.
+ * As categorias canônicas só aparecem como último recurso (offline sem índice e sem banco).
  *
  * As pastas/títulos vêm do banco local (importação das fontes) e, em melhor esforço,
  * da árvore recursiva do índice OnePlay lida via [OnePlayTreeClient] (Retrofit +
  * kotlinx-serialization). Falha de rede/índice => `null` => apenas árvore local.
+ *
+ * Selecionar um título abre o diálogo de destino: Reproduzir ou Salvar em
+ * Canais/Filmes/Séries (conforme a categoria do conteúdo).
  */
 class RepositoryTreeViewModel(
     private val repo: ContentRepository,
@@ -123,7 +131,7 @@ class RepositoryTreeViewModel(
     private fun childrenOf(node: RepoTreeNode): List<RepoTreeNode> = when (node) {
         RepoTreeNode.Root -> listOf(RepoTreeNode.Addons)
 
-        RepoTreeNode.Addons -> defaultCategories() + remoteExtraCategories()
+        RepoTreeNode.Addons -> addonChildren()
 
         is RepoTreeNode.Category -> {
             val base = foldersOf(node.tab)
@@ -166,22 +174,47 @@ class RepositoryTreeViewModel(
         is RepoTreeNode.Item -> emptyList()
     }
 
-    /** Caminho obrigatório da UI: Addons → TV / Filmes / Séries (nunca depende da rede). */
+    /** Último recurso (offline sem índice e sem banco): as 3 categorias canônicas. */
     private fun defaultCategories() = listOf(
         RepoTreeNode.Category(Tab.CHANNELS, "TV"),
         RepoTreeNode.Category(Tab.MOVIES, "Filmes"),
         RepoTreeNode.Category(Tab.SERIES, "Séries"),
     )
 
-    /** Categorias extras que o índice remoto trouxer (as 3 canônicas sempre vêm primeiro). */
-    private fun remoteExtraCategories(): List<RepoTreeNode> {
-        val remote = remoteRoot?.children ?: return emptyList()
-        val baseTabs = defaultCategories().map { it.tab }.toSet()
-        return remote.mapNotNull { child ->
-            val tab = tabOf(child) ?: return@mapNotNull null
-            val name = child.name ?: return@mapNotNull null
-            RepoTreeNode.Category(tab, name)
-        }.filter { cat -> cat.tab !in baseTabs }
+    /**
+     * Addons estilo Kodi: cai DIRETO na estrutura real de pastas — as subpastas declaradas
+     * no índice OnePlay (na ordem em que o repositório as declara) + as pastas das fontes
+     * importadas (banco local) em todas as abas, deduplicadas por (aba, nome). Itens soltos
+     * do índice também aparecem. Só sem índice E sem banco volta para [defaultCategories].
+     */
+    private fun addonChildren(): List<RepoTreeNode> {
+        val out = LinkedHashMap<String, RepoTreeNode>()
+        // 1) Subpastas do índice real (ex.: "Filmes · Aventura"), na ordem do repositório.
+        for (cat in remoteRoot?.children.orEmpty()) {
+            val tab = tabOf(cat) ?: continue
+            for (child in cat.children.orEmpty()) {
+                val name = child.name
+                when {
+                    name != null && child.url.isNullOrBlank() && isFolderNode(child) ->
+                        out.getOrPut(RepoTreeNode.Folder(name, tab).key()) { RepoTreeNode.Folder(name, tab) }
+                    else ->
+                        toItem(child, fallbackKind(tab))?.let { out.getOrPut(it.key()) { it } }
+                }
+            }
+        }
+        // 2) Itens diretos na raiz do índice (sem categoria).
+        for (child in remoteRoot?.children.orEmpty()) {
+            if (child.url.isNullOrBlank()) continue
+            val kind = child.kind?.takeIf { it == "channel" || it == "movie" || it == "series" }
+                ?: tabOf(child)?.let { fallbackKind(it) } ?: continue
+            toItem(child, kind)?.let { out.getOrPut(it.key()) { it } }
+        }
+        // 3) Pastas das fontes importadas no banco (grupos de canais, filmes, séries).
+        for (tab in Tab.entries) {
+            for (folder in foldersOf(tab)) out.getOrPut(folder.key()) { folder }
+        }
+        // Nunca um beco sem saída: sem índice e sem banco, categorias canônicas.
+        return out.values.toList().ifEmpty { defaultCategories() }
     }
 
     /** Nó de categoria no índice remoto: por nome e, na dúvida, por aba. */
@@ -276,10 +309,67 @@ class RepositoryTreeViewModel(
         }
     }
 
-    fun select(node: RepoTreeNode.Item, onPlay: (PlaybackRequest) -> Unit) {
+    // ── Seleção de conteúdo: destino (reproduzir) ou salvamento na seção da categoria ──
+
+    private val _pending = MutableStateFlow<RepoTreeNode.Item?>(null)
+    val pending = _pending.asStateFlow()
+
+    /** Abre o diálogo de destino para o item escolhido na árvore. */
+    fun select(node: RepoTreeNode.Item) {
+        _pending.value = node
+    }
+
+    fun dismissSelection() {
+        _pending.value = null
+    }
+
+    /** Reproduz o item escolhido (séries carregam temporadas/episódios sob demanda). */
+    fun confirmPlay(onPlay: (PlaybackRequest) -> Unit) {
+        val node = _pending.value ?: return
+        _pending.value = null
         when (node.mediaKind) {
             "series" -> playSeries(node, onPlay)
             else -> onPlay(toRequest(node))
+        }
+    }
+
+    /** Prefixo de id favorito por categoria: channel→c:, movie→m:, series→s:. */
+    private fun favoriteId(node: RepoTreeNode.Item): String {
+        val prefix = when (node.mediaKind) {
+            "channel" -> "c:"
+            "series" -> "s:"
+            else -> "m:"
+        }
+        return prefix + node.favKey.ifBlank { node.id }
+    }
+
+    /** Seção de destino do conteúdo conforme a categoria. */
+    fun sectionOf(node: RepoTreeNode.Item): String = when (node.mediaKind) {
+        "channel" -> "Canais"
+        "series" -> "Séries"
+        else -> "Filmes"
+    }
+
+    fun isSaved(node: RepoTreeNode.Item): Boolean = favoriteId(node) in repo.favoriteIds.value
+
+    /**
+     * Salva o item na seção da sua categoria (Canais/Filmes/Séries); se já estava
+     * salvo, remove. O resultado vai para [message] (toast na UI).
+     */
+    fun saveSelected() {
+        val node = _pending.value ?: return
+        _pending.value = null
+        val id = favoriteId(node)
+        val section = sectionOf(node)
+        val wasSaved = isSaved(node)
+        runCatching { repo.toggleFavorite(id) }.onSuccess {
+            _message.value = if (wasSaved) {
+                "Removido de $section: ${node.title}"
+            } else {
+                "Salvo em $section: ${node.title}"
+            }
+        }.onFailure {
+            _message.value = "Falha ao salvar em $section: ${it.message ?: it.javaClass.simpleName}"
         }
     }
 
