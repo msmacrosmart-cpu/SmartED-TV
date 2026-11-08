@@ -114,6 +114,7 @@ private fun OnePlayNodeDto.toRepositoryNode(
     }
     val nodeId = when (nodeKind) {
         RepositoryNode.Kind.ROOT -> "root"
+        RepositoryNode.Kind.REPOSITORY -> "repo|$title"
         RepositoryNode.Kind.ADDON -> "addon|$title"
         RepositoryNode.Kind.CATEGORY -> "cat|${tab?.name ?: "?"}|$title"
         RepositoryNode.Kind.FOLDER -> "folder|${tab?.name ?: "?"}|$pathKey"

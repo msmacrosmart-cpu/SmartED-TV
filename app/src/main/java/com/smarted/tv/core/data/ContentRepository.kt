@@ -26,8 +26,8 @@ interface ContentRepository {
     suspend fun loadSeasons(vodId: String): List<Season> = emptyList()
 
     /**
-     * Raiz da árvore de repositórios recursiva (estilo Kodi) — nós
-     * `root`/`addon`/`category`/`folder`/`item` de [RepositoryNode].
+     * Raiz da árvore de repositórios recursiva (estilo Kodi) — níveis
+     * `root` → `repository` → `addon` → `category` → `folder` → `item` de [RepositoryNode].
      */
     suspend fun repositoryRoot(): RepositoryNode = RepositoryNode(
         id = "root",
@@ -36,9 +36,9 @@ interface ContentRepository {
     )
 
     /**
-     * Filhos dinâmicos de qualquer nó da árvore: cada pasta, ao ser aberta,
-     * carrega sua lista de `children` (subpastas, add-ons ou conteúdos) —
-     * índice OnePlay + banco local, sem forçar abas estáticas.
+     * Filhos dinâmicos de qualquer nó da árvore: cada nível (repositórios,
+     * addons, seções do addon, pastas) carrega sua lista de `children` sob
+     * demanda — índice JSON do repositório + banco local, sem abas estáticas.
      */
     suspend fun repositoryChildren(node: RepositoryNode): List<RepositoryNode> = emptyList()
 

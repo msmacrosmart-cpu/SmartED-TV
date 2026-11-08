@@ -33,9 +33,10 @@ import com.smarted.tv.ui.theme.LocalDimens
 import com.smarted.tv.ui.theme.Smoke
 
 /**
- * Navegador de repositório no estilo Kodi (árvore de pastas), 100% navegável via D-pad.
+ * Explorador de repositórios no estilo Kodi, 100% navegável via D-pad.
  *
- * Caminho: Repositório › Addons › subpastas reais do repositório (ex. Filmes · Aventura)
+ * Caminho (4 níveis): Repositório › Addons (OnePlay Vídeo Addon / OnePlay Live TV)
+ * › menu do addon (Canais ao Vivo, Filmes, Séries, Lançamentos) › pastas/conteúdo
  * › título → diálogo de destino: Reproduzir ou Salvar em Canais/Filmes/Séries.
  */
 @Composable
@@ -113,7 +114,10 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
                     items(items = ui.children, key = { it.id }) { node ->
                         when (node.kind) {
                             RepositoryNode.Kind.ITEM -> ItemRow(node) { vm.select(node) }
-                            RepositoryNode.Kind.ADDON -> NavRow(node.name, Icons.Rounded.Extension) {
+                            RepositoryNode.Kind.REPOSITORY -> RepoRow(node) {
+                                vm.navigateInto(node)
+                            }
+                            RepositoryNode.Kind.ADDON -> NavRow(node.name, addonIcon(node)) {
                                 vm.navigateInto(node)
                             }
                             RepositoryNode.Kind.CATEGORY -> CategoryRow(node) {
@@ -149,6 +153,15 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
 @Composable
 private fun NavRow(title: String, icon: ImageVector, onClick: () -> Unit) =
     TreeRow(title, icon, onClick)
+
+/** Nível 1: repositório cadastrado (OnePlay, etc.). */
+@Composable
+private fun RepoRow(node: RepositoryNode, onClick: () -> Unit) =
+    TreeRow(node.name, Icons.Rounded.Storage, onClick)
+
+/** Nível 2: addon de vídeo (Extensão) ou de canais ao vivo (Live TV). */
+private fun addonIcon(node: RepositoryNode): ImageVector =
+    if (node.id.contains("|live|")) Icons.Rounded.LiveTv else Icons.Rounded.Extension
 
 /**
  * Destino do conteúdo escolhido na árvore: reproduzir agora ou salvar na seção

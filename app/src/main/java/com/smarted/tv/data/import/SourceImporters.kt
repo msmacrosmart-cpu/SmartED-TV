@@ -10,6 +10,7 @@ import com.smarted.tv.core.parse.XmltvParser
 import com.smarted.tv.core.repo.RepoIndex
 import com.smarted.tv.core.sources.StreamRules
 import com.smarted.tv.core.text.TextNormalizer
+import com.smarted.tv.core.util.toCategoryName
 import com.smarted.tv.data.db.IptvStore
 import com.smarted.tv.data.json.double
 import com.smarted.tv.data.json.long
@@ -379,7 +380,9 @@ class XtreamClient(private val source: ListSource) {
     }
 
     suspend fun categoryMap(action: String): Map<String, String> =
-        get(action).associate { item -> item.str("category_id") to item.str("category_name") }.filterKeys(String::isNotBlank)
+        get(action).associate { item ->
+            item.str("category_id") to item.str("category_name").toCategoryName()
+        }.filterKeys(String::isNotBlank)
 
     /** Detalhamento sob demanda (plot/ano) — tolerante a painéis que não implementam. */
     suspend fun vodInfo(streamId: String): JsonObject? =

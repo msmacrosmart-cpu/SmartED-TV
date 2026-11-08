@@ -11,11 +11,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Navegação por árvore recursiva de repositórios (estilo Kodi) sobre [RepositoryNode]:
- * [Repositório] → [Addons] → pastas/sub-repositórios/ferramentas/add-ons → [item].
+ * Explorador de repositórios (estilo Kodi) sobre [RepositoryNode], 4 níveis:
+ * [Repositório] (fontes cadastradas) → [Addons] (OnePlay Vídeo Addon / Live TV) →
+ * [menu do addon] (Canais ao Vivo, Filmes, Séries, Lançamentos) → pastas → [item].
  *
  * Cada nó aberto carrega seus `children` DINAMICAMENTE via
- * [ContentRepository.repositoryChildren] (índice OnePlay + banco local) — a UI
+ * [ContentRepository.repositoryChildren] (índice do repositório + banco local) — a UI
  * nunca cai em abas estáticas; o destino do conteúdo (Canais/Filmes/Séries) só
  * aparece no diálogo ao selecionar um item final.
  */

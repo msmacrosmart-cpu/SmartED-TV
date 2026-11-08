@@ -12,6 +12,15 @@ private val accents = Regex("\\p{M}+")
 fun String.normalized(): String =
     Normalizer.normalize(this, Normalizer.Form.NFD).replace(accents, "").lowercase()
 
+/**
+ * Categoria organizada a partir de tags brutas de lista IPTV:
+ * "Animation;Kids" → "Animation · Kids", "Entertainment;General" → "Entertainment · General".
+ * Remove o ponto-e-vírgula sujo sem perder nenhuma tag (strings sem `;` passam intactas).
+ */
+fun String.toCategoryName(): String =
+    split(';').map(String::trim).filter(String::isNotBlank).distinct()
+        .joinToString(" · ").ifBlank { trim() }
+
 private val clockFmt = DateTimeFormatter.ofPattern("HH:mm")
 fun Long.asClock(): String = Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(clockFmt)
 

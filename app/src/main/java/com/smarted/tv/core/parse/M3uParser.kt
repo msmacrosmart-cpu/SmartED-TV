@@ -1,6 +1,7 @@
 package com.smarted.tv.core.parse
 
 import com.smarted.tv.core.text.TextNormalizer
+import com.smarted.tv.core.util.toCategoryName
 
 /**
  * Parser de playlists M3U/M3U8 (RFC-8216 estendida com tags IPTV).
@@ -76,7 +77,9 @@ object M3uParser {
                     val name = inf?.title?.takeIf(String::isNotBlank) ?: url.substringAfterLast('/').substringBeforeLast('.')
                     channels += ParsedChannel(
                         name = name.trim(),
-                        groupName = (inf?.group?.takeIf(String::isNotBlank) ?: pendingGroup ?: "Sem categoria").trim(),
+                        // Tags brutas com ";" viram categoria organizada: "Animation;Kids" → "Animation · Kids".
+                        groupName = (inf?.group?.takeIf(String::isNotBlank) ?: pendingGroup ?: "Sem categoria")
+                            .trim().toCategoryName(),
                         logoUrl = inf?.logo?.takeIf(String::isNotBlank),
                         tvgId = inf?.tvgId?.takeIf(String::isNotBlank),
                         streamUrl = url,
