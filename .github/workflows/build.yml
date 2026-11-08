@@ -59,8 +59,21 @@ jobs:
           fi
       - name: assembleRelease (compilação limpa, sem gates)
         run: |
-          set -euo pipefail
-          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --console=plain
+          set +e
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --console=plain 2>&1 | tee /tmp/build.log
+          CODE=${PIPESTATUS[0]}
+          if [[ $CODE -ne 0 ]]; then
+            python3 - <<'PY'
+          import pathlib, re
+          log = pathlib.Path('/tmp/build.log').read_text(errors='replace')
+          keep = [l for l in log.splitlines() if re.match(r'^e: |^\* What went wrong|^> Task .*FAILED|^FAILURE:|^\* Exception', l)]
+          chunk = ('\n'.join(keep) or log[-8000:])[:13000]
+          def enc(s): return s.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          for i in range(0, len(chunk), 3200):
+              print('::error title=build [' + str(i // 3200 + 1) + ']::' + enc(chunk[i:i + 3200]))
+          PY
+            exit "$CODE"
+          fi
       - name: Confere assinatura e empacota
         run: |
           set -euo pipefail
