@@ -48,4 +48,4 @@ Toda release é assinada com a mesma chave de compatibilidade do repositório (`
 
 Detalhes do pedido e decisões: [`docs/DESIGN.md`](docs/DESIGN.md).
 
-<!-- ci: retry após suspeita de glitch no parse do workflow -->
+<!-- CI roda quando o workflow existe na branch padrão; gatilho restrito a arena/80abb3ad-smarted-tv -->
