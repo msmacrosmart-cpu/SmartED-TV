@@ -69,7 +69,7 @@ class AppViewModel(val graph: AppGraph) : ViewModel() {
     }
 
     private suspend fun refreshDataInner() {
-        {
+        runCatching {
             val sources = withContext2 { graph.store.listSources() }
             val counts = withContext2 { graph.catalog.counts() }
             val programs = withContext2 { graph.store.programmeCount() }
