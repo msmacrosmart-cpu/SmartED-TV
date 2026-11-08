@@ -96,6 +96,7 @@ fun SettingsScreen(mode: DeviceMode, onChangeMode: () -> Unit) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassButton("Adicionar Xtream Codes", Icons.Rounded.Dns, { dialogType = SourceType.XTREAM })
                     GlassButton("Adicionar M3U (URL)", Icons.Rounded.Link, { dialogType = SourceType.M3U_URL })
+                    GlassButton("Adicionar repositório (URL)", Icons.Rounded.Storage, { dialogType = SourceType.REPOSITORY })
                 }
             }
         }
