@@ -28,7 +28,13 @@ class AppGraph(context: Context) {
     val sources = SourceManager(store, importers, epgWindowHoursProvider = { currentPreferences.epgWindowHours })
     val catalog = CatalogRepository(store)
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /** Nenhum exceção de fundo derruba o processo: vira mensagem no snapshot observável. */
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default +
+            kotlinx.coroutines.CoroutineExceptionHandler { _, error ->
+                runCatching { elementum.update { it.copy(message = "Serviço em segundo plano: ${error.message ?: error.javaClass.simpleName}") } }
+            },
+    )
     val preferences = MutableStateFlow(UserPreferences())
     val elementum = MutableStateFlow<ElementumSnapshot>(ElementumSnapshot())
 
@@ -54,7 +60,7 @@ class AppGraph(context: Context) {
         if (schedulerStarted) return
         schedulerStarted = true
         scope.launch {
-            preferences.value = settings.read()
+            preferences.value = runCatching { settings.read() }.getOrDefault(UserPreferences())
             // Padrão IPVIO: o boot NUNCA toca a rede. Preferências e banco locais primeiro;
             // auto-update e Elementum só após a janela de graça — Home instantânea mesmo com fontes expiradas.
             delay(STARTUP_GRACE_MS)

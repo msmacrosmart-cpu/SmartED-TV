@@ -155,6 +155,7 @@ fun HomeGlassButton(
     icon: ImageVector,
     tag: String,
     onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
@@ -172,6 +173,7 @@ fun HomeGlassButton(
             )
             .border(1.dp, TvColors.Outline, RoundedCornerShape(19.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .padding(horizontal = 26.dp, vertical = if (LocalCompact.current) 12.dp else 17.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {

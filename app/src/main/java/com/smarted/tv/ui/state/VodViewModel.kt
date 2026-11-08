@@ -41,12 +41,12 @@ class VodViewModel(private val graph: AppGraph, val tab: Tab) : ViewModel() {
     fun reload() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true) }
-            val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val data = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val cats = graph.catalog.vodCategories(tab, _ui.value.categorySearch.ifBlank { null })
                 val page = graph.catalog.vodPage(tab, _ui.value.query, _ui.value.page)
                 val favs = graph.catalog.favoriteKeys(if (tab == Tab.SERIES) "series" else "movie")
                 Triple(cats, page, favs)
-            }
+            } }.getOrNull() ?: run { _ui.update { it.copy(loading = false, message = "Falha ao ler o catálogo local.") }; return@launch }
             _ui.update { it.copy(categories = data.first, entries = data.second.items, total = data.second.total, loading = false, favoriteKeys = data.third) }
         }
     }
@@ -59,7 +59,7 @@ class VodViewModel(private val graph: AppGraph, val tab: Tab) : ViewModel() {
     fun setCategorySearch(value: String) {
         _ui.update { it.copy(categorySearch = value) }
         viewModelScope.launch {
-            val cats = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.catalog.vodCategories(tab, value.ifBlank { null }) }
+            val cats = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.catalog.vodCategories(tab, value.ifBlank { null }) } }.getOrNull() ?: return@launch
             _ui.update { it.copy(categories = cats) }
         }
     }
@@ -69,9 +69,9 @@ class VodViewModel(private val graph: AppGraph, val tab: Tab) : ViewModel() {
         if (current.loading || current.entries.size >= current.total) return
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, page = it.page + 1) }
-            val page = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val page = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 graph.catalog.vodPage(tab, current.query, _ui.value.page)
-            }
+            } }.getOrNull() ?: run { _ui.update { it.copy(loading = false) }; return@launch }
             _ui.update { it.copy(entries = it.entries + page.items, loading = false) }
         }
     }
@@ -81,12 +81,12 @@ class VodViewModel(private val graph: AppGraph, val tab: Tab) : ViewModel() {
         _ui.update { it.copy(selected = entry, episodes = emptyList(), detailBusy = entry.kind == Tab.SERIES) }
         if (entry.kind != Tab.SERIES) return
         viewModelScope.launch {
-            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val result = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val source = graph.store.sourceById(entry.sourceId) ?: return@withContext Triple(0, emptyList<Episode>(), 0)
                 val loaded = runCatching { graph.importers.loadSeriesEpisodes(entry.id, entry.externalKey, source) }.getOrDefault(0)
                 val episodes = graph.catalog.episodes(entry.id)
                 Triple(loaded, episodes, episodes.map { it.season }.distinct().sorted().firstOrNull() ?: 1)
-            }
+            } }.getOrNull() ?: run { _ui.update { it.copy(detailBusy = false) }; return@launch }
             _ui.update { it.copy(detailBusy = false, episodes = result.second, selectedSeason = if (it.selectedSeason > 0) result.third else it.selectedSeason) }
         }
     }

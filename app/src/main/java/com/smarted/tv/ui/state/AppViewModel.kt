@@ -63,6 +63,13 @@ class AppViewModel(val graph: AppGraph) : ViewModel() {
 
     fun refreshData() {
         viewModelScope.launch {
+            try { refreshDataInner() } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { _ui.update { it.copy(error = "Falha ao ler o banco local: ${e.message ?: e.javaClass.simpleName}. Use Configurações → Limpar índices se persistir.") } }
+        }
+    }
+
+    private suspend fun refreshDataInner() {
+        {
             val sources = withContext2 { graph.store.listSources() }
             val counts = withContext2 { graph.catalog.counts() }
             val programs = withContext2 { graph.store.programmeCount() }

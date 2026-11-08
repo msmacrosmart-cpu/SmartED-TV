@@ -45,9 +45,31 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
         db.setForeignKeyConstraintsEnabled(false) // re-import apaga por fonte; integridade é por chave derivada.
     }
 
-    override fun onCreate(db: SQLiteDatabase) {
+    override fun onCreate(db: SQLiteDatabase) = ensureSchema(db)
+
+    /**
+     * Blindagem de boot: bancos antigos do protótipo (mesmo nome, versão 1) nunca disparam
+     * onCreate/onUpgrade — sem isto, a primeiraquery estoura "no such table" e o app fecha
+     * depois de desenhar o layout. ensureSchema roda em TODO onOpen: cria tabelas/índices
+     * ausentes e regenera as de cache com colunas divergentes (favoritos/histórico preservados).
+     */
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        // ordem importa: criar o que falta e só então reparar divergências de coluna
+        runCatching { if (!hasTable(db, "sources") || !hasTable(db, "vod")) ensureSchema(db) }
+        runCatching { repairLegacy(db) }
+    }
+
+    private fun hasTable(db: SQLiteDatabase, table: String): Boolean =
+        db.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", arrayOf(table)).use { it.moveToFirst() }
+
+    private fun columnsOf(db: SQLiteDatabase, table: String): Set<String> =
+        db.rawQuery("PRAGMA table_info(" + table + ")", null).use { c -> buildSet { while (c.moveToNext()) add(c.getString(1)) } }
+
+    private fun ensureSchema(db: SQLiteDatabase) {
+
         db.execSQL(
-            """CREATE TABLE sources(
+            """CREATE TABLE IF NOT EXISTS sources(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL, kind TEXT NOT NULL, url TEXT NOT NULL,
                 username TEXT NOT NULL DEFAULT '', password TEXT NOT NULL DEFAULT '',
@@ -58,7 +80,7 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
                 repo_parent TEXT NOT NULL DEFAULT '')"""
         )
         db.execSQL(
-            """CREATE TABLE channels(
+            """CREATE TABLE IF NOT EXISTS channels(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source_id INTEGER NOT NULL,
                 fav_key TEXT NOT NULL UNIQUE,
@@ -67,17 +89,17 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
                 logo TEXT, url TEXT NOT NULL, headers TEXT NOT NULL DEFAULT '',
                 epg_key TEXT NOT NULL, epg_channel TEXT, epg_conf INTEGER NOT NULL DEFAULT 0)"""
         )
-        db.execSQL("CREATE INDEX ch_src ON channels(source_id)")
-        db.execSQL("CREATE INDEX ch_group ON channels(source_id, norm_group)")
-        db.execSQL("CREATE INDEX ch_norm ON channels(norm_name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS ch_src ON channels(source_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS ch_group ON channels(source_id, norm_group)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS ch_norm ON channels(norm_name)")
         db.execSQL(
-            """CREATE TABLE programmes(
+            """CREATE TABLE IF NOT EXISTS programmes(
                 epg_channel TEXT NOT NULL, start_ms INTEGER NOT NULL, stop_ms INTEGER NOT NULL,
                 title TEXT NOT NULL, descr TEXT NOT NULL DEFAULT '', cat TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY(epg_channel, start_ms)) WITHOUT ROWID"""
         )
         db.execSQL(
-            """CREATE TABLE vod(
+            """CREATE TABLE IF NOT EXISTS vod(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source_id INTEGER NOT NULL,
                 fav_key TEXT NOT NULL UNIQUE,
@@ -91,29 +113,61 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
                 language TEXT NOT NULL DEFAULT '', imdb TEXT NOT NULL DEFAULT '',
                 seasons INTEGER NOT NULL DEFAULT 0)"""
         )
-        db.execSQL("CREATE INDEX vod_cat ON vod(kind, norm_category)")
-        db.execSQL("CREATE INDEX vod_added ON vod(kind, added_ms)")
-        db.execSQL("CREATE INDEX vod_norm ON vod(norm_name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS vod_cat ON vod(kind, norm_category)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS vod_added ON vod(kind, added_ms)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS vod_norm ON vod(norm_name)")
         db.execSQL(
-            """CREATE TABLE episodes(
+            """CREATE TABLE IF NOT EXISTS episodes(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vod_id INTEGER NOT NULL, season INTEGER NOT NULL, episode_num INTEGER NOT NULL,
                 title TEXT NOT NULL DEFAULT '', plot TEXT NOT NULL DEFAULT '', thumb TEXT,
                 url TEXT NOT NULL, duration INTEGER, ext TEXT NOT NULL DEFAULT 'mp4')"""
         )
-        db.execSQL("CREATE INDEX eps_vod ON episodes(vod_id, season, episode_num)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS eps_vod ON episodes(vod_id, season, episode_num)")
         db.execSQL(
-            """CREATE TABLE favorites(kind TEXT NOT NULL, fav_key TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
+            """CREATE TABLE IF NOT EXISTS favorites(kind TEXT NOT NULL, fav_key TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
                 added_ms INTEGER NOT NULL, PRIMARY KEY(kind, fav_key)) WITHOUT ROWID"""
         )
         db.execSQL(
-            """CREATE TABLE progress(fav_key TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL DEFAULT '',
+            """CREATE TABLE IF NOT EXISTS progress(fav_key TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL DEFAULT '',
                 position_ms INTEGER NOT NULL, duration_ms INTEGER NOT NULL, updated_ms INTEGER NOT NULL,
                 kind TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '', is_live INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID"""
         )
-        db.execSQL("CREATE TABLE meta(key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL DEFAULT '') WITHOUT ROWID")
-    }
+        db.execSQL("CREATE TABLE IF NOT EXISTS meta(key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL DEFAULT '') WITHOUT ROWID")
+        }
 
+    /** Colunas mínimas por tabela — divergência em tabela de cache ⇒ recriar (re-sincronizável). */
+    private val requiredColumns = mapOf(
+        "sources" to setOf("id", "name", "kind", "url", "username", "password", "epg_url", "enabled", "auto_update_minutes", "last_refresh_ms", "status", "error", "repo_parent"),
+        "channels" to setOf("id", "source_id", "fav_key", "num", "name", "norm_name", "group_name", "norm_group", "logo", "url", "headers", "epg_key", "epg_channel", "epg_conf"),
+        "programmes" to setOf("epg_channel", "start_ms", "stop_ms", "title", "descr", "cat"),
+        "vod" to setOf("id", "source_id", "fav_key", "kind", "ext_key", "name", "norm_name", "category", "norm_category", "year", "rating", "added_ms", "poster", "backdrop", "plot", "url", "runtime", "cast", "genre", "country", "language", "imdb", "seasons"),
+        "episodes" to setOf("id", "vod_id", "season", "episode_num", "title", "plot", "thumb", "url", "duration", "ext"),
+        "favorites" to setOf("kind", "fav_key", "title", "added_ms"),
+        "progress" to setOf("fav_key", "title", "position_ms", "duration_ms", "updated_ms", "kind", "url", "is_live"),
+        "meta" to setOf("key", "value"),
+    )
+
+    /** Tabelas do usuário: nunca dropar — só completar colunas ausentes com default. */
+    private val keepTables = setOf("favorites", "progress", "meta")
+
+    /** Pós-ensureSchema: repara esquemas legados de qualquer versão anterior do app. */
+    private fun repairLegacy(db: SQLiteDatabase) {
+        for ((table, need) in requiredColumns) {
+            if (!hasTable(db, table)) continue
+            val missing = need - columnsOf(db, table)
+            if (missing.isEmpty()) continue
+            if (table in keepTables) {
+                for (col in missing) {
+                    val type = if (col.endsWith("_ms") || col in setOf("enabled", "auto_update_minutes", "is_live")) "INTEGER NOT NULL DEFAULT 0" else "TEXT NOT NULL DEFAULT ''"
+                    runCatching { db.execSQL("ALTER TABLE " + table + " ADD COLUMN " + col + " " + type) }
+                }
+            } else {
+                db.execSQL("DROP TABLE IF EXISTS " + table)
+                ensureSchema(db)
+            }
+        }
+    }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // Sem migração de dados ainda: recriar é aceitável (fontes re-sincronizam na abertura).
         for (table in listOf("sources", "channels", "programmes", "vod", "episodes", "favorites", "progress", "meta")) {

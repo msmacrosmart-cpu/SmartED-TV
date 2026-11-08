@@ -37,11 +37,13 @@ class ChannelsViewModel(private val graph: AppGraph) : ViewModel() {
 
     init { reload(firstPageOnly = false) }
 
+    private fun fail(message: String?) = _ui.update { it.copy(loading = false, message = message ?: "Falha ao ler canais.") }
+
     /** Recarga categorias + página visível; chamado na abertura e após cada escrita. */
     fun reload(firstPageOnly: Boolean) {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true) }
-            val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val data = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val now = System.currentTimeMillis()
                 val allGroups = graph.catalog.channelGroups(_ui.value.sourceFilter?.id)
                 val groups = allGroups.filter { it.first.isBlank() || com.smarted.tv.core.text.TextNormalizer.searchMatches(_ui.value.categorySearch, it.first) }
@@ -58,7 +60,7 @@ class ChannelsViewModel(private val graph: AppGraph) : ViewModel() {
                 } else emptyMap()
                 val rows = page.items.map { row -> graph.catalog.rowWithShortEpg(row, fallback[row.channel.id], now) }
                 Triple(groups, page.copy(items = rows), page.hasMore)
-            }
+            } }.onFailure { fail(it.message) }.getOrNull() ?: run { _ui.update { it.copy(loading = false) }; return@launch }
             _ui.update {
                 it.copy(
                     groups = data.first, rows = data.second.items, totalRows = data.second.total,
@@ -82,9 +84,9 @@ class ChannelsViewModel(private val graph: AppGraph) : ViewModel() {
         if (current.rows.size >= current.totalRows) return
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, page = it.page + 1) }
-            val page = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val page = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 graph.catalog.channelPage(current.query, current.sourceFilter?.id, _ui.value.page, System.currentTimeMillis(), graph.currentPreferences.epgWindowHours)
-            }
+            } }.getOrNull() ?: run { _ui.update { it.copy(loading = false) }; return@launch }
             _ui.update { it.copy(rows = it.rows + page.items, loading = false) }
         }
     }
@@ -106,11 +108,11 @@ class ChannelsViewModel(private val graph: AppGraph) : ViewModel() {
     private fun refreshSelected() {
         val channel = _ui.value.selected ?: return
         viewModelScope.launch {
-            val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val data = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val nowNext = graph.catalog.nowNextFor(channel, System.currentTimeMillis())
                 val upcoming = graph.catalog.upcomingFor(channel, System.currentTimeMillis(), graph.currentPreferences.epgWindowHours, limit = 12)
                 nowNext to upcoming
-            }
+            } }.getOrNull() ?: return@launch
             _ui.update { it.copy(selectedNow = data.first.now, upcoming = data.second) }
         }
     }

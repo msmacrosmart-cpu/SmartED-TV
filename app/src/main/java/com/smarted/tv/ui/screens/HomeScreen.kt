@@ -52,6 +52,9 @@ fun HomeScreen(
     val noContent = ui.counts.getOrDefault(Tab.CHANNELS, 0) == 0 &&
         ui.counts.getOrDefault(Tab.MOVIES, 0) == 0 && ui.counts.getOrDefault(Tab.SERIES, 0) == 0
 
+    // Foco inicial do D-pad: primeiro botão da Home (blindado contra recomposição ainda não acoplada).
+    val firstFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { firstFocus.requestFocus() } }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp)) {
         if (!hasSources || noContent) WelcomeCard(app, onOpenSettings, hasSources)
 
@@ -63,7 +66,7 @@ fun HomeScreen(
             ) {
                 HomeGlassButton(
                     "Canais ao vivo", countLabel(ui.counts[Tab.CHANNELS], "canais prontos para o play", "Conecte uma fonte para assistir"),
-                    Icons.Default.LiveTv, "home-open-channels", onOpenChannels,
+                    Icons.Default.LiveTv, "home-open-channels", onOpenChannels, firstFocus,
                 )
                 HomeGlassButton(
                     "Filmes", countLabel(ui.counts[Tab.MOVIES], "títulos no catálogo local", "Busca instantânea na sua lista"),
