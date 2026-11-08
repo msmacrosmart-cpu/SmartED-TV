@@ -2,7 +2,7 @@ package com.smarted.tv.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.bringIntoViewIfChildrenAreFocused
+import androidx.compose.foundation.relocation.bringIntoViewIfChildrenAreFocused
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
