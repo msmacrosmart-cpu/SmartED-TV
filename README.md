@@ -34,11 +34,11 @@ python3 tools/check_architecture.py   # gate: foco branco, sem magenta, camadas 
 java -jar <selftest-core>             # tools/corecheck → "CORE SELFTEST OK (52 checks)"
 ```
 
-CI em [`.github/workflows/build.yml`](.github/workflows/build.yml): gate de arquitetura → compilação → testes JVM → APK debug → lint → release → testes Android TV (emulador) → APK assinado. Publicação de release é manual (`workflow_dispatch` com `publish=true`).
+CI em [`.github/workflows/build.yml`](.github/workflows/build.yml): gate de arquitetura → compilação → testes JVM → APK debug → lint → **release assinado publicado automaticamente** (GitHub Releases, `v3.0.0.<build>`), em todo push aprovado da branch. PRs rodam apenas a verificação.
 
-### Assinatura
+### Assinatura (atualizações garantidas)
 
-Configure `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD` ou os secrets equivalentes no GitHub. Sem chave, o release não é assinado; o APK debug continua disponível para teste.
+Toda release é assinada com a mesma chave de compatibilidade do repositório (`signing/release-keystore.json.enc`, restaurada por `tools/ci_signing.py`) — ou, se `KEYSTORE_BASE64` estiver configurado no GitHub, com essa. Como o par de chaves nunca muda, cada novo APK **atualiza** instalações anteriores (`adb install -r`) em vez de exigir desinstalação. O `versionCode` do CI é `9000 + run_number` (sempre crescente).
 
 ## Limites honestos
 
