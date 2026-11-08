@@ -67,7 +67,6 @@ private fun categoryEntries(cats: List<Category>) = cats.map {
 
 /** Coluna 1: categorias + favoritos | Coluna 2: canais com logo + EPG | Coluna 3: preview + grade EPG. */
 @Composable
-@Composable
 private fun ChannelsWide(
     vm: ChannelsViewModel, ui: ChannelsViewModel.Ui, focusedId: String?, now: Long,
     upcoming: List<EpgProgram>, onPlay: (PlaybackRequest) -> Unit,
@@ -119,7 +118,7 @@ private fun ChannelsCompact(
         }
         ChannelList(
             ui, now, Modifier.weight(1f).fillMaxWidth(),
-            onFocus = { vm.focus(it.id) }, onPlay = { onPlay(it.toRequest()) },
+            onFocus = vm::focus, onPlay = { onPlay(it.toRequest()) },
             onToggleFav = { vm.toggleFavorite(it.id) },
         )
     }

@@ -80,7 +80,7 @@ fun SettingsScreen(mode: DeviceMode, onChangeMode: () -> Unit) {
                 if (busy.isBusy) {
                     Text("⟳ " + busy.message.ifBlank { "Sincronizando…" }, fontSize = d.textBody, color = Smoke.TextSecondary)
                 } else if (sources.isNotEmpty()) {
-                    GlassButton("Atualizar todas", Icons.Rounded.Refresh) { vm.refreshAll() }
+                    GlassButton("Atualizar todas", Icons.Rounded.Refresh, { vm.refreshAll() })
                 }
             }
         }
