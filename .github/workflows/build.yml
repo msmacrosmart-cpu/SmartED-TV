@@ -24,9 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      ORG_GRADLE_PROJECT_versionCode: ${{ 9000 + github.run_number }}
-      ORG_GRADLE_PROJECT_versionName: 3.0.0.${{ github.run_number }}
+      VERSION_CODE_BASE: "9000"
     steps:
+      - name: Calcula versionCode/versionName (shell; GH expressions não somam)
+        run: |
+          echo "ORG_GRADLE_PROJECT_versionCode=$(( ${VERSION_CODE_BASE:-9000} + GITHUB_RUN_NUMBER ))" >> "$GITHUB_ENV"
+          echo "ORG_GRADLE_PROJECT_versionName=3.0.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
         with:
@@ -110,9 +113,12 @@ jobs:
     permissions:
       contents: write
     env:
-      ORG_GRADLE_PROJECT_versionCode: ${{ 9000 + github.run_number }}
-      ORG_GRADLE_PROJECT_versionName: 3.0.0.${{ github.run_number }}
+      VERSION_CODE_BASE: "9000"
     steps:
+      - name: Calcula versionCode/versionName (shell; GH expressions não somam)
+        run: |
+          echo "ORG_GRADLE_PROJECT_versionCode=$(( ${VERSION_CODE_BASE:-9000} + GITHUB_RUN_NUMBER ))" >> "$GITHUB_ENV"
+          echo "ORG_GRADLE_PROJECT_versionName=3.0.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
         with:
