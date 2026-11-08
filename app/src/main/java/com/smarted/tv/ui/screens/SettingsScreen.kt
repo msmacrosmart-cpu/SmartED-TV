@@ -163,7 +163,7 @@ private fun SourcesPanel(app: AppViewModel, ui: AppUi, modifier: Modifier = Modi
 }
 
 @Composable
-private fun AddTile(label: String, sub: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tag: String, onClick: () -> Unit) {
+private fun RowScope.AddTile(label: String, sub: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tag: String, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     Row(

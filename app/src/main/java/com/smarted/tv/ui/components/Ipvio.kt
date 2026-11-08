@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.smarted.tv.core.model.VodEntry
 import com.smarted.tv.ui.theme.TvColors
 import com.smarted.tv.ui.theme.dpx
