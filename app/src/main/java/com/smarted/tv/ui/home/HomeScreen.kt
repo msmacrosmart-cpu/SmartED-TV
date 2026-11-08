@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LiveTv
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Theaters
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -74,6 +75,7 @@ fun HomeScreen(
                     Tile("Canais ao vivo", "${ui.channelCount} canais", Icons.Rounded.LiveTv) { onNavigate(Dest.CHANNELS) },
                     Tile("Filmes", "${ui.movieCount} filmes", Icons.Rounded.Movie) { onNavigate(Dest.MOVIES) },
                     Tile("Séries", "${ui.seriesCount} séries", Icons.Rounded.Theaters) { onNavigate(Dest.SERIES) },
+                    Tile("Repositório", "Addons · TV · Filmes · Séries", Icons.Rounded.Storage) { onNavigate(Dest.REPOSITORY) },
                     Tile("Favoritos", "$favCount itens", Icons.Rounded.Favorite) { onNavigate(Dest.CHANNELS) },
                 )
                 LazyRow(

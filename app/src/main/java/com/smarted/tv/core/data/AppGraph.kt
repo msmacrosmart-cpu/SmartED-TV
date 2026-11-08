@@ -29,6 +29,13 @@ object AppGraph {
             content = IptvContentRepository(graph, scope)
             system = IptvSystem(graph, ctx)
             initialized = true
+
+            // Repositório OnePlay "fantasma": inicializa e sincroniza em segundo plano na
+            // primeira execução, sem exibir qualquer campo de URL/nome ao usuário.
+            // (bootstrap já engole falhas de rede/índice sozinho.)
+            scope.launch {
+                com.smarted.tv.data.OnePlayBootstrap.bootstrap(graph, ctx)
+            }
         }
     }
 }

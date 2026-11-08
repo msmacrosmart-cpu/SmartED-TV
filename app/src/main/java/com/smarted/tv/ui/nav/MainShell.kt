@@ -30,6 +30,7 @@ import com.smarted.tv.ui.components.GlassClickable
 import com.smarted.tv.ui.components.glass
 import com.smarted.tv.ui.home.HomeScreen
 import com.smarted.tv.ui.player.PlayerScreen
+import com.smarted.tv.ui.repository.RepositoryTreeScreen
 import com.smarted.tv.ui.settings.SettingsScreen
 import com.smarted.tv.ui.theme.LocalDimens
 import com.smarted.tv.ui.theme.Smoke
@@ -108,6 +109,7 @@ private fun AppNavHost(
             VodScreen(VodKind.SERIES, e.arguments?.getString("open"), onPlay)
         }
         composable(Dest.SETTINGS.route) { SettingsScreen(mode, onChangeMode) }
+        composable(Dest.REPOSITORY.route) { RepositoryTreeScreen(onPlay = { playback = it }) }
     }
 }
 
@@ -121,7 +123,7 @@ private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifi
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            listOf(Dest.HOME, Dest.CHANNELS, Dest.MOVIES, Dest.SERIES).forEach {
+            listOf(Dest.HOME, Dest.CHANNELS, Dest.MOVIES, Dest.SERIES, Dest.REPOSITORY).forEach {
                 RailItem(it, it == current) { onNavigate(it) }
             }
         }

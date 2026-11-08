@@ -6,6 +6,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -62,6 +64,14 @@ val PhoneDimens = Dimens(
 
 val LocalDimens = staticCompositionLocalOf { PhoneDimens }
 val LocalDeviceMode = staticCompositionLocalOf { DeviceMode.PHONE }
+
+/**
+ * Único modificador de foco do app: borda branco puro (#FFFFFF) — D-pad sempre visível,
+ * nunca magenta/rosa (verificado pelo gate tools/check_architecture.py).
+ */
+@Composable
+fun Modifier.whiteFocus(width: Dp = LocalDimens.current.focusBorder): Modifier =
+    this.border(width, Smoke.FocusWhite, RoundedCornerShape(LocalDimens.current.corner))
 
 @Composable
 fun SmartEDTheme(mode: DeviceMode, content: @Composable () -> Unit) {

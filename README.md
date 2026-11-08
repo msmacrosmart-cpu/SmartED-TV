@@ -6,7 +6,8 @@ Cliente nativo **Android TV** em Kotlin + Jetpack Compose para **listas IPTV loc
 
 ## Telas
 
-- **Inicial:** data/hora no topo, navegação lateral esquerda (Início, Canais, Filmes, Séries) e Configurações perto da borda inferior; linhas de favoritos, continuar assistindo e últimas entradas.
+- **Inicial:** data/hora no topo, navegação lateral esquerda (Início, Canais, Filmes, Séries, Repositório) e Configurações perto da borda inferior; linhas de favoritos, continuar assistindo e últimas entradas.
+- **Repositório (navegador Kodi):** árvore de pastas via D-pad — `Repositório › Addons › TV / Filmes / Séries › pasta interna (ex. Canais Globo, Aventura) › título (reproduzir)`. Borda de foco branca pura (#FFFFFF) em toda a navegação.
 - **Canais:** 3 colunas — categorias/favoritos (com busca de categorias), canais com logo e programa atual/próximo, pré-visualização + grade de EPG futuros. A busca de conteúdo filtra **somente canais**.
 - **Filmes/Séries:** 2 colunas — categorias/favoritos + busca de categorias no topo e grade infinita; ordenações De A a Z, Últimos adicionados, Mais votados, Ano e Crescente/Decrescente. Tocar num título troca a busca pelo **hero** (sinopse + metadados); séries têm seletor de temporada/episódio.
 - **Configurações:** menu lateral com Fontes (M3U, Xtream, repositórios JSON com auto-update), Elementum (host/porta/teste/reload), Reprodução (áudio/legendas/saltos), Interface, Sistema (limpezas e reindexação de EPG) e Sobre.
@@ -18,6 +19,7 @@ Cliente nativo **Android TV** em Kotlin + Jetpack Compose para **listas IPTV loc
 | **M3U/M3U8** | Playlist com EXTINF/tvg-id/headers; grupos FILMES/SÉRIES viram catálogo VOD automaticamente. |
 | **Xtream Codes** | `player_api.php`: categorias, streams, `get_vod_info`, `get_series_info`, `get_short_epg` (fallback now/next quando não há XMLTV). |
 | **Repositório JSON** | Índice estilo OnePlay `{"name":…, "sources":[…]}`: cria fontes filhas e mantém sincronizado (diff add/update/remove). |
+| **OnePlay (fantasma)** | Repositório nativo injetado no código: inicializa e sincroniza sozinho na primeira execução, sem campo de link/URL/nome para o usuário; nunca quebra o boot se a rede ou o índice estiverem indisponíveis. |
 | **EPG XMLTV** | Janela deslizante (default 24 h) vinculada por nome real do canal: IDs, nomes de exibição, igualdade normalizada, cobertura de tokens — com auto-reparo do vínculo anterior; nunca inventa programação. |
 | **Elementum (Kodi)** | HTTP local (`:65064`): status via `/torrents/list`, busca, links, `/reload` para atualização automática; play via intent do Kodi quando não há URL HTTP direta. |
 

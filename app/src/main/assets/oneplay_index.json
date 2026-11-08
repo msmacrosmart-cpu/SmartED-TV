@@ -1,0 +1,23 @@
+{
+  "name": "OnePlay",
+  "sources": [
+    {
+      "name": "TV Aberta",
+      "kind": "m3u",
+      "url": "https://iptv-org.github.io/iptv/countries/br.m3u",
+      "update_minutes": 720
+    },
+    {
+      "name": "Filmes",
+      "kind": "m3u",
+      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/2ecf2332-smarted-tv/app/src/main/assets/sample_filmes.m3u",
+      "update_minutes": 720
+    },
+    {
+      "name": "Séries",
+      "kind": "m3u",
+      "url": "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/2ecf2332-smarted-tv/app/src/main/assets/sample_series.m3u",
+      "update_minutes": 720
+    }
+  ]
+}

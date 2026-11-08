@@ -3,6 +3,7 @@ package com.smarted.tv
 import android.content.Context
 import com.smarted.tv.core.model.UserPreferences
 import com.smarted.tv.data.CatalogRepository
+import com.smarted.tv.data.OnePlayBootstrap.PHANTOM_NAME
 import com.smarted.tv.data.db.IptvStore
 import com.smarted.tv.data.elementum.ElementumClient
 import com.smarted.tv.data.import.SourceImporters
@@ -85,7 +86,7 @@ class AppGraph(context: Context) {
     fun refreshAllNow(onProgress: (String) -> Unit = {}) {
         scope.launch {
             for (source in store.listSources()) {
-                if (!source.enabled) continue
+                if (!source.enabled || source.name == PHANTOM_NAME) continue
                 onProgress("Atualizando ${source.name}…")
                 runCatching { sources.refresh(source) }
                     .onSuccess(onProgress)

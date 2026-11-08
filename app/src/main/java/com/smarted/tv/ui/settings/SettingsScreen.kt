@@ -29,6 +29,7 @@ import com.smarted.tv.core.data.AppGraph
 import com.smarted.tv.core.model.DeviceMode
 import com.smarted.tv.core.model.PlaylistSource
 import com.smarted.tv.core.model.SourceType
+import com.smarted.tv.data.OnePlayBootstrap.PHANTOM_NAME
 import com.smarted.tv.ui.common.vmFactory
 import com.smarted.tv.ui.components.*
 import com.smarted.tv.ui.theme.LocalDimens
@@ -85,22 +86,22 @@ fun SettingsScreen(mode: DeviceMode, onChangeMode: () -> Unit) {
             }
         }
 
+        // A fonte-fantasma (repositório OnePlay) é sincronizada automaticamente e nunca é exposta ao usuário.
+        val visible = sources.filter { it.name != PHANTOM_NAME }
         item {
             Section("Listas · Xtream Codes / M3U") {
-                val remote = sources.filter { it.type == SourceType.XTREAM || it.type == SourceType.M3U_URL || it.type == SourceType.REPOSITORY }
+                val remote = visible.filter { it.type == SourceType.XTREAM || it.type == SourceType.M3U_URL || it.type == SourceType.REPOSITORY }
                 if (remote.isEmpty()) Hint("Nenhuma lista adicionada.")
                 remote.forEach { SourceRow(it, { vm.refresh(it.id) }, { vm.toggleEnabled(it.id) }) { vm.remove(it.id) } }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassButton("Adicionar Xtream Codes", Icons.Rounded.Dns, { dialogType = SourceType.XTREAM })
                     GlassButton("Adicionar M3U (URL)", Icons.Rounded.Link, { dialogType = SourceType.M3U_URL })
-                    GlassButton("Adicionar repositório (JSON)", Icons.Rounded.Storage, { dialogType = SourceType.REPOSITORY })
                 }
-                Hint("Repositório: use a URL RAW do arquivo .json do índice (não a página HTML do GitHub).")
             }
         }
         item {
-            Section("Fontes e repositórios locais") {
-                val local = sources.filter { it.type == SourceType.M3U_FILE || it.type == SourceType.LOCAL_REPO }
+            Section("Fontes e arquivos locais") {
+                val local = visible.filter { it.type == SourceType.M3U_FILE || it.type == SourceType.LOCAL_REPO }
                 if (local.isEmpty()) Hint("Nenhum arquivo ou pasta local adicionado.")
                 local.forEach { SourceRow(it, { vm.refresh(it.id) }, { vm.toggleEnabled(it.id) }) { vm.remove(it.id) } }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
