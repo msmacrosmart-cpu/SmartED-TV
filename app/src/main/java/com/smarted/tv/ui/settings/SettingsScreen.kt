@@ -361,7 +361,7 @@ private fun RepoBrowserDialog(
                                     else -> "Instalar este índice"
                                 },
                                 Icons.Rounded.Check,
-                            ) {
+                                onClick = {
                                 if (!busy && !missingType) {
                                     busy = true
                                     error = null
@@ -381,7 +381,8 @@ private fun RepoBrowserDialog(
                                             }
                                     }
                                 }
-                            }
+                            },
+                        )
                         }
                     }
                 }

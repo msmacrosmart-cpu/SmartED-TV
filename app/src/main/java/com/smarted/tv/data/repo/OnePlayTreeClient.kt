@@ -59,7 +59,7 @@ interface OnePlayTreeApi {
 
     /** Arquivo bruto do repositório (ZIP de instalação estilo Kodi). */
     @GET
-    suspend fun file(@Url indexUrl): okhttp3.ResponseBody
+    suspend fun file(@Url indexUrl: String): okhttp3.ResponseBody
 }
 
 /**
