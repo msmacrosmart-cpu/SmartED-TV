@@ -90,7 +90,7 @@ data class VodEntry(
 )
 
 /** Episódio de série (Xtream get_series_info ou M3U agrupado). */
-data class Episode(
+data class StoredEpisode(
     val id: Long,
     val vodId: Long,
     val season: Int,

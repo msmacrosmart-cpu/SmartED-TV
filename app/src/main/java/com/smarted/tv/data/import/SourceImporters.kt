@@ -60,7 +60,7 @@ class SourceImporters(private val store: IptvStore) {
     // ------------------------------------------------------------------ M3U
 
     suspend fun importM3u(source: ListSource, epgWindowHours: Int, refreshEpg: Boolean): ImportOutcome {
-        val text = Http.getText(source.url, mapOf("Accept" to "audio/x-mpegurl, application/vnd.apple.mpegurl, text/plain"))
+        val text = fetchAny(source.url, mapOf("Accept" to "audio/x-mpegurl, application/vnd.apple.mpegurl, text/plain"))
         if (!Http.looksLikePlaylist(source.url, text)) {
             error("O conteúdo baixado não parece uma playlist M3U. Verifique o link.")
         }
@@ -250,6 +250,12 @@ class SourceImporters(private val store: IptvStore) {
     }
 
     private suspend fun fetchXmltv(url: String, startMs: Long, endMs: Long): XmltvParser.Result = withContext(Dispatchers.IO) {
+        if (isLocalUrl(url)) {
+            val bytes = readLocalBytes(url)
+            val stream = java.io.ByteArrayInputStream(bytes)
+            val unzipped = if (bytes.size >= 2 && bytes[0] == 0x1F.toByte() && bytes[1] == 0x8B.toByte()) GZIPInputStream(stream) else stream
+            return@withContext BufferedReader(InputStreamReader(unzipped, Charsets.UTF_8)).use { reader -> XmltvParser.parse(reader, startMs, endMs) }
+        }
         val request = Http.buildRequest(url, mapOf("Accept" to "application/xml, text/xml, */*"))
         Http.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("HTTP ${response.code} ao baixar o EPG")
@@ -264,7 +270,47 @@ class SourceImporters(private val store: IptvStore) {
 
     // ------------------------------------------------------- repositórios
 
-    suspend fun decodeRepoIndex(url: String): RepoIndex = RepoJson.fromJson(Http.getJson(url), url)
+    suspend fun decodeRepoIndex(url: String): RepoIndex {
+        val element = if (isLocalUrl(url)) {
+            val trimmed = withContext(Dispatchers.IO) { readLocalText(url) }.trim()
+            if (trimmed.isEmpty()) error("O arquivo esta vazio: $url")
+            if (trimmed[0] != '{' && trimmed[0] != '[') {
+                error("O arquivo nao e JSON (comeca com \'" + trimmed.take(24) + "\'). Selecione o indice .json do repositorio.")
+            }
+            Http.json.parseToJsonElement(trimmed)
+        } else {
+            Http.json.parseToJsonElement(Http.readJsonText(url))
+        }
+        return RepoJson.fromJson(element, url)
+    }
+
+    /** Arquivo local (content:// ou file://) de texto — M3U/EPG/índice. */
+    private fun readLocalText(url: String): String =
+        com.smarted.tv.data.net.Http.decodeBytes(readLocalBytes(url), url)
+
+    internal fun readLocalBytes(url: String): ByteArray = withLocalStream(url) { it.readBytes() }
+
+    private inline fun <R> withLocalStream(url: String, block: (java.io.InputStream) -> R): R {
+        val uri = android.net.Uri.parse(url)
+        return when (uri.scheme) {
+            "content" -> store.appContext.contentResolver.openInputStream(uri)
+                ?.use { block(it) } ?: error("Não foi possível abrir o arquivo de conteúdo (permissão negada ou arquivo movido): $url")
+            "file" -> java.io.File(uri.path ?: error("Caminho inválido: $url")).let { f ->
+                if (!f.exists()) error("Arquivo não encontrado: ${f.path}")
+                block(f.inputStream())
+            }
+            else -> error("Esquema local não suportado: ${uri.scheme}")
+        }
+    }
+
+    suspend fun fetchAny(url: String, headers: Map<String, String> = emptyMap()): String =
+        if (isLocalUrl(url)) withContext(Dispatchers.IO) { readLocalText(url) }
+        else Http.getText(url, headers)
+
+    companion object {
+        fun isLocalUrl(url: String): Boolean =
+            url.startsWith("content://") || url.startsWith("file://") || (!url.contains("://") && url.startsWith("/"))
+    }
 
     internal fun uniqueFavKey(sourceId: Long, prefix: String, baseKey: String, used: HashSet<String>): String =
         com.smarted.tv.core.sources.FavKeys.unique(sourceId, prefix, baseKey, used)

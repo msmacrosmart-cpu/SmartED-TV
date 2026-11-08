@@ -6,7 +6,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.smarted.tv.core.model.BrowseQuery
-import com.smarted.tv.core.model.Episode
+import com.smarted.tv.core.model.StoredEpisode
 import com.smarted.tv.core.model.LiveChannel
 import com.smarted.tv.core.model.ListSource
 import com.smarted.tv.core.model.Programme
@@ -25,6 +25,10 @@ import org.json.JSONObject
  * Chaves de favoritos/progresso são DERIVADAS (fonte+nome), não rowids: sobrevivem a re-imports.
  */
 class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext, DB_NAME, null, DB_VERSION) {
+
+    /** Contexto do app (resolver de conteúdo para playlists locais). */
+    val appContext: Context = context.applicationContext
+
 
     companion object {
         const val DB_NAME = "smarted_tv.db"
@@ -357,6 +361,15 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
         "SELECT $CHANNEL_SELECT FROM channels WHERE id=?", arrayOf(id.toString())
     ).use { cursor -> if (cursor.moveToNext()) cursor.toChannel() else null }
 
+    fun channelByFavKey(favKey: String): LiveChannel? = readableDatabase.rawQuery(
+        "SELECT $CHANNEL_SELECT FROM channels WHERE fav_key=?", arrayOf(favKey)
+    ).use { cursor -> if (cursor.moveToNext()) cursor.toChannel() else null }
+
+    /** id → epg_key de TODOS os canais (uma passada; evita IN gigante no carregamento completo). */
+    fun allEpgKeys(): Map<Long, String> = readableDatabase.rawQuery(
+        "SELECT id, epg_key FROM channels WHERE epg_key IS NOT NULL AND epg_key <> ''", null
+    ).use { cursor -> buildMap { while (cursor.moveToNext()) put(cursor.getLong(0), cursor.getString(1)) } }
+
     fun channelsByIds(ids: List<Long>): List<LiveChannel> {
         if (ids.isEmpty()) return emptyList()
         val placeholders = ids.joinToString(",") { "?" }
@@ -629,7 +642,7 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
         }
     }
 
-    fun episodesFor(vodId: Long): List<Episode> = readableDatabase.rawQuery(
+    fun episodesFor(vodId: Long): List<StoredEpisode> = readableDatabase.rawQuery(
         """SELECT id, vod_id, season, episode_num, title, plot, thumb, duration, url, ext
            FROM episodes WHERE vod_id=? ORDER BY season, episode_num""",
         arrayOf(vodId.toString()),
@@ -637,7 +650,7 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
         buildList {
             while (cursor.moveToNext()) {
                 add(
-                    Episode(
+                    StoredEpisode(
                         id = cursor.getLong(0), vodId = cursor.getLong(1),
                         season = cursor.getInt(2), episode = cursor.getInt(3),
                         title = cursor.getString(4) ?: "", plot = cursor.getString(5) ?: "",

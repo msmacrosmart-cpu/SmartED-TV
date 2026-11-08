@@ -186,7 +186,10 @@ class SourceManager(
 
     private fun requireValidUrl(url: String) {
         val trimmed = url.trim()
-        require(trimmed.startsWith("http://") || trimmed.startsWith("https://")) { "Use um endereço http(s) de lista, painel, playlist ou índice do repositório." }
+        require(
+            trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
+                trimmed.startsWith("content://") || trimmed.startsWith("file://"),
+        ) { "Use um endereço http(s) (lista/painel/índice) ou um arquivo local via seletor." }
     }
 
     private fun defaultName(url: String): String =

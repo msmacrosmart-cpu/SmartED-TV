@@ -1,310 +1,271 @@
 package com.smarted.tv.ui.components
 
+import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.onFocusEvent
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.smarted.tv.core.model.VodEntry
-import com.smarted.tv.ui.theme.LocalCompact
-import com.smarted.tv.ui.theme.TvColors
-import com.smarted.tv.ui.theme.smokedGlass
-import com.smarted.tv.ui.theme.whiteFocus
-import androidx.compose.foundation.layout.Box
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.smarted.tv.core.model.DeviceMode
+import com.smarted.tv.ui.theme.LocalDeviceMode
+import com.smarted.tv.ui.theme.LocalDimens
+import com.smarted.tv.ui.theme.Smoke
 
-/** Imagem remota com fallback "fumê" (cartaz/logo do canal). */
+/** Fundo global: imagem desfocada (API 31+) ou gradiente fumê + véu escuro. */
 @Composable
-fun RemoteImage(url: String?, description: String?, modifier: Modifier = Modifier, scale: ContentScale = ContentScale.Crop) {
-    Box(modifier.background(Brush.linearGradient(listOf(Color(0xFF292A2E), Color(0xFF121315)))), contentAlignment = Alignment.Center) {
-        if (!url.isNullOrBlank()) {
-            AsyncImage(model = url, contentDescription = description, modifier = Modifier.matchParentSize(), contentScale = scale)
-        } else {
-            Text("SmartED", color = Color(0xFF77797E), style = MaterialTheme.typography.labelMedium)
-        }
-    }
-}
-
-/** Data/hora ao vivo no topo, estilo UltraTV: "sábado, 7 de novembro" + 14:58. */
-@Composable
-fun ClockHeader(modifier: Modifier = Modifier) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(15_000)
-            now = System.currentTimeMillis()
-        }
-    }
-    val dateLabel = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("pt", "BR")).format(Date(now))
-        .replaceFirstChar { it.uppercaseChar() }
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text(dateLabel, style = MaterialTheme.typography.bodyMedium, color = TvColors.Muted)
-        Text(
-            SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(Date(now)),
-            style = MaterialTheme.typography.headlineMedium.copy(letterSpacing = 1.sp),
-            color = Color.White, fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
-fun SidebarItem(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit,
+fun GlassBackdrop(
+    imageUrl: String? = null,
     modifier: Modifier = Modifier,
-    focusRequester: FocusRequester? = null,
+    content: @Composable BoxScope.() -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val interaction = remember { MutableInteractionSource() }
-    val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "sidebarScale")
-    Column(
-        modifier
-            .testTag("nav-$label")
-            .keepFocusInView()
-            .padding(3.dp)
-            .scale(scale)
-            .smokedGlass(18.dp)
-            .whiteFocus(focused, selected, 18.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .then(if (selected) Modifier.background(Color(0x2EFFFFFF)) else Modifier.background(Brush.linearGradient(listOf(TvColors.GlassTop, TvColors.GlassBottom))))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(if (focused) 30.dp else 26.dp))
-        Text(
-            label, style = MaterialTheme.typography.labelMedium, color = if (focused || selected) Color.White else TvColors.Muted,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/** Linha de conteúdo da Home (título + contagem + carrossel). */
-@Composable
-fun HomeRow(
-    title: String,
-    count: Int? = null,
-    modifier: Modifier = Modifier,
-    content: LazyListScope.() -> Unit,
-) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White)
-            if (count != null && count > 0) Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(if (LocalCompact.current) 12.dp else 16.dp), content = content)
-    }
-}
-
-val HomeRowIcons = mapOf(
-    "tv" to Icons.Default.LiveTv,
-    "movies" to Icons.Default.Movie,
-    "series" to Icons.Default.Tv,
-    "home" to Icons.Default.Home,
-    "settings" to Icons.Default.Settings,
-    "search" to Icons.Default.Search,
-    "play" to Icons.Default.PlayArrow,
-)
-
-/** Botão grande da Home centralizada — vidro fumê, foco D-pad branco puro (padrão da diretriz). */
-@Composable
-fun HomeGlassButton(
-    label: String,
-    subtitle: String,
-    icon: ImageVector,
-    tag: String,
-    onClick: () -> Unit,
-    focusRequester: FocusRequester? = null,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val interaction = remember { MutableInteractionSource() }
-    val scale by animateFloatAsState(if (focused) 1.03f else 1f, label = "homeBtnScale")
-    Row(
-        Modifier.fillMaxWidth().testTag(tag)
-            .scale(scale)
-            .onFocusChanged { focused = it.isFocused }
-            .whiteFocus(focused, radius = 22.dp)
-            .padding(3.dp)
-            .clip(RoundedCornerShape(19.dp))
-            .background(
-                if (focused) androidx.compose.ui.graphics.SolidColor(Color(0x2EFFFFFF))
-                else Brush.linearGradient(listOf(TvColors.GlassTop, TvColors.GlassBottom))
+    Box(modifier.fillMaxSize().background(Smoke.Background)) {
+        if (imageUrl != null) {
+            val blurMod = if (Build.VERSION.SDK_INT >= 31) Modifier.blur(28.dp) else Modifier
+            AsyncImage(
+                model = imageUrl, contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().then(blurMod).alpha(0.55f),
             )
-            .border(1.dp, TvColors.Outline, RoundedCornerShape(19.dp))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .padding(horizontal = 26.dp, vertical = if (LocalCompact.current) 12.dp else 17.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(if (focused) 33.dp else 28.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = TvColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        } else {
+            Box(Modifier.fillMaxSize().background(
+                Brush.linearGradient(listOf(Color(0xFF1B1D22), Color(0xFF08090B), Color(0xFF000000)))))
         }
-        Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp), tint = if (focused) Color.White else TvColors.Muted)
+        Box(Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.30f), Color.Black.copy(alpha = 0.80f)))))
+        content()
     }
 }
 
+/** Superfície de vidro fumê (painéis estáticos). */
 @Composable
-fun VodPosterCard(entry: VodEntry, onClick: () -> Unit, modifier: Modifier = Modifier, onFocus: () -> Unit = {}) {
-    var focused by remember { mutableStateOf(false) }
+fun Modifier.glass(
+    shape: Shape = RoundedCornerShape(LocalDimens.current.corner),
+    fill: Color = Smoke.Glass,
+    borderColor: Color = Smoke.Hairline,
+    borderWidth: Dp = LocalDimens.current.hairline,
+): Modifier = this.clip(shape).background(fill).border(borderWidth, borderColor, shape)
+
+@Composable
+fun GlassPanel(
+    modifier: Modifier = Modifier,
+    padding: Dp = 12.dp,
+    fill: Color = Smoke.Glass,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Box(modifier.glass(fill = fill).padding(padding), content = content)
+}
+
+/**
+ * Primitiva interativa única do app (D-pad + toque).
+ * - Foco: borda BRANCA #FFFFFF (espessura em dp vem de Dimens) + leve escala na TV.
+ * - Selecionado: borda branca fina.
+ * - Idle: vidro fumê com hairline branco 12 %.
+ * A borda é desenhada POR CIMA do conteúdo (não some atrás de imagens).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun GlassClickable(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    flat: Boolean = false,
+    corner: Dp = LocalDimens.current.corner,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    onFocused: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    content: @Composable BoxScope.(focused: Boolean) -> Unit,
+) {
+    val d = LocalDimens.current
+    val isTv = LocalDeviceMode.current == DeviceMode.TV
     val interaction = remember { MutableInteractionSource() }
-    Column(
+    val focused by interaction.collectIsFocusedAsState()
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = when {
+            focused && isTv -> d.focusScale
+            pressed -> 0.97f
+            else -> 1f
+        },
+        animationSpec = tween(120), label = "glassScale",
+    )
+    // Fit-or-scroll: o foco do D-pad puxa o item para dentro do viewport (listas, trilhos, pills).
+    val bringIntoView = remember { BringIntoViewRequester() }
+    val bringScope = rememberCoroutineScope()
+    LaunchedEffect(focused) { if (focused) onFocused?.invoke() }
+
+    val shape = RoundedCornerShape(corner)
+    val fill = when {
+        focused -> Smoke.GlassRaised
+        selected -> Smoke.GlassSelected
+        flat -> Color.Transparent
+        else -> Smoke.Glass
+    }
+    val borderColor = when {
+        focused || selected -> Smoke.FocusWhite
+        flat -> Color.Transparent
+        else -> Smoke.Hairline
+    }
+    val borderWidth = when {
+        focused -> d.focusBorder
+        selected -> d.selectedBorder
+        else -> d.hairline
+    }
+
+    Box(
         modifier
-            .testTag("vod-card-${entry.id}")
-            .keepFocusInView()
-            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
-            .whiteFocus(focused, radius = 20.dp)
-            .padding(3.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
-    ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-            RemoteImage(entry.posterUrl, entry.name, Modifier.matchParentSize(), ContentScale.Crop)
-            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC07080A)))))
-            if (entry.rating != null && entry.rating > 0) {
-                Row(
-                    Modifier.align(Alignment.TopEnd).padding(8.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Icon(Icons.Default.Favorite, null, Modifier.size(11.dp), tint = Color(0xFFFF6B8A))
-                    Text("%.1f".format(entry.rating), color = Color.White, style = MaterialTheme.typography.labelMedium)
-                }
+            .bringIntoViewRequester(bringIntoView)
+            .onFocusEvent { e ->
+                if (e.isFocused) bringScope.launch { runCatching { bringIntoView.bringIntoView() } }
             }
-            Column(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(entry.name, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(
-                    listOfNotNull(entry.year?.toString(), entry.category.takeIf { it.isNotBlank() })
-                        .joinToString(" · ").ifBlank { if (entry.kind.name == "SERIES") "Série" else "Filme" },
-                    color = TvColors.Muted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(shape)
+            .background(fill)
+            .combinedClickable(
+                interactionSource = interaction, indication = null,
+                onClick = onClick, onLongClick = onLongClick,
+            )
+            .drawWithContent {
+                drawContent()
+                val w = borderWidth.toPx()
+                drawRoundRect(
+                    color = borderColor,
+                    topLeft = Offset(w / 2, w / 2),
+                    size = Size(size.width - w, size.height - w),
+                    cornerRadius = CornerRadius((corner.toPx() - w / 2).coerceAtLeast(0f)),
+                    style = Stroke(width = w),
                 )
             }
-        }
-    }
+            .padding(contentPadding),
+    ) { content(focused) }
 }
 
 @Composable
-fun ContinueCard(title: String, positionMs: Long, durationMs: Long, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var focused by remember { mutableStateOf(false) }
-    val interaction = remember { MutableInteractionSource() }
-    Column(
-        modifier.testTag("continue-$title").keepFocusInView().onFocusChanged { focused = it.isFocused }
-            .whiteFocus(focused, radius = 18.dp).padding(3.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
-    ) {
-        Box(Modifier.width(if (LocalCompact.current) 200.dp else 240.dp).aspectRatio(16f / 9f)) {
-            RemoteImage(null, title, Modifier.matchParentSize())
-            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (durationMs > 0) {
-                    Box(
-                        Modifier.fillMaxWidth().height(4.dp).background(Color(0x55FFFFFF), RoundedCornerShape(2.dp))
-                    ) {
-                        Box(
-                            Modifier.fillMaxWidth(((positionMs.toFloat() / durationMs.toFloat()).coerceIn(0.01f, 1f)))
-                                .height(4.dp).background(Color.White, RoundedCornerShape(2.dp))
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun HeartToggle(isFavorite: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier, label: String = "favorito") {
-    var focused by remember { mutableStateOf(false) }
-    val interaction = remember { MutableInteractionSource() }
-    Box(
-        modifier.testTag("heart-$label").size(40.dp).onFocusChanged { focused = it.isFocused }
-            .whiteFocus(focused, radius = 12.dp).clip(RoundedCornerShape(10.dp))
-            .background(Color(0x33000000), RoundedCornerShape(10.dp))
-            .clickable(interactionSource = interaction, indication = null, onClick = onToggle),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null,
-            tint = if (isFavorite) Color(0xFFFF6B8A) else Color.White, modifier = Modifier.size(20.dp),
-        )
-    }
-}
-
-/** Chip pequeno de categoria (colunas 1 das abas). */
-@Composable
-fun CategoryChip(
-    name: String,
-    count: Int?,
+fun GlassChip(
+    text: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val interaction = remember { MutableInteractionSource() }
-    Row(
-        modifier
-            .testTag("category-${name.filter(Char::isLetterOrDigit).take(24)}")
-            .keepFocusInView()
-            .onFocusChanged { focused = it.isFocused }
-            .whiteFocus(focused, selected, 12.dp)
-            .padding(2.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Color(0x2BFFFFFF) else Color(0x14FFFFFF))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        if (icon != null) Icon(icon, null, Modifier.size(16.dp), tint = Color.White)
-        Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (count != null) Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
+    val d = LocalDimens.current
+    GlassClickable(
+        onClick = onClick, selected = selected, corner = d.chipHeight / 2,
+        modifier = modifier.height(d.chipHeight),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+    ) { focused ->
+        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(icon, null, Modifier.size(18.dp), tint = Smoke.TextPrimary)
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                text, maxLines = 1, fontSize = d.textBody,
+                fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected || focused) Smoke.TextPrimary else Smoke.TextSecondary,
+            )
+        }
     }
 }
 
-fun vodLabel(entry: VodEntry): String = buildString {
-    append(entry.name)
-    entry.year?.let { append(" ($it)") }
+@Composable
+fun GlassButton(text: String, icon: ImageVector?, onClick: () -> Unit, modifier: Modifier = Modifier) =
+    GlassChip(text, selected = false, onClick = onClick, modifier = modifier, icon = icon)
+
+/** Campo de texto em vidro fumê; borda branca ao focar. Usado por TODAS as buscas. */
+@Composable
+fun GlassTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = Icons.Rounded.Search,
+    password: Boolean = false,
+    imeAction: ImeAction = ImeAction.Search,
+    onSubmit: (() -> Unit)? = null,
+) {
+    val d = LocalDimens.current
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(d.corner)
+    Row(
+        modifier.fillMaxWidth().height(d.fieldHeight)
+            .clip(shape)
+            .background(if (focused) Smoke.GlassRaised else Smoke.Glass)
+            .border(
+                if (focused) d.focusBorder else d.hairline,
+                if (focused) Smoke.FocusWhite else Smoke.Hairline, shape,
+            )
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (leadingIcon != null) {
+            Icon(leadingIcon, null, Modifier.size(20.dp), tint = Smoke.TextSecondary)
+            Spacer(Modifier.width(10.dp))
+        }
+        Box(Modifier.weight(1f)) {
+            if (value.isEmpty()) Text(placeholder, fontSize = d.textBody, color = Smoke.TextTertiary, maxLines = 1)
+            BasicTextField(
+                value = value, onValueChange = onValueChange, singleLine = true,
+                interactionSource = interaction,
+                textStyle = TextStyle(color = Smoke.TextPrimary, fontSize = d.textBody),
+                cursorBrush = SolidColor(Smoke.FocusWhite),
+                visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+                keyboardOptions = KeyboardOptions(imeAction = imeAction),
+                keyboardActions = KeyboardActions(
+                    onSearch = { onSubmit?.invoke() }, onDone = { onSubmit?.invoke() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (value.isNotEmpty()) {
+            Icon(
+                Icons.Rounded.Close, "Limpar",
+                Modifier.size(20.dp).clickable { onValueChange("") },
+                tint = Smoke.TextSecondary,
+            )
+        }
+    }
 }

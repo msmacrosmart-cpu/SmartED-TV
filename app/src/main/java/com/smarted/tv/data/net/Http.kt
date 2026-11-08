@@ -32,9 +32,8 @@ object Http {
 
     const val USER_AGENT = "SmartED-TV/3.0 (Android TV; IPTV client)"
 
-    suspend fun getText(url: String, headers: Map<String, String> = emptyMap()): String = withContext(Dispatchers.IO) {
-        execute(buildRequest(url, headers))
-    }
+    suspend fun getText(url: String, headers: Map<String, String> = emptyMap()): String =
+        withContext(Dispatchers.IO) { decodeBytes(getBytes(url, headers), url) }
 
     suspend fun getBytes(url: String, headers: Map<String, String> = emptyMap()): ByteArray = withContext(Dispatchers.IO) {
         val request = buildRequest(url, headers)
@@ -44,15 +43,45 @@ object Http {
         }
     }
 
-    suspend fun getJson(url: String, headers: Map<String, String> = emptyMap()): JsonElement = withContext(Dispatchers.IO) {
-        val text = runCatching { execute(buildRequest(url, headers + mapOf("Accept" to "application/json"))) }
-        val raw = text.getOrElse { throw it }
-        json.parseToJsonElement(raw)
+    /**
+     * UTF-8 + descompactação por assinatura: alguns servidores mandam .gz com
+     * Content-Encoding ausente; sem isso o parser vê bytes binários (erro
+     * "Unexpected JSON token at offset 0").
+     */
+    fun decodeBytes(bytes: ByteArray, origin: String = ""): String {
+        val body = if (bytes.size >= 2 && bytes[0] == 0x1F.toByte() && bytes[1] == 0x8B.toByte()) {
+            java.util.zip.GZIPInputStream(bytes.inputStream()).use { it.readBytes() }
+        } else {
+            bytes
+        }
+        return String(body, Charsets.UTF_8).removePrefix("\uFEFF")
+    }
+
+    suspend fun getJson(url: String, headers: Map<String, String> = emptyMap()): JsonElement =
+        json.parseToJsonElement(readJsonText(url, headers))
+
+    /** Baixa e valida JSON com erro legível (JSON vs HTML vs binário). */
+    suspend fun readJsonText(url: String, headers: Map<String, String> = emptyMap()): String = withContext(Dispatchers.IO) {
+        val raw = runCatching { execute(buildRequest(url, headers + mapOf("Accept" to "application/json"))) }
+            .getOrElse { throw it }
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) throw IOException("O endereço respondeu com corpo vazio.")
+        val first = trimmed[0]
+        if (first != '{' && first != '[') {
+            val looksHtml = trimmed.startsWith("<", true)
+            val preview = trimmed.replace(Regex("\s+"), " ").take(80)
+            throw IOException(
+                if (looksHtml) "A URL respondeu uma página HTML, não o arquivo JSON. Use o link RAW ("Raw"/"Download" no GitHub), terminando em .json"
+                else "A resposta não é JSON (começa com byte 0x%02X — arquivo compactado/binário?). Aponte para o índice .json direto.".format(first.code)
+                + " Recebido: "$preview…""
+            )
+        }
+        trimmed
     }
 
     fun buildRequest(url: String, headers: Map<String, String>): Request {
+        // Sem Accept-Encoding manual: OkHttp faz gzip/br transparente e decompõe sozinho.
         val builder = Request.Builder().url(url).header("User-Agent", headers["User-Agent"] ?: USER_AGENT)
-            .header("Accept-Encoding", "gzip")
         headers.forEach { (key, value) -> if (key != "User-Agent") builder.header(key, value) }
         return builder.build()
     }
@@ -63,7 +92,8 @@ object Http {
         }.let {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("HTTP ${response.code} em ${request.url}")
-                response.body?.string() ?: throw IOException("Corpo vazio em ${request.url}")
+                val bytes = response.body?.bytes() ?: throw IOException("Corpo vazio em ${request.url}")
+                decodeBytes(bytes, request.url.toString())
             }
         }
 

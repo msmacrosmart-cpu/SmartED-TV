@@ -3,7 +3,7 @@ package com.smarted.tv.data
 import com.smarted.tv.core.epg.EpgTimeline
 import com.smarted.tv.core.model.BrowseQuery
 import com.smarted.tv.core.model.ChannelRow
-import com.smarted.tv.core.model.Episode
+import com.smarted.tv.core.model.StoredEpisode
 import com.smarted.tv.core.model.LiveChannel
 import com.smarted.tv.core.model.ListSource
 import com.smarted.tv.core.model.NowNext
@@ -121,7 +121,7 @@ class CatalogRepository(private val store: IptvStore) {
     fun vodByFavKey(favKey: String): VodEntry? = store.vodByFavKey(favKey)
     fun channelById(id: Long): LiveChannel? = store.channelById(id)
     fun channelsByIds(ids: List<Long>): List<LiveChannel> = store.channelsByIds(ids)
-    fun episodes(vodId: Long): List<Episode> = store.episodesFor(vodId)
+    fun episodes(vodId: Long): List<StoredEpisode> = store.episodesFor(vodId)
     fun sourceOf(sourceId: Long): ListSource? = store.sourceById(sourceId)
 
     fun saveProgress(favKey: String, title: String, position: Long, duration: Long, kind: String, url: String, isLive: Boolean) {

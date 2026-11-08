@@ -94,6 +94,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.documentfile)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.hls)
     implementation(libs.androidx.media3.dash)
