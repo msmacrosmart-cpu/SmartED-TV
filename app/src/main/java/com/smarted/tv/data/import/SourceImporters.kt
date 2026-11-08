@@ -5,16 +5,14 @@ import com.smarted.tv.core.model.ListSource
 import com.smarted.tv.core.model.SourceKind
 import com.smarted.tv.core.model.Tab
 import com.smarted.tv.core.parse.M3uParser
+import com.smarted.tv.core.parse.RepoJsonParser
 import com.smarted.tv.core.parse.XmltvParser
 import com.smarted.tv.core.repo.RepoIndex
 import com.smarted.tv.core.sources.StreamRules
 import com.smarted.tv.core.text.TextNormalizer
 import com.smarted.tv.data.db.IptvStore
 import com.smarted.tv.data.json.double
-import com.smarted.tv.data.json.long
 import com.smarted.tv.data.json.obj
-import com.smarted.tv.data.json.str
-import com.smarted.tv.data.json.strOrNull
 import com.smarted.tv.data.json.unwrapList
 import com.smarted.tv.data.net.Http
 import java.io.BufferedReader
@@ -22,6 +20,7 @@ import java.io.InputStreamReader
 import java.util.zip.GZIPInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 /** Resultado de uma importação para exibição no status da fonte. */
@@ -271,17 +270,19 @@ class SourceImporters(private val store: IptvStore) {
     // ------------------------------------------------------- repositórios
 
     suspend fun decodeRepoIndex(url: String): RepoIndex {
-        val element = if (isLocalUrl(url)) {
-            val trimmed = withContext(Dispatchers.IO) { readLocalText(url) }.trim()
-            if (trimmed.isEmpty()) error("O arquivo esta vazio: $url")
-            if (trimmed[0] != '{' && trimmed[0] != '[') {
-                error("O arquivo nao e JSON (comeca com \'" + trimmed.take(24) + "\'). Selecione o indice .json do repositorio.")
-            }
-            Http.json.parseToJsonElement(trimmed)
+        val raw = if (isLocalUrl(url)) {
+            withContext(Dispatchers.IO) { readLocalText(url) }
         } else {
-            Http.json.parseToJsonElement(Http.readJsonText(url))
+            Http.readJsonText(url)
         }
-        return RepoJson.fromJson(element, url)
+        val cleaned = RepoJsonParser.cleanJsonText(raw)
+        if (cleaned.isBlank()) error("O arquivo esta vazio: $url")
+        val first = cleaned.firstOrNull()
+        if (first != '{' && first != '[') {
+            error("O arquivo nao e JSON (comeca with '" + cleaned.take(24) + "'). Selecione o indice .json do repositorio.")
+        }
+        val element: JsonElement = Http.json.parseToJsonElement(cleaned)
+        return RepoJsonParser.fromJson(element, url)
     }
 
     /** Arquivo local (content:// ou file://) de texto — M3U/EPG/índice. */
@@ -333,13 +334,25 @@ class XtreamClient(private val source: ListSource) {
     fun xmltvUrl(): String = "$base/xmltv.php?username=${encode(source.username)}&password=${encode(source.password)}"
     fun shortEpgUrl(streamId: String): String = api("get_short_epg", mapOf("stream_id" to streamId, "limit" to "6"))
 
+    /**
+     * Busca JSON do painel Xtream, rejeitando respostas em texto puro ou HTML de erro
+     * (HTTP 200 com corpo HTML). Lança IOException com mensagem clara em caso de falha.
+     */
+    private suspend fun fetchJsonPanel(url: String): kotlinx.serialization.json.JsonElement {
+        val text = Http.readJsonText(url) // já rejeita HTML/vazio/binário
+        return kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
+            .parseToJsonElement(text)
+    }
+
     suspend fun authenticate(): Boolean {
-        val element = runCatching { Http.getJson("$base/player_api.php?username=${encode(source.username)}&password=${encode(source.password)}") }.getOrNull()
+        val element = runCatching {
+            fetchJsonPanel("$base/player_api.php?username=${encode(source.username)}&password=${encode(source.password)}")
+        }.getOrNull()
         return XtreamMapper.authenticateResult(element)
     }
 
     suspend fun get(action: String, extra: Map<String, String> = emptyMap()): List<JsonObject> {
-        val element = Http.getJson(api(action, extra))
+        val element = fetchJsonPanel(api(action, extra))
         val (array, message) = element.unwrapList()
         if (array.isEmpty() && message != null) error("Xtream [$action]: $message")
         return array.mapNotNull { it as? JsonObject }
