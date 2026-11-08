@@ -62,6 +62,12 @@ jobs:
       - name: assembleRelease (compilação limpa, sem gates)
         run: |
           set +e
+          # Diagnóstico rápido do CDN de distribuições (o wrapper já falhou com 504 várias vezes).
+          for u in "https://downloads.gradle.org/distributions/gradle-8.9-bin.zip" \
+                   "https://services.gradle.org/distributions/gradle-8.9-bin.zip" \
+                   "https://github.com/gradle/gradle-distributions/releases/download/v8.9.0/gradle-8.9-bin.zip"; do
+            echo "probe $u -> $(curl -sIL -o /dev/null -w '%{http_code} final=%{url_effective}' --max-time 20 "$u" || echo curl-fail)"
+          done
           # Retry apenas para falha de download do wrapper (CDN do Gradle já retornou 504/timeout
           # várias vezes); erro de compilação real não é repetido.
           CODE=1
