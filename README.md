@@ -47,3 +47,5 @@ Toda release é assinada com a mesma chave de compatibilidade do repositório (`
 - Torrent/P2P e DRM não são executados pelo app; o conteúdo do Elementum abre via daemon/intent do Kodi.
 
 Detalhes do pedido e decisões: [`docs/DESIGN.md`](docs/DESIGN.md).
+
+<!-- ci: retry após suspeita de glitch no parse do workflow -->
