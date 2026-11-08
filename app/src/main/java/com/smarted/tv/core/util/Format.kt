@@ -1,9 +1,5 @@
 package com.smarted.tv.core.util
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
-import androidx.compose.runtime.produceState
-import kotlinx.coroutines.delay
 import java.text.Normalizer
 import java.time.Instant
 import java.time.ZoneId
@@ -26,9 +22,3 @@ fun Int.asDuration(): String {
 }
 
 fun Double.asRating(): String = String.format(Locale("pt", "BR"), "%.1f", this)
-
-@Composable
-fun rememberNowMs(intervalMs: Long = 30_000L): State<Long> =
-    produceState(System.currentTimeMillis()) {
-        while (true) { delay(intervalMs); value = System.currentTimeMillis() }
-    }

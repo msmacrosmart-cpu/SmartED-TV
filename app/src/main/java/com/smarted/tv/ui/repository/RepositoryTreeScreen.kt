@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smarted.tv.core.data.AppGraph
 import com.smarted.tv.core.model.PlaybackRequest
 import com.smarted.tv.core.model.Tab
+import com.smarted.tv.ui.repository.RepositoryTreeViewModel.RepoTreeNode
 import com.smarted.tv.ui.common.vmFactory
 import com.smarted.tv.ui.components.GlassClickable
 import com.smarted.tv.ui.components.glass
@@ -39,13 +40,14 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
         factory = vmFactory { RepositoryTreeViewModel(AppGraph.content) },
     )
     val ui by vm.ui.collectAsState()
+    val message by vm.message.collectAsState()
     val d = LocalDimens.current
     val ctx = LocalContext.current
     val path = ui.path
     val current = path.last()
 
-    LaunchedEffect(ui.message) {
-        ui.message?.let { msg ->
+    LaunchedEffect(message) {
+        message?.let { msg ->
             Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
             vm.consumeMessage()
         }
@@ -87,11 +89,7 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
 
         Box(Modifier.weight(1f).fillMaxSize().glass()) {
             if (!ui.loaded) {
-                Row(
-                    Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp))
                 }
             } else if (ui.children.isEmpty()) {
@@ -109,17 +107,17 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
                 ) {
                     items(items = ui.children, key = { it.key() }) { node ->
                         when (node) {
-                            is RepositoryTreeViewModel.Item -> ItemRow(node) { vm.select(node, onPlay) }
-                            RepositoryTreeViewModel.Addons -> NavRow("Addons", Icons.Rounded.Extension) {
+                            is RepoTreeNode.Item -> ItemRow(node) { vm.select(node, onPlay) }
+                            RepoTreeNode.Addons -> NavRow("Addons", Icons.Rounded.Extension) {
                                 vm.navigateInto(node)
                             }
-                            is RepositoryTreeViewModel.Category -> CategoryRow(node) {
+                            is RepoTreeNode.Category -> CategoryRow(node) {
                                 vm.navigateInto(node)
                             }
-                            is RepositoryTreeViewModel.Folder -> FolderRow(node) {
+                            is RepoTreeNode.Folder -> FolderRow(node) {
                                 vm.navigateInto(node)
                             }
-                            RepositoryTreeViewModel.Root -> Unit
+                            RepoTreeNode.Root -> Unit
                         }
                     }
                 }
@@ -136,7 +134,7 @@ private fun NavRow(title: String, icon: ImageVector, onClick: () -> Unit) =
     TreeRow(title, icon, onClick)
 
 @Composable
-private fun CategoryRow(node: RepositoryTreeViewModel.Category, onClick: () -> Unit) =
+private fun CategoryRow(node: RepoTreeNode.Category, onClick: () -> Unit) =
     TreeRow(
         node.name,
         when (node.tab) {
@@ -148,11 +146,11 @@ private fun CategoryRow(node: RepositoryTreeViewModel.Category, onClick: () -> U
     )
 
 @Composable
-private fun FolderRow(node: RepositoryTreeViewModel.Folder, onClick: () -> Unit) =
+private fun FolderRow(node: RepoTreeNode.Folder, onClick: () -> Unit) =
     TreeRow(node.name, Icons.Rounded.Folder, onClick)
 
 @Composable
-private fun ItemRow(node: RepositoryTreeViewModel.Item, onPlay: () -> Unit) =
+private fun ItemRow(node: RepoTreeNode.Item, onPlay: () -> Unit) =
     TreeRow(node.title, Icons.Rounded.PlayArrow, onPlay)
 
 @Composable

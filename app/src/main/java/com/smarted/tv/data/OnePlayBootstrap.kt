@@ -5,8 +5,6 @@ import com.smarted.tv.AppGraph
 import com.smarted.tv.core.model.ListSource
 import com.smarted.tv.core.model.SourceKind
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.onFailure
-import kotlinx.coroutines.onSuccess
 import kotlinx.coroutines.withContext
 
 /**
@@ -24,9 +22,12 @@ object OnePlayBootstrap {
     /** Nome da fonte-fantasma (filtrada da UI de Configurações para ficar invisível). */
     const val PHANTOM_NAME = "OnePlay"
 
-    /** Índice JSON (RAW) do repositório OnePlay. */
+    /**
+     * Índice JSON (RAW) do repositório OnePlay. Este branch carrega a árvore
+     * recursiva `tree` lida pelo módulo Repository/Tree (Retrofit + kotlinx-serialization).
+     */
     const val INDEX_URL =
-        "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/2ecf2332-smarted-tv/app/src/main/assets/oneplay_index.json"
+        "https://raw.githubusercontent.com/msmacrosmart-cpu/SmartED-TV/arena/f8d4f8cd-smarted-tv/app/src/main/assets/oneplay_index.json"
 
     fun isInitialized(ctx: Context): Boolean =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_INIT, false)
@@ -43,21 +44,22 @@ object OnePlayBootstrap {
      * Adiciona (ou reusa) a fonte-fantasma e dispara a sincronização dos filhos indexados no JSON.
      * Idempotente: nunca cria fontes duplicadas e nunca deixa rastros de erro na UI do usuário.
      */
-    suspend fun bootstrap(graph: AppGraph, ctx: Context) = withContext(Dispatchers.IO) {
-        if (isInitialized(ctx)) return@withContext
-
-        val parent = phantomSource(graph) ?: run {
-            val id = graph.store.insertSource(
-                ListSource(id = 0, name = PHANTOM_NAME, kind = SourceKind.REPOSITORY, url = INDEX_URL),
-            )
-            ListSource(id = id, name = PHANTOM_NAME, kind = SourceKind.REPOSITORY, url = INDEX_URL)
-        }
-
-        runCatching { graph.sources.syncRepository(parent) }
-            .onSuccess { markInitialized(ctx) }
-            .onFailure {
-                // Silencioso por design: rede fora do ar ou índice inválido não quebram o boot.
-                // Na próxima inicialização a sincronização é tentada novamente nesta mesma fonte.
+    suspend fun bootstrap(graph: AppGraph, ctx: Context) {
+        withContext(Dispatchers.IO) {
+            if (!isInitialized(ctx)) {
+                val parent = phantomSource(graph) ?: run {
+                    val id = graph.store.insertSource(
+                        ListSource(id = 0, name = PHANTOM_NAME, kind = SourceKind.REPOSITORY, url = INDEX_URL),
+                    )
+                    ListSource(id = id, name = PHANTOM_NAME, kind = SourceKind.REPOSITORY, url = INDEX_URL)
+                }
+                runCatching { graph.sources.syncRepository(parent) }
+                    .onSuccess { markInitialized(ctx) }
+                    .onFailure {
+                        // Silencioso por design: rede fora do ar ou índice inválido não quebram o boot.
+                        // Na próxima inicialização a sincronização é tentada novamente nesta mesma fonte.
+                    }
             }
+        }
     }
 }

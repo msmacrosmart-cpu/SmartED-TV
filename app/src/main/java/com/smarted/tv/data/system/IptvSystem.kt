@@ -1,4 +1,4 @@
-package com.smarted.tv.core.data
+package com.smarted.tv.data.system
 
 import android.content.Context
 import android.net.Uri

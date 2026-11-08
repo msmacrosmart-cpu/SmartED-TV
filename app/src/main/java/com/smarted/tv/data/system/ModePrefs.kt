@@ -1,4 +1,4 @@
-package com.smarted.tv.core.data
+package com.smarted.tv.data.system
 
 import android.app.UiModeManager
 import android.content.Context

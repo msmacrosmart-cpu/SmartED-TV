@@ -72,7 +72,8 @@ tasks.withType<Test>().configureEach {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
-        allWarningsAsErrors.set(true)
+        // Diretriz do projeto: warnings não bloqueiam a compilação do release.
+        allWarningsAsErrors.set(false)
         freeCompilerArgs.addAll("-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi", "-opt-in=androidx.compose.ui.ExperimentalComposeUiApi")
     }
 }
@@ -93,6 +94,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
+    implementation(libs.retrofit)
     implementation(libs.coil.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.documentfile)

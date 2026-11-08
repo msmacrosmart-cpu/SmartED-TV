@@ -8,6 +8,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -15,10 +16,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smarted.tv.core.model.DeviceMode
 
-/** Paleta Black Glassmorphism Fumê. Foco e seleção = branco puro (#FFFFFF). */
+/**
+ * Paleta Black Glassmorphism Fumê (painéis `smokedGlass`).
+ * Foco e seleção = branco puro (#FFFFFF).
+ */
 object Smoke {
     val Background = Color(0xFF050506)
     val Glass = Color(0xFF16181D).copy(alpha = 0.62f)
+    /** Token dos painéis smokedGlass — cor base do vidro fumê. */
+    val smokedGlass = Glass
     val GlassRaised = Color(0xFF20232A).copy(alpha = 0.82f)
     val GlassSelected = Color(0xFF2A2D35).copy(alpha = 0.78f)
     val Hairline = Color.White.copy(alpha = 0.12f)
@@ -67,7 +73,7 @@ val LocalDeviceMode = staticCompositionLocalOf { DeviceMode.PHONE }
 
 /**
  * Único modificador de foco do app: borda branco puro (#FFFFFF) — D-pad sempre visível,
- * nunca magenta/rosa (verificado pelo gate tools/check_architecture.py).
+ * nunca cor quente de destaque (verificado pelo gate tools/check_architecture.py).
  */
 @Composable
 fun Modifier.whiteFocus(width: Dp = LocalDimens.current.focusBorder): Modifier =

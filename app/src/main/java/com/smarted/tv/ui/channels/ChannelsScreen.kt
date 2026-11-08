@@ -22,10 +22,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import com.smarted.tv.core.data.AppGraph
 import com.smarted.tv.core.model.*
 import com.smarted.tv.core.util.asClock
-import com.smarted.tv.core.util.rememberNowMs
 import com.smarted.tv.ui.common.vmFactory
 import com.smarted.tv.ui.components.*
 import com.smarted.tv.ui.player.LivePreviewPlayer
@@ -272,3 +272,13 @@ private fun ChannelPreview(
 /** Reprodução de canal: cabeçalhos da fonte + flag live (sem salvar progresso). */
 private fun Channel.toRequest() =
     PlaybackRequest(name, streamUrl, headers, favKey, "channel", isLive = true)
+
+/** Relógio ao vivo da tela (EPG/barra de progresso), atualizado a cada [intervalMs]. */
+@Composable
+private fun rememberNowMs(intervalMs: Long = 30_000L): State<Long> =
+    produceState(System.currentTimeMillis()) {
+        while (true) {
+            delay(intervalMs)
+            value = System.currentTimeMillis()
+        }
+    }
