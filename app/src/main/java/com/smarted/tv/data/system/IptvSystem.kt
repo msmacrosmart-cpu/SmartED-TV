@@ -58,6 +58,22 @@ class IptvSystem(private val graph: com.smarted.tv.AppGraph, ctx: Context) {
         }
     }
 
+    // --------------------------------------- pacotes ZIP (instalador estilo Kodi)
+    private val repoPackages = com.smarted.tv.data.repo.RepoPackages(app)
+
+    fun zipPackages() = repoPackages.packages()
+    fun zipEntries(zipPath: String) = repoPackages.entries(zipPath)
+    fun zipCandidates(zipPath: String) = repoPackages.candidates(zipPath)
+    suspend fun zipDownload(url: String): String = repoPackages.download(url)
+
+    /** Instala um índice do pacote e o registra como repositório (file://). */
+    suspend fun zipInstall(zipPath: String, entryPath: String, types: Map<String, String>): String {
+        val (localUrl, name) = repoPackages.install(zipPath, entryPath, types)
+        graph.sources.addLocalRepository(name, localUrl)
+        reloadSources()
+        return name
+    }
+
     // ---------------------------------------------------------------- fontes
 
     fun add(s: PlaylistSource) = run("Lista adicionada e sincronizada.") {

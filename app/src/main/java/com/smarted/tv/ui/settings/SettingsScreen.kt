@@ -30,10 +30,13 @@ import com.smarted.tv.core.model.DeviceMode
 import com.smarted.tv.core.model.PlaylistSource
 import com.smarted.tv.core.model.SourceType
 import com.smarted.tv.data.OnePlayBootstrap.PHANTOM_NAME
+import com.smarted.tv.data.repo.RepoPackages
 import com.smarted.tv.ui.common.vmFactory
 import com.smarted.tv.ui.components.*
 import com.smarted.tv.ui.theme.LocalDimens
 import com.smarted.tv.ui.theme.Smoke
+import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -47,6 +50,9 @@ fun SettingsScreen(mode: DeviceMode, onChangeMode: () -> Unit) {
     val d = LocalDimens.current
     val ctx = LocalContext.current
     var dialogType by remember { mutableStateOf<SourceType?>(null) }
+    var zipInstallOpen by remember { mutableStateOf(false) }
+    var zipPickerOpen by remember { mutableStateOf(false) }
+    var zipBrowserPath by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         vm.message.collect { msg ->
             if (msg != null) { Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show(); vm.consumeMessage() }
@@ -97,6 +103,8 @@ fun SettingsScreen(mode: DeviceMode, onChangeMode: () -> Unit) {
                     GlassButton("Adicionar Xtream Codes", Icons.Rounded.Dns, { dialogType = SourceType.XTREAM })
                     GlassButton("Adicionar M3U (URL)", Icons.Rounded.Link, { dialogType = SourceType.M3U_URL })
                     GlassButton("Adicionar repositório (URL)", Icons.Rounded.Storage, { dialogType = SourceType.REPOSITORY })
+                    GlassButton("Instalar ZIP (URL)", Icons.Rounded.Archive, { zipInstallOpen = true })
+                    GlassButton("Pacotes de repositório", Icons.Rounded.FolderOpen, { zipPickerOpen = true })
                 }
             }
         }
@@ -131,6 +139,36 @@ fun SettingsScreen(mode: DeviceMode, onChangeMode: () -> Unit) {
     dialogType?.let { type ->
         AddSourceDialog(type, onDismiss = { dialogType = null }) { vm.add(it); dialogType = null }
     }
+
+    // Instalador de ZIP: baixa o pacote e abre o navegador de repositórios.
+    if (zipInstallOpen) {
+        ZipInstallDialog(
+            onClose = { zipInstallOpen = false },
+            onDownloaded = { path -> zipInstallOpen = false; zipBrowserPath = path },
+            download = { vm.zipDownload(it) },
+        )
+    }
+
+    // Pacotes já baixados — escolha qual abrir no navegador.
+    if (zipPickerOpen) {
+        ZipPackagesDialog(
+            onPick = { path -> zipPickerOpen = false; zipBrowserPath = path },
+            onClose = { zipPickerOpen = false },
+            packages = remember { vm.zipPackages() },
+        )
+    }
+
+    // Navegador de repositórios: conteúdo do ZIP + instalação com escolha de tipo.
+    zipBrowserPath?.let { path ->
+        RepoBrowserDialog(
+            vm = vm,
+            zipPath = path,
+            onClose = { zipBrowserPath = null },
+            onInstalled = { name ->
+                Toast.makeText(ctx, "Repositório instalado: $name", Toast.LENGTH_LONG).show()
+            },
+        )
+    }
 }
 
 @Composable
@@ -140,6 +178,245 @@ private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary)
             content()
+        }
+    }
+}
+
+/** Instalador de ZIP (estilo Kodi): baixa o pacote e abre o navegador. */
+@Composable
+private fun ZipInstallDialog(
+    onClose: () -> Unit,
+    onDownloaded: (String) -> Unit,
+    download: suspend (String) -> String,
+) {
+    val d = LocalDimens.current
+    var url by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlassPanel(
+            Modifier.widthIn(max = 560.dp).fillMaxWidth(0.92f),
+            padding = 20.dp, fill = Color(0xFF0E0F12).copy(alpha = 0.96f),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Instalar pacote de repositório (ZIP)",
+                    fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
+                )
+                GlassTextField(
+                    url, { url = it }, "URL do arquivo .zip",
+                    leadingIcon = null, imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                )
+                Hint(
+                    "O ZIP é baixado para o aparelho. Depois você navega o conteúdo e escolhe " +
+                        "quais repositórios/add-ons instalar — nada é exibido sem instalação.",
+                )
+                error?.let { Text(it, fontSize = d.textBody, color = Color(0xFFFF8A80)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassButton(if (busy) "Baixando…" else "Baixar e abrir", Icons.Rounded.Download, {
+                        if (!busy && url.isNotBlank()) {
+                            busy = true
+                            error = null
+                            scope.launch {
+                                runCatching { download(url.trim()) }
+                                    .onSuccess { busy = false; onDownloaded(it) }
+                                    .onFailure {
+                                        busy = false
+                                        error = it.message ?: "Falha ao baixar o ZIP."
+                                    }
+                            }
+                        }
+                    })
+                    GlassButton("Cancelar", Icons.Rounded.Close, onClose)
+                }
+            }
+        }
+    }
+}
+
+/** Pacotes ZIP já baixados — lista para abrir no navegador de repositórios. */
+@Composable
+private fun ZipPackagesDialog(onPick: (String) -> Unit, onClose: () -> Unit, packages: List<File>) {
+    val d = LocalDimens.current
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlassPanel(
+            Modifier.widthIn(max = 560.dp).fillMaxWidth(0.92f),
+            padding = 20.dp, fill = Color(0xFF0E0F12).copy(alpha = 0.96f),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Pacotes de repositório (ZIP)",
+                    fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
+                )
+                if (packages.isEmpty()) {
+                    Hint("Nenhum pacote baixado ainda. Use “Instalar ZIP (URL)”.")
+                }
+                packages.forEach { file ->
+                    GlassButton(file.name, Icons.Rounded.Archive, { onPick(file.absolutePath) })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassButton("Fechar", Icons.Rounded.Close, onClose)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Navegador de repositórios (Gestor de Arquivos do pacote): lista o conteúdo
+ * extraído e permite instalar cada índice — escolhendo o tipo (Vídeo, PVR,
+ * Rádio, Programas, Imagens) quando o add-on não declara, como no Kodi.
+ */
+@Composable
+private fun RepoBrowserDialog(
+    vm: SettingsViewModel,
+    zipPath: String,
+    onClose: () -> Unit,
+    onInstalled: (String) -> Unit,
+) {
+    val d = LocalDimens.current
+    var candidates by remember { mutableStateOf<List<RepoPackages.Candidate>>(emptyList()) }
+    var entries by remember { mutableStateOf<List<RepoPackages.Entry>>(emptyList()) }
+    var chosen by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(zipPath) {
+        candidates = vm.zipCandidates(zipPath)
+        entries = vm.zipEntries(zipPath)
+    }
+    val typeOptions = listOf(
+        "video" to "Vídeo", "pvr" to "PVR", "radio" to "Rádio",
+        "programs" to "Programas", "pictures" to "Imagens",
+    )
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlassPanel(
+            Modifier.widthIn(max = 680.dp).fillMaxWidth(0.94f),
+            padding = 20.dp, fill = Color(0xFF0E0F12).copy(alpha = 0.96f),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Navegador de repositórios",
+                    fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
+                )
+                Hint("Pacote: ${zipPath.substringAfterLast('/')}")
+                if (candidates.isEmpty() && entries.isEmpty()) {
+                    Hint("Lendo o pacote…")
+                }
+                candidates.forEach { candidate ->
+                    GlassPanel(padding = 12.dp, fill = Color.White.copy(alpha = 0.05f)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(candidate.name, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary)
+                            Text(
+                                candidate.entryPath,
+                                fontSize = d.textBody, color = Smoke.TextTertiary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            candidate.addons.forEach { addon ->
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            addon.name,
+                                            Modifier.weight(1f),
+                                            color = Smoke.TextPrimary,
+                                        )
+                                        val declared = addon.declaredType?.lowercase()
+                                        val label = when {
+                                            !declared.isNullOrBlank() -> "Tipo: $declared"
+                                            else -> chosen[addon.name]?.let { "Tipo: $it" } ?: "Sem tipo"
+                                        }
+                                        Text(label, fontSize = d.textBody, color = Smoke.TextTertiary)
+                                    }
+                                    if (addon.declaredType.isNullOrBlank()) {
+                                        Row(
+                                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            typeOptions.forEach { (key, label) ->
+                                                val selected = chosen[addon.name] == key
+                                                GlassButton(
+                                                    if (selected) "✓ $label" else label,
+                                                    null,
+                                                    {
+                                                        if (!busy) chosen = chosen + (addon.name to key)
+                                                    },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            val missingType = candidate.addons.any {
+                                it.declaredType.isNullOrBlank() && chosen[it.name].isNullOrBlank()
+                            }
+                            GlassButton(
+                                when {
+                                    busy -> "Instalando…"
+                                    missingType -> "Escolha o tipo de cada add-on"
+                                    else -> "Instalar este índice"
+                                },
+                                Icons.Rounded.Check,
+                            ) {
+                                if (!busy && !missingType) {
+                                    busy = true
+                                    error = null
+                                    scope.launch {
+                                        val types = candidate.addons
+                                            .mapNotNull { a -> chosen[a.name]?.let { a.name to it } }
+                                            .toMap()
+                                        runCatching { vm.zipInstall(zipPath, candidate.entryPath, types) }
+                                            .onSuccess {
+                                                busy = false
+                                                status = "Instalado: $it"
+                                                onInstalled(it)
+                                            }
+                                            .onFailure {
+                                                busy = false
+                                                error = it.message ?: "Falha ao instalar o índice."
+                                            }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (entries.isNotEmpty()) {
+                    Text("Conteúdo do pacote", fontWeight = FontWeight.Bold, color = Smoke.TextPrimary)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        entries.take(40).forEach { entry ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    if (entry.isDirectory) Icons.Rounded.Folder else Icons.Rounded.Description,
+                                    contentDescription = null,
+                                    tint = Smoke.TextTertiary,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text(
+                                    entry.path,
+                                    fontSize = d.textBody,
+                                    color = Smoke.TextTertiary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        if (entries.size > 40) Hint("… +${entries.size - 40} entradas")
+                    }
+                }
+                status?.let { Text(it, fontSize = d.textBody, color = Color(0xFFA5D6A7)) }
+                error?.let { Text(it, fontSize = d.textBody, color = Color(0xFFFF8A80)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassButton("Fechar", Icons.Rounded.Close, onClose)
+                }
+            }
         }
     }
 }

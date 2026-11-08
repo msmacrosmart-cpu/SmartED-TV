@@ -56,6 +56,24 @@ class SourceManager(
         )
     }
 
+    /**
+     * Instala um índice já extraído do instalador de ZIP (`file://` — sem probe
+     * http). As fontes filhas declaradas no índice são sincronizadas em melhor
+     * esforço: a navegação da árvore funciona mesmo offline.
+     */
+    suspend fun addLocalRepository(name: String, url: String): ListSource {
+        require(url.startsWith("file://")) { "URL local inválida (esperado file://)." }
+        val source = ListSource(
+            id = store.insertSource(
+                ListSource(id = 0, name = name.ifBlank { "Repositório" }, kind = SourceKind.REPOSITORY, url = url),
+            ),
+            name = name.ifBlank { "Repositório" }, kind = SourceKind.REPOSITORY, url = url,
+        )
+        runCatching { syncRepository(source) }
+        bump()
+        return source
+    }
+
     suspend fun addRepository(name: String, url: String): ListSource {
         requireValidUrl(url)
         val source = ListSource(

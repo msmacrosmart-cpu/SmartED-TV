@@ -17,6 +17,14 @@ class SettingsViewModel(private val system: IptvSystem) : ViewModel() {
     fun refresh(id: String) = system.refresh(id)
     fun toggleEnabled(id: String) = system.toggleEnabled(id)
     fun setInterval(id: String, minutes: Int) = system.setInterval(id, minutes)
+
+    // Pacotes ZIP de repositório (instalador + navegador estilo Kodi)
+    fun zipPackages() = system.zipPackages()
+    fun zipEntries(zipPath: String) = system.zipEntries(zipPath)
+    fun zipCandidates(zipPath: String) = system.zipCandidates(zipPath)
+    suspend fun zipDownload(url: String) = system.zipDownload(url)
+    suspend fun zipInstall(zipPath: String, entryPath: String, types: Map<String, String>) =
+        system.zipInstall(zipPath, entryPath, types)
     fun refreshAll() = system.refreshAll()
     fun consumeMessage() = system.consumeMessage()
 

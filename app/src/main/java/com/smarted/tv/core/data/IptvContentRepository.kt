@@ -4,6 +4,7 @@ import com.smarted.tv.core.model.*
 import com.smarted.tv.core.util.normalized
 import com.smarted.tv.core.util.toCategoryName
 import com.smarted.tv.data.OnePlayBootstrap
+import com.smarted.tv.data.net.Http
 import com.smarted.tv.data.repo.OnePlayIndexDto
 import com.smarted.tv.data.repo.OnePlayTreeClient
 import com.smarted.tv.data.repo.toRepositoryMenu
@@ -179,9 +180,20 @@ class IptvContentRepository(
         val url = repoUrl?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL
         if (indexAttemptedFor == url) return cachedIndex
         indexAttemptedFor = url
-        cachedIndex = runCatching {
-            withTimeoutOrNull(10_000L) { OnePlayTreeClient.load(url) }
-        }.getOrNull()
+        cachedIndex = if (url.startsWith("file://")) {
+            // Índice instalado pelo navegador de ZIPs (Configurações) — arquivo local.
+            runCatching {
+                val path = url.removePrefix("file://")
+                val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    java.io.File(path).readText()
+                }
+                Http.json.decodeFromString(OnePlayIndexDto.serializer(), text)
+            }.getOrNull()
+        } else {
+            runCatching {
+                withTimeoutOrNull(10_000L) { OnePlayTreeClient.load(url) }
+            }.getOrNull()
+        }
         return cachedIndex
     }
 
@@ -192,8 +204,16 @@ class IptvContentRepository(
      */
     private suspend fun menuRootFor(node: RepositoryNode): RepositoryNode? {
         val index = indexFor(node.repoUrl) ?: return null
-        val idx = node.addonId.substringAfter("addon|", "").substringBefore("|").toIntOrNull()
-        val tree = (idx?.let { index.addons?.getOrNull(it) }?.tree) ?: index.tree
+        val anchor = node.addonId
+        val tree = when {
+            // Âncora de arquivos: estrutura extraída do repositório (File Manager).
+            anchor.startsWith("files") -> index.files
+            // Âncora de add-on: menu do add-on declarado no JSON.
+            anchor.startsWith("addon|") -> anchor.substringAfter("addon|", "")
+                .substringBefore("|").toIntOrNull()
+                ?.let { index.addons?.getOrNull(it) }?.tree
+            else -> null
+        } ?: index.tree
         return tree?.toRepositoryMenu()
     }
 
@@ -237,13 +257,88 @@ class IptvContentRepository(
         withContext(Dispatchers.IO) {
             when (node.kind) {
                 RepositoryNode.Kind.ROOT -> repositorySources()
-                RepositoryNode.Kind.REPOSITORY -> repositoryAddons(node)
+                RepositoryNode.Kind.REPOSITORY -> repositorySections(node)
                 RepositoryNode.Kind.ADDON -> addonChildren(node)
-                RepositoryNode.Kind.CATEGORY -> categoryChildren(node)
+                RepositoryNode.Kind.CATEGORY ->
+                    if (node.id.startsWith("adongroup|")) addonsOfGroup(node) else categoryChildren(node)
                 RepositoryNode.Kind.FOLDER -> folderChildren(node)
                 RepositoryNode.Kind.ITEM -> emptyList()
             }
         }
+
+    /**
+     * Nível 2 do repositório: SEPARAÇÃO por tipos oficiais Kodi — "Add-ons de
+     * Vídeo", "Add-ons de Programas/Ferramentas", "PVR", ... (grupos dinâmicos
+     * a partir dos tipos declarados no JSON) + as pastas de ARQUIVOS do
+     * repositório (sub-repositórios e ferramentas — File Manager/instalação ZIP).
+     */
+    private suspend fun repositorySections(repo: RepositoryNode): List<RepositoryNode> {
+        val addons = repositoryAddons(repo)
+        val groups = addons.groupBy { (it.addonType ?: "other").lowercase() }
+        val groupNodes = groups.keys.sortedBy { addonGroupOrder(it) }.map { type ->
+            RepositoryNode(
+                id = "adongroup|$type|${repo.id}",
+                name = addonGroupLabel(type),
+                kind = RepositoryNode.Kind.CATEGORY,
+                repoUrl = repo.url?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL,
+            )
+        }
+        return groupNodes + repositoryFileFolders(repo)
+    }
+
+    /** Ordem oficial dos grupos de add-ons (idêntico ao Kodi). */
+    private fun addonGroupOrder(type: String): Int = when (type) {
+        "video" -> 0
+        "programs", "program", "tools" -> 1
+        "pvr" -> 2
+        "music", "audio", "radio" -> 3
+        "pictures" -> 4
+        else -> 9
+    }
+
+    /** Rótulo oficial do grupo (Kodi); tipo desconhecido exibe o próprio tipo. */
+    private fun addonGroupLabel(type: String): String = when (type) {
+        "video" -> "Add-ons de Vídeo"
+        "programs", "program", "tools" -> "Add-ons de Programas/Ferramentas"
+        "pvr" -> "PVR"
+        "music", "audio", "radio" -> "Add-ons de Áudio/Rádio"
+        "pictures" -> "Add-ons de Imagens"
+        else -> type.replaceFirstChar { it.uppercaseChar() }
+    }
+
+    /** Filhos do grupo de tipo: apenas os add-ons JSON daquele tipo (ordem do JSON). */
+    private suspend fun addonsOfGroup(group: RepositoryNode): List<RepositoryNode> {
+        val type = group.id.substringAfter("adongroup|", "").substringBefore("|")
+        val repoId = group.id.substringAfterLast("|")
+        val repo = RepositoryNode(
+            id = repoId,
+            name = repoId,
+            kind = RepositoryNode.Kind.REPOSITORY,
+            url = group.repoUrl,
+        )
+        return repositoryAddons(repo).filter { (it.addonType ?: "other").lowercase() == type }
+    }
+
+    /**
+     * Estrutura de ARQUIVOS do repositório (JSON `files`): sub-repositórios e
+     * ferramentas navegáveis — o "Gestor de Arquivos" lendo o conteúdo extraído.
+     */
+    private suspend fun repositoryFileFolders(repo: RepositoryNode): List<RepositoryNode> {
+        val url = repo.url?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL
+        val files = indexFor(url)?.files ?: return emptyList()
+        return files.children.orEmpty().mapNotNull { child ->
+            val name = child.name?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            if (!child.url.isNullOrBlank()) return@mapNotNull null
+            RepositoryNode(
+                id = "folder|FILES|${child.id ?: name}",
+                name = name,
+                kind = RepositoryNode.Kind.FOLDER,
+                pathKey = name,
+                repoUrl = url,
+                addonId = "files|${repo.id}",
+            )
+        }
+    }
 
     /**
      * Nível 2: add-ons declarados NO JSON do repositório (tipos universais Kodi —

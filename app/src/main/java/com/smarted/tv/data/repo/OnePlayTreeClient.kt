@@ -22,6 +22,8 @@ data class OnePlayIndexDto(
     val name: String? = null,
     /** Add-ons declarados pelo repositório (tipos universais Kodi: video, programs, radio, ...). */
     val addons: List<OnePlayAddonDto>? = null,
+    /** Estrutura de ARQUIVOS do repositório (sub-repositórios e ferramentas) — File Manager. */
+    val files: OnePlayNodeDto? = null,
     /** Árvore legada (índices antigos sem `addons`): vira um único add-on. */
     val tree: OnePlayNodeDto? = null,
 )
@@ -54,6 +56,10 @@ interface OnePlayTreeApi {
     /** [indexUrl] é absoluto (@Url anula o baseUrl configurado). */
     @GET
     suspend fun index(@Url indexUrl: String): String
+
+    /** Arquivo bruto do repositório (ZIP de instalação estilo Kodi). */
+    @GET
+    suspend fun file(@Url indexUrl): okhttp3.ResponseBody
 }
 
 /**
@@ -75,9 +81,23 @@ object OnePlayTreeClient {
 
     /** Melhor esforço: `null` em qualquer falha (a UI cai para a árvore local). */
     suspend fun load(indexUrl: String): OnePlayIndexDto? = runCatching {
-        val text = api.index(indexUrl)
+        // Instalação via ZIP (estilo Kodi): URLs .zip são baixadas e o index.json extraído.
+        val text = if (indexUrl.substringBefore('?').endsWith(".zip", ignoreCase = true)) {
+            zipIndexText(api.file(indexUrl).bytes())
+        } else {
+            api.index(indexUrl)
+        }
         Http.json.decodeFromString(OnePlayIndexDto.serializer(), text)
     }.getOrNull()
+
+    /** Extrai o primeiro `*.json` do ZIP do repositório (Gestor de Arquivos estilo Kodi). */
+    private fun zipIndexText(bytes: ByteArray): String =
+        java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(bytes)).use { zip ->
+            generateSequence { zip.nextEntry }
+                .firstOrNull { !it.isDirectory && it.name.endsWith(".json", ignoreCase = true) }
+                ?.let { zip.readBytes().decodeToString() }
+                ?: error("ZIP do repositório sem index.json")
+        }
 }
 
 // ── Índice JSON → navegação recursiva em RepositoryNode (root/addon/category/folder/item) ──

@@ -28,8 +28,16 @@
         "name": "ONEPLAY",
         "kind": "root",
         "children": [
-          { "name": "::BEM-VINDO AO ONEPLAY::", "kind": "folder", "children": [] },
-          { "name": "VIP", "kind": "folder", "children": [] },
+          {
+            "name": "::BEM-VINDO AO ONEPLAY::",
+            "kind": "folder",
+            "children": []
+          },
+          {
+            "name": "VIP",
+            "kind": "folder",
+            "children": []
+          },
           {
             "name": "TV ao vivo",
             "kind": "category",
@@ -41,21 +49,65 @@
             "kind": "category",
             "tab": "movies",
             "children": [
-              { "name": "Filmes - Em Alta", "kind": "folder", "children": [] },
-              { "name": "Filmes - Top Avaliados", "kind": "folder", "children": [] },
-              { "name": "Filmes - Em Cartaz", "kind": "folder", "children": [] },
-              { "name": "Filmes - Próximos Lançamentos", "kind": "folder", "children": [] },
+              {
+                "name": "Filmes - Em Alta",
+                "kind": "folder",
+                "children": []
+              },
+              {
+                "name": "Filmes - Top Avaliados",
+                "kind": "folder",
+                "children": []
+              },
+              {
+                "name": "Filmes - Em Cartaz",
+                "kind": "folder",
+                "children": []
+              },
+              {
+                "name": "Filmes - Próximos Lançamentos",
+                "kind": "folder",
+                "children": []
+              },
               {
                 "name": "Filmes - Pluto TV",
                 "kind": "folder",
                 "children": [
-                  { "name": "LISTA 1", "kind": "folder", "children": [] },
-                  { "name": "LISTA 2", "kind": "folder", "children": [] },
-                  { "name": "LISTA 3", "kind": "folder", "children": [] },
-                  { "name": "LISTA 4", "kind": "folder", "children": [] },
-                  { "name": "LISTA 5", "kind": "folder", "children": [] },
-                  { "name": "LISTA 6", "kind": "folder", "children": [] },
-                  { "name": "LISTA 7", "kind": "folder", "children": [] }
+                  {
+                    "name": "LISTA 1",
+                    "kind": "folder",
+                    "children": []
+                  },
+                  {
+                    "name": "LISTA 2",
+                    "kind": "folder",
+                    "children": []
+                  },
+                  {
+                    "name": "LISTA 3",
+                    "kind": "folder",
+                    "children": []
+                  },
+                  {
+                    "name": "LISTA 4",
+                    "kind": "folder",
+                    "children": []
+                  },
+                  {
+                    "name": "LISTA 5",
+                    "kind": "folder",
+                    "children": []
+                  },
+                  {
+                    "name": "LISTA 6",
+                    "kind": "folder",
+                    "children": []
+                  },
+                  {
+                    "name": "LISTA 7",
+                    "kind": "folder",
+                    "children": []
+                  }
                 ]
               }
             ]
@@ -66,8 +118,22 @@
             "tab": "series",
             "children": []
           },
-          { "name": "Atualização", "kind": "folder", "children": [] },
-          { "name": "Configurações", "kind": "folder", "children": [] }
+          {
+            "name": "Lançamentos",
+            "kind": "category",
+            "tab": "movies",
+            "children": []
+          },
+          {
+            "name": "Atualização",
+            "kind": "folder",
+            "children": []
+          },
+          {
+            "name": "Configurações",
+            "kind": "folder",
+            "children": []
+          }
         ]
       }
     },
@@ -78,8 +144,16 @@
         "name": "OnePlay Rádio",
         "kind": "root",
         "children": [
-          { "name": "Rádios Nacionais", "kind": "folder", "children": [] },
-          { "name": "Rádios Internacionais", "kind": "folder", "children": [] }
+          {
+            "name": "Rádios Nacionais",
+            "kind": "folder",
+            "children": []
+          },
+          {
+            "name": "Rádios Internacionais",
+            "kind": "folder",
+            "children": []
+          }
         ]
       }
     }
