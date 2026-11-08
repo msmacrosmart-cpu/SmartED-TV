@@ -69,12 +69,12 @@ object Http {
         val first = trimmed[0]
         if (first != '{' && first != '[') {
             val looksHtml = trimmed.startsWith("<", true)
-            val preview = trimmed.replace(Regex("\s+"), " ").take(80)
-            throw IOException(
-                if (looksHtml) "A URL respondeu uma página HTML, não o arquivo JSON. Use o link RAW ("Raw"/"Download" no GitHub), terminando em .json"
-                else "A resposta não é JSON (começa com byte 0x%02X — arquivo compactado/binário?). Aponte para o índice .json direto.".format(first.code)
-                + " Recebido: "$preview…""
-            )
+            val preview = trimmed.replace(Regex("\\s+"), " ").take(80)
+            val htmlMsg = "A URL respondeu uma página HTML, não o arquivo JSON. " +
+                "Use o botão Raw/Download no GitHub — o link deve terminar em .json"
+            val binMsg = "A resposta não é JSON (começa com 0x%02X — binário/compactado?). " +
+                "Aponte para o índice .json direto. Recebido: " + preview
+            throw IOException(if (looksHtml) htmlMsg else binMsg.format(first.code))
         }
         trimmed
     }
