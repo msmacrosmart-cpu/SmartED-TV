@@ -48,6 +48,7 @@ fun TvAction(
     val shape = RoundedCornerShape(12.dp)
     Box(modifier
         .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+        .keepFocusInView()
         .onFocusChanged { focused = it.isFocused }
         .whiteFocus(focused, selected, 14.dp)
         .padding(if (focused) 3.dp else 0.dp)

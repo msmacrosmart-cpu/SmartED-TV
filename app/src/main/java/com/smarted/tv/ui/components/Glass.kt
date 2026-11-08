@@ -100,6 +100,7 @@ fun SidebarItem(
     Column(
         modifier
             .testTag("nav-$label")
+            .keepFocusInView()
             .padding(3.dp)
             .scale(scale)
             .smokedGlass(18.dp)
@@ -193,6 +194,7 @@ fun VodPosterCard(entry: VodEntry, onClick: () -> Unit, modifier: Modifier = Mod
     Column(
         modifier
             .testTag("vod-card-${entry.id}")
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
             .whiteFocus(focused, radius = 20.dp)
             .padding(3.dp)
@@ -229,7 +231,7 @@ fun ContinueCard(title: String, positionMs: Long, durationMs: Long, onClick: () 
     var focused by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     Column(
-        modifier.testTag("continue-$title").onFocusChanged { focused = it.isFocused }
+        modifier.testTag("continue-$title").keepFocusInView().onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, radius = 18.dp).padding(3.dp)
             .clip(RoundedCornerShape(14.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
@@ -286,6 +288,7 @@ fun CategoryChip(
     Row(
         modifier
             .testTag("category-${name.filter(Char::isLetterOrDigit).take(24)}")
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, selected, 12.dp)
             .padding(2.dp)

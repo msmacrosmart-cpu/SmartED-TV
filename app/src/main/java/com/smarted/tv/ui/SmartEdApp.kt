@@ -2,7 +2,6 @@ package com.smarted.tv.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.relocation.bringIntoViewIfChildrenAreFocused
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -64,7 +63,7 @@ fun SmartEdApp(graph: AppGraph) {
                 // rail lateral — Início/Canais/Filmes/Séries centralizados, Configurações no fim.
                 Column(
                     Modifier.fillMaxHeight().width(if (compact) 92.dp else 104.dp).padding(top = 18.dp, bottom = 8.dp)
-                        .verticalScroll(rememberScrollState()).bringIntoViewIfChildrenAreFocused(),
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp, Alignment.CenterVertically),
                 ) {
                     SidebarItem("Início", Icons.Default.Home, destination == Destination.HOME, { destination = Destination.HOME }, focusRequester = railFocus)

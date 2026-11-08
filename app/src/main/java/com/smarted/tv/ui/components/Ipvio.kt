@@ -32,7 +32,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.onFocusEvent
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -160,6 +165,20 @@ fun ContentRow(
     }
 }
 
+/**
+ * Contêineres roláveis em TV: contêineres com verticalScroll não seguem o foco sozinhos
+ * (comportamento do Compose). Este Modifier anexa um BringIntoViewRequester ao item — ao
+ * receber foco do D-pad, rola o contêiner pai para torná-lo visível.
+ */
+@Composable
+fun Modifier.keepFocusInView(): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    return this
+        .bringIntoViewRequester(requester)
+        .onFocusEvent { state -> if (state.isFocused) scope.launch { runCatching { requester.bringIntoView() } } }
+}
+
 /** Cartaz estilo Smarters Pro: pôster 2:3 com título e metadados ABAIXO (padrão do app de referência). */
 @Composable
 fun PosterCell(entry: VodEntry, onClick: () -> Unit, modifier: Modifier = Modifier, cellWidth: androidx.compose.ui.unit.Dp? = null) {
@@ -169,6 +188,7 @@ fun PosterCell(entry: VodEntry, onClick: () -> Unit, modifier: Modifier = Modifi
         modifier
             .then(if (cellWidth != null) Modifier.width(cellWidth) else Modifier)
             .testTag("vod-card-${entry.id}")
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, radius = dpx(24))
             .padding(dpx(4))
@@ -208,6 +228,7 @@ fun FilterPill(label: String, active: Boolean, tag: String, onClick: () -> Unit)
     Box(
         Modifier
             .testTag(tag)
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, active, dpx(28))
             .padding(dpx(3))
@@ -243,6 +264,7 @@ fun PasteField(
         modifier = modifier
             .testTag(tag)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, radius = dpx(20)),
         placeholder = { Text(hint, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = spx(17)) },

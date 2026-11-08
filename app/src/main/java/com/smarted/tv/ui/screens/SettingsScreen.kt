@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.relocation.bringIntoViewIfChildrenAreFocused
+import com.smarted.tv.ui.components.keepFocusInView
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -91,8 +91,7 @@ fun SettingsScreen(app: AppViewModel) {
                 .padding(dpx(24))
                 // tudo cabe? ótimo — e o que não couber rola, seguindo o foco do D-pad.
                 .imePadding()
-                .verticalScroll(rememberScrollState())
-                .bringIntoViewIfChildrenAreFocused(),
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(dpx(12)),
         ) {
             if (ui.busy.isNotBlank()) {
@@ -175,6 +174,7 @@ private fun RowScope.AddTile(label: String, sub: String, icon: androidx.compose.
     val interaction = remember { MutableInteractionSource() }
     Row(
         Modifier.weight(1f).testTag(tag)
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, radius = dpx(24))
             .padding(dpx(3))
@@ -286,6 +286,7 @@ private fun SourceCard(source: ListSource, app: AppViewModel, interactive: Boole
     var epgDraft by remember(source.id) { mutableStateOf(source.epgUrl) }
     Column(
         Modifier.fillMaxWidth().testTag("source-${source.id}")
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, radius = dpx(22))
             .padding(dpx(3))
@@ -308,7 +309,7 @@ private fun SourceCard(source: ListSource, app: AppViewModel, interactive: Boole
         // linha de ações com rolagem horizontal — nunca corta "Remover" em telas menores
         Row(
             horizontalArrangement = Arrangement.spacedBy(dpx(10)), verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.horizontalScroll(rememberScrollState()).bringIntoViewIfChildrenAreFocused(),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
         ) {
             FilterPill("⟳ Atualizar agora", false, "source-refresh-${source.id}") { if (interactive) app.refreshSource(source.id) }
             if (source.kind != SourceKind.REPOSITORY) FilterPill("Só EPG", false, "source-epg-${source.id}") { if (interactive) app.refreshEpgOnly(source.id) }

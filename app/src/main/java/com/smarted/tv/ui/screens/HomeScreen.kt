@@ -1,7 +1,7 @@
 package com.smarted.tv.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.relocation.bringIntoViewIfChildrenAreFocused
+import com.smarted.tv.ui.components.keepFocusInView
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -96,7 +96,7 @@ fun HomeScreen(
             ui.recentlyAddedMovies.isNotEmpty() || ui.recentlyAddedSeries.isNotEmpty()
         if (hasRows) {
             Column(
-                Modifier.fillMaxWidth().height(dpx(330)).verticalScroll(rememberScrollState()).bringIntoViewIfChildrenAreFocused(),
+                Modifier.fillMaxWidth().height(dpx(330)).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(dpx(16)),
             ) {
                 if (ui.continueWatching.isNotEmpty()) {
@@ -177,6 +177,7 @@ private fun LiveMiniCard(name: String, logoUrl: String?, onPlay: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Column(
         Modifier.width(dpx(330)).testTag("fav-channel-${name.filter(Char::isLetterOrDigit).take(18)}")
+            .keepFocusInView()
             .clip(RoundedCornerShape(dpx(16)))
             .clickable(interactionSource = interaction, indication = null, onClick = onPlay),
         verticalArrangement = Arrangement.spacedBy(dpx(8)),

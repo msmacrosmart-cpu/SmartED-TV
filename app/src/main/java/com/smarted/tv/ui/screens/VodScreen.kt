@@ -42,6 +42,7 @@ import com.smarted.tv.core.sources.StreamRules
 import com.smarted.tv.ui.components.CategoryChip
 import com.smarted.tv.ui.components.EmptyState
 import com.smarted.tv.ui.components.FilterPill
+import com.smarted.tv.ui.components.keepFocusInView
 import com.smarted.tv.ui.components.PosterCell
 import com.smarted.tv.ui.components.RemoteImage
 import com.smarted.tv.ui.components.SearchField
@@ -320,6 +321,7 @@ private fun EpisodeRow(episode: Episode, onPlay: (Episode) -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Row(
         Modifier.fillMaxWidth().testTag("episode-${episode.id}")
+            .keepFocusInView()
             .onFocusChanged { focused = it.isFocused }
             .whiteFocus(focused, radius = dpx(18))
             .padding(dpx(3))

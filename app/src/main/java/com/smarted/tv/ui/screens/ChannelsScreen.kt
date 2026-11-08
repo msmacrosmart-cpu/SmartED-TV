@@ -35,6 +35,7 @@ import com.smarted.tv.player.rememberVideoPlayer
 import com.smarted.tv.ui.components.CategoryChip
 import com.smarted.tv.ui.components.EmptyState
 import com.smarted.tv.ui.components.HeartToggle
+import com.smarted.tv.ui.components.keepFocusInView
 import com.smarted.tv.ui.components.RemoteImage
 import com.smarted.tv.ui.components.SearchField
 import com.smarted.tv.ui.components.TvAction
@@ -221,6 +222,7 @@ private fun ChannelCell(
     val interaction = remember { MutableInteractionSource() }
     Row(
         Modifier.fillMaxWidth().testTag("channel-${row.channel.id}")
+            .keepFocusInView()
             .onFocusChanged {
                 focused = it.isFocused
                 if (it.isFocused) onSelect()
