@@ -25,6 +25,23 @@ interface ContentRepository {
     /** Temporadas de uma série (carregadas sob demanda quando o HeroPanel abre). */
     suspend fun loadSeasons(vodId: String): List<Season> = emptyList()
 
+    /**
+     * Raiz da árvore de repositórios recursiva (estilo Kodi) — nós
+     * `root`/`addon`/`category`/`folder`/`item` de [RepositoryNode].
+     */
+    suspend fun repositoryRoot(): RepositoryNode = RepositoryNode(
+        id = "root",
+        name = "Repositório",
+        kind = RepositoryNode.Kind.ROOT,
+    )
+
+    /**
+     * Filhos dinâmicos de qualquer nó da árvore: cada pasta, ao ser aberta,
+     * carrega sua lista de `children` (subpastas, add-ons ou conteúdos) —
+     * índice OnePlay + banco local, sem forçar abas estáticas.
+     */
+    suspend fun repositoryChildren(node: RepositoryNode): List<RepositoryNode> = emptyList()
+
     /** Incrementa a cada escrita/sincronização — os ViewModels recarregam. */
     val revision: StateFlow<Int> get() = NEVER
     val busy: StateFlow<Boolean> get() = NEVERB

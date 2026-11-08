@@ -22,8 +22,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smarted.tv.core.data.AppGraph
 import com.smarted.tv.core.model.PlaybackRequest
+import com.smarted.tv.core.model.RepositoryNode
 import com.smarted.tv.core.model.Tab
-import com.smarted.tv.ui.repository.RepositoryTreeViewModel.RepoTreeNode
 import com.smarted.tv.ui.common.vmFactory
 import com.smarted.tv.ui.components.GlassButton
 import com.smarted.tv.ui.components.GlassClickable
@@ -68,7 +68,7 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
             path.mapIndexed { i, node ->
                 val last = i == path.lastIndex
                 Text(
-                    text = node.label(),
+                    text = node.name,
                     fontSize = d.textCaption,
                     fontWeight = if (last) FontWeight.Bold else FontWeight.Normal,
                     color = if (last) Smoke.TextPrimary else Smoke.TextSecondary,
@@ -85,7 +85,7 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
         }
         Spacer(Modifier.height(14.dp))
         Text(
-            text = current.label(),
+            text = current.name,
             fontSize = d.textTitle,
             fontWeight = FontWeight.Bold,
             color = Smoke.TextPrimary,
@@ -110,19 +110,19 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    items(items = ui.children, key = { it.key() }) { node ->
-                        when (node) {
-                            is RepoTreeNode.Item -> ItemRow(node) { vm.select(node) }
-                            RepoTreeNode.Addons -> NavRow("Addons", Icons.Rounded.Extension) {
+                    items(items = ui.children, key = { it.id }) { node ->
+                        when (node.kind) {
+                            RepositoryNode.Kind.ITEM -> ItemRow(node) { vm.select(node) }
+                            RepositoryNode.Kind.ADDON -> NavRow(node.name, Icons.Rounded.Extension) {
                                 vm.navigateInto(node)
                             }
-                            is RepoTreeNode.Category -> CategoryRow(node) {
+                            RepositoryNode.Kind.CATEGORY -> CategoryRow(node) {
                                 vm.navigateInto(node)
                             }
-                            is RepoTreeNode.Folder -> FolderRow(node) {
+                            RepositoryNode.Kind.FOLDER -> FolderRow(node) {
                                 vm.navigateInto(node)
                             }
-                            RepoTreeNode.Root -> Unit
+                            RepositoryNode.Kind.ROOT -> Unit
                         }
                     }
                 }
@@ -156,7 +156,7 @@ private fun NavRow(title: String, icon: ImageVector, onClick: () -> Unit) =
  */
 @Composable
 private fun ItemActionDialog(
-    item: RepoTreeNode.Item,
+    item: RepositoryNode,
     section: String,
     saved: Boolean,
     onPlay: () -> Unit,
@@ -174,7 +174,7 @@ private fun ItemActionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    item.title,
+                    item.name,
                     fontSize = d.textTitle,
                     fontWeight = FontWeight.Bold,
                     color = Smoke.TextPrimary,
@@ -199,31 +199,32 @@ private fun ItemActionDialog(
 }
 
 /** Rótulo amigável da categoria do item (para o diálogo de destino). */
-private fun RepoTreeNode.Item.mediaKindLabel() = when (mediaKind) {
+private fun RepositoryNode.mediaKindLabel() = when (mediaKind) {
     "channel" -> "de canais"
     "series" -> "de séries"
     else -> "de filmes"
 }
 
 @Composable
-private fun CategoryRow(node: RepoTreeNode.Category, onClick: () -> Unit) =
+private fun CategoryRow(node: RepositoryNode, onClick: () -> Unit) =
     TreeRow(
         node.name,
         when (node.tab) {
             Tab.CHANNELS -> Icons.Rounded.LiveTv
             Tab.MOVIES -> Icons.Rounded.Movie
             Tab.SERIES -> Icons.Rounded.Theaters
+            null -> Icons.Rounded.Extension
         },
         onClick,
     )
 
 @Composable
-private fun FolderRow(node: RepoTreeNode.Folder, onClick: () -> Unit) =
+private fun FolderRow(node: RepositoryNode, onClick: () -> Unit) =
     TreeRow(node.name, Icons.Rounded.Folder, onClick)
 
 @Composable
-private fun ItemRow(node: RepoTreeNode.Item, onPlay: () -> Unit) =
-    TreeRow(node.title, Icons.Rounded.PlayArrow, onPlay)
+private fun ItemRow(node: RepositoryNode, onPlay: () -> Unit) =
+    TreeRow(node.name, Icons.Rounded.PlayArrow, onPlay)
 
 @Composable
 private fun TreeRow(title: String, icon: ImageVector, onClick: () -> Unit) {

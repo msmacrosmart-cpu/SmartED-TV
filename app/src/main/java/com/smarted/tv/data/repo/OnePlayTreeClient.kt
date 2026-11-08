@@ -1,5 +1,7 @@
 package com.smarted.tv.data.repo
 
+import com.smarted.tv.core.model.RepositoryNode
+import com.smarted.tv.core.model.Tab
 import com.smarted.tv.data.net.Http
 import kotlinx.serialization.Serializable
 import retrofit2.Retrofit
@@ -9,8 +11,9 @@ import retrofit2.http.Url
 /**
  * Índice JSON do repositório OnePlay (fantasma) — DTOs recursivos.
  *
- * O campo `tree` descreve a árvore de diretórios que o módulo Repository/Tree lê
- * recursivamente: [Addons] → [TV / Filmes / Séries] → [subpastas de conteúdo].
+ * O campo `tree` descreve a árvore recursiva de diretórios que o módulo
+ * Repository/Tree navega — materializada em `RepositoryNode`
+ * (root → addon/category → pastas → itens) por [toRepositoryNode].
  * Ausência de `tree` (índice antigo) ou falha de rede/parse => `null`,
  * e a navegação segue com a árvore local do banco (modo offline à prova de falha).
  */
@@ -64,3 +67,86 @@ object OnePlayTreeClient {
         Http.json.decodeFromString(OnePlayIndexDto.serializer(), text)
     }.getOrNull()
 }
+
+// ── Índice JSON → navegação recursiva em RepositoryNode (root/addon/category/folder/item) ──
+
+/**
+ * Materializa o índice recursivo como esqueleto de [RepositoryNode] (filhos já
+ * mapeados). O [com.smarted.tv.core.data.IptvContentRepository] usa este esqueleto
+ * para servir `repositoryChildren` dinamicamente, mesclando o banco local.
+ * `null` quando o índice não tem `tree` (índice antigo/falha de parse).
+ */
+fun OnePlayIndexDto.toRepositoryNode(): RepositoryNode? {
+    val tree = tree ?: return null
+    return tree.toRepositoryNode(parentTab = null, parentPath = "", isRoot = true)
+}
+
+private fun OnePlayNodeDto.toRepositoryNode(
+    parentTab: Tab?,
+    parentPath: String,
+    isRoot: Boolean,
+): RepositoryNode {
+    val tab = tabOfDto() ?: parentTab
+    val streamUrl = url?.takeIf { it.isNotBlank() }
+    val title = name ?: ""
+    val dtoKind = kind?.lowercase()
+    val nodeKind = when {
+        streamUrl != null -> RepositoryNode.Kind.ITEM
+        isRoot -> RepositoryNode.Kind.ROOT
+        dtoKind == "addon" -> RepositoryNode.Kind.ADDON
+        dtoKind == "category" -> RepositoryNode.Kind.CATEGORY
+        // Índice sem `kind` explícito: nó de topo com aba e filhos = categoria.
+        dtoKind == null && tab != null && parentPath.isEmpty() && childrenOrEmpty().isNotEmpty() ->
+            RepositoryNode.Kind.CATEGORY
+        else -> RepositoryNode.Kind.FOLDER
+    }
+    // Caminho só de pastas (a categoria reinicia o caminho): "Pai/Filho".
+    val pathKey = when (nodeKind) {
+        RepositoryNode.Kind.ROOT, RepositoryNode.Kind.CATEGORY -> ""
+        else -> if (parentPath.isEmpty()) title else "$parentPath/$title"
+    }
+    val mediaKind = when {
+        nodeKind != RepositoryNode.Kind.ITEM -> null
+        kind == "channel" || kind == "movie" || kind == "series" -> kind
+        tab == Tab.CHANNELS -> "channel"
+        tab == Tab.SERIES -> "series"
+        else -> "movie"
+    }
+    val nodeId = when (nodeKind) {
+        RepositoryNode.Kind.ROOT -> "root"
+        RepositoryNode.Kind.ADDON -> "addon|$title"
+        RepositoryNode.Kind.CATEGORY -> "cat|${tab?.name ?: "?"}|$title"
+        RepositoryNode.Kind.FOLDER -> "folder|${tab?.name ?: "?"}|$pathKey"
+        RepositoryNode.Kind.ITEM -> "$mediaKind|${this.id ?: streamUrl}"
+    }
+    // Filhos: a categoria reinicia o caminho; pastas acumulam "Pai/Filho".
+    val childPath = if (nodeKind == RepositoryNode.Kind.FOLDER) pathKey else ""
+    return RepositoryNode(
+        id = nodeId,
+        name = title,
+        kind = nodeKind,
+        tab = tab,
+        pathKey = pathKey,
+        mediaKind = mediaKind,
+        url = streamUrl,
+        favKey = "",
+        children = childrenOrEmpty().map { it.toRepositoryNode(tab, childPath, isRoot = false) },
+    )
+}
+
+/** Nó de categoria no índice por aba (ou por nome canônico na dúvida). */
+private fun OnePlayNodeDto.tabOfDto(): Tab? {
+    when (tab?.lowercase()) {
+        "channels" -> return Tab.CHANNELS
+        "movies" -> return Tab.MOVIES
+        "series" -> return Tab.SERIES
+    }
+    return when (name?.trim()?.lowercase()) {
+        "tv" -> Tab.CHANNELS
+        "filmes" -> Tab.MOVIES
+        "séries", "series" -> Tab.SERIES
+        else -> null
+    }
+}
+
+private fun OnePlayNodeDto.childrenOrEmpty(): List<OnePlayNodeDto> = children.orEmpty()
