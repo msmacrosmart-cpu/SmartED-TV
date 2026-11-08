@@ -113,7 +113,7 @@ private fun AppNavHost(
     }
 }
 
-/** TV: rail enxuto — Início no centro; Séries embaixo (no lugar de Config., que foi para o relógio). */
+/** TV: rail com as opções da barra do celular — Início/Canais/Filmes no centro; Séries embaixo. */
 @Composable
 private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifier = Modifier) {
     val d = LocalDimens.current
@@ -124,6 +124,8 @@ private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifi
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             RailItem(Dest.HOME, current == Dest.HOME) { onNavigate(Dest.HOME) }
+            RailItem(Dest.CHANNELS, current == Dest.CHANNELS) { onNavigate(Dest.CHANNELS) }
+            RailItem(Dest.MOVIES, current == Dest.MOVIES) { onNavigate(Dest.MOVIES) }
         }
         RailItem(Dest.SERIES, current == Dest.SERIES, Modifier.align(Alignment.BottomCenter)) {
             onNavigate(Dest.SERIES)
