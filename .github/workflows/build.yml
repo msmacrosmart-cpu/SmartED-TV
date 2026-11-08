@@ -65,13 +65,13 @@ jobs:
           # Retry apenas para falha de download do wrapper (CDN do Gradle já retornou 504/timeout
           # várias vezes); erro de compilação real não é repetido.
           CODE=1
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5; do
             ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --console=plain 2>&1 | tee /tmp/build.log
             CODE=${PIPESTATUS[0]}
             if [[ $CODE -eq 0 ]]; then break; fi
             if ! grep -q "org.gradle.wrapper.GradleWrapperMain" /tmp/build.log; then break; fi
-            echo "Download do Gradle falhou no CDN (504/timeout) — tentativa $attempt de 3; repetindo em 20s..."
-            sleep 20
+            echo "Download do Gradle falhou no CDN (504/timeout) — tentativa $attempt de 5; repetindo em 30s..."
+            sleep 30
           done
           if [[ $CODE -ne 0 ]]; then
             python3 - <<'PY'
