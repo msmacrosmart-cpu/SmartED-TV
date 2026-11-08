@@ -41,7 +41,9 @@ class IptvStore(context: Context) : SQLiteOpenHelper(context.applicationContext,
             SortMode.YEAR to "year",
         )
         private const val CHANNEL_SELECT = "id, source_id, fav_key, num, name, group_name, logo, url, headers, epg_key, epg_channel"
-        private const val VOD_SELECT = "id, source_id, fav_key, kind, ext_key, name, category, year, rating, added_ms, poster, backdrop, plot, url, runtime, cast, genre, country, language, imdb"
+        // "cast" é palavra reservada do SQLite: em contexto de expressão (SELECT) precisa de aspas,
+        // senão o parser falha com 'near ",": syntax error' (INSERT/UPDATE aceitam sem aspas).
+        private const val VOD_SELECT = "id, source_id, fav_key, kind, ext_key, name, category, year, rating, added_ms, poster, backdrop, plot, url, runtime, \"cast\", genre, country, language, imdb"
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
