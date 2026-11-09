@@ -398,10 +398,10 @@ private fun RepoBrowserDialog(
                     GlassPanel(padding = 12.dp, fill = Color.White.copy(alpha = 0.05f)) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                if (pkg.kind == "repository") {
-                                    "Repositório Kodi · ${pkg.addons.size} add-on(s)"
-                                } else {
-                                    "Add-on Kodi"
+                                when (pkg.kind) {
+                                    "repository" -> "Repositório Kodi · ${pkg.addons.size} add-on(s)"
+                                    "home" -> "Backup Kodi (estrutura) · ${pkg.addons.size} add-on(s)"
+                                    else -> "Add-on Kodi"
                                 },
                                 fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
                             )

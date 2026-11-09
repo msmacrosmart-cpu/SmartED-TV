@@ -100,16 +100,41 @@ class IptvSystem(private val graph: com.smarted.tv.AppGraph, ctx: Context) {
         }
     }
 
-    /** Pasta local (estilo repositório Kodi): cada .m3u/.m3u8 vira uma fonte M3U. */
+    /**
+     * Pasta local (estilo repositório Kodi): varredura RECURSIVA de toda a
+     * árvore — hierarquia exata, sem restrição a .m3u/.m3u8. Playlists viram
+     * fontes M3U (Canais); a pasta inteira é indexada como repositório local
+     * (arquivos reconhecidos: m3u/m3u8/ts/mp4/mkv/avi/mov/m4v/mp3/aac/json/
+     * xml/zip/… — vide KodiScanner) e, quando é um home Kodi, os add-ons
+     * instalados agrupam nos tipos oficiais (Vídeo/Programas/PVR/…).
+     */
     private suspend fun importLocalTree(s: PlaylistSource) = withContext(Dispatchers.IO) {
         val tree = runCatching { Uri.parse(s.url) }.getOrElse { error("URI de pasta inválida.") }
         val root = DocumentFile.fromTreeUri(app, tree) ?: error("Não foi possível abrir a pasta.")
-        val files = root.listFiles().filter { f ->
-            f.isFile && f.name?.lowercase()?.let { it.endsWith(".m3u") || it.endsWith(".m3u8") } == true
-        }.sortedBy { it.name?.lowercase() }
-        if (files.isEmpty()) error("Nenhum arquivo .m3u/.m3u8 encontrado na pasta.")
-        files.forEach { f ->
-            graph.sources.addM3u("${s.name} · ${f.name}", f.uri.toString(), "")
+        val displayName = s.name.ifBlank { root.name ?: "Pasta local" }
+        val scan = com.smarted.tv.data.repo.KodiScanner.scan(
+            DocumentVfs(app, root), "/", root.name ?: "Pasta",
+        )
+        if (scan.entryCount > 0) {
+            val index = com.smarted.tv.data.repo.KodiScanner.buildIndex(scan, displayName)
+            val localUrl = repoPackages.writeIndex(index, displayName)
+            graph.sources.addLocalRepository(displayName, localUrl)
+        }
+        scan.playlists.forEach { pl ->
+            graph.sources.addM3u("${displayName} · ${pl.name}", pl.uri, "")
+        }
+        if (scan.entryCount == 0 && scan.playlists.isEmpty()) {
+            error(
+                "Nenhum arquivo reconhecido na pasta " +
+                    "(.m3u/.m3u8, .ts, .mp4, .mkv, .avi, .mov, .m4v, .mp3, .aac, .json, .xml, .zip, …).",
+            )
+        }
+        pendingMessage = buildString {
+            append("Pasta indexada: ")
+            append("${scan.addons.size} add-on(s), ")
+            append("${scan.playlists.size} playlist(s), ")
+            append("${scan.mediaCount} mídia(s), ")
+            append("${scan.entryCount} arquivo(s) na árvore.")
         }
         Unit
     }
@@ -197,11 +222,15 @@ class IptvSystem(private val graph: com.smarted.tv.AppGraph, ctx: Context) {
 
     // ------------------------------------------------------------------ util
 
+    /** Mensagem de sucesso específica definida pelo próprio bloco (opcional). */
+    private var pendingMessage: String? = null
+
     private fun run(ok: String, block: suspend () -> Unit) {
         scope.launch {
+            pendingMessage = null
             try {
                 block()
-                report(ok)
+                report(pendingMessage ?: ok)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

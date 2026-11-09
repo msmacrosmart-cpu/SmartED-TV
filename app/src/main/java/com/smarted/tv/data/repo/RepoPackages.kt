@@ -54,25 +54,39 @@ class RepoPackages(private val context: Context) {
     private val installDir: File
         get() = File(context.filesDir, "repo_installs").apply { mkdirs() }
 
-    /** Baixa e persiste o ZIP; valida que há algo instalável (JSON ou Kodi). */
+    /** Baixa/copia o ZIP (http(s), file://, content:// ou caminho absoluto) e valida. */
     suspend fun download(url: String): String = withContext(Dispatchers.IO) {
         val trimmed = url.trim()
-        require(trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-            "Informe a URL http(s) do pacote .zip."
+        val file: File = when {
+            trimmed.startsWith("file://") -> File(trimmed.removePrefix("file://"))
+            trimmed.startsWith("content://") -> copyUriToCache(trimmed)
+            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
+                val bytes = Http.getBytes(trimmed)
+                val name = trimmed.substringAfterLast('/').substringBefore('?')
+                    .ifBlank { "repositorio.zip" }
+                    .let { if (it.endsWith(".zip", true)) it else "$it.zip" }
+                    .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                File(packageDir, name).apply { writeBytes(bytes) }
+            }
+            trimmed.startsWith("/") && File(trimmed).isFile -> File(trimmed)
+            else -> error("Informe a URL http(s) do pacote .zip ou um arquivo local.")
         }
-        val bytes = Http.getBytes(trimmed)
-        val name = trimmed.substringAfterLast('/').substringBefore('?')
-            .ifBlank { "repositorio.zip" }
-            .let { if (it.endsWith(".zip", true)) it else "$it.zip" }
-            .replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val file = File(packageDir, name)
-        file.writeBytes(bytes)
+        require(file.isFile) { "Arquivo .zip não encontrado: ${file.name}" }
         val hasJson = candidates(file.absolutePath).isNotEmpty()
         val hasKodi = kodiPackage(file.absolutePath) != null
         require(hasJson || hasKodi) {
             "O ZIP não contém índice .json nem addon.xml/addons.xml instalável."
         }
         file.absolutePath
+    }
+
+    /** Copia um content:// (SAF) para o cache privado — usado pelo instalador. */
+    private fun copyUriToCache(uri: String): File {
+        val target = File(packageDir, "local_${uri.hashCode().toUInt()}.zip")
+        val input = context.contentResolver.openInputStream(android.net.Uri.parse(uri))
+            ?: error("Não foi possível abrir o arquivo selecionado.")
+        input.use { src -> target.outputStream().use { dst -> src.copyTo(dst) } }
+        return target
     }
 
     /** Pacotes já baixados — lista do navegador em Configurações. */
@@ -122,27 +136,44 @@ class RepoPackages(private val context: Context) {
      */
     fun kodiPackage(zipPath: String): KodiPackage? {
         return runCatching {
-            ZipInputStream(File(zipPath).inputStream()).use { zip ->
-            val entries = generateSequence { zip.nextEntry }
-                .filter { !it.isDirectory }
-                .map { it.name }
-                .toList()
+            val entries = ZipInputStream(File(zipPath).inputStream()).use { zip ->
+                generateSequence { zip.nextEntry }
+                    .filter { !it.isDirectory }
+                    .map { it.name }
+                    .toList()
+            }
+            // BACKUP/estrutura Kodi (files/.kodi/addons/<id>/addon.xml): o zip
+            // inteiro é um home com VÁRIOS add-ons instalados — hierarquia real.
+            val homeEntries = entries.filter { KodiScanner.isHomeAddonEntry(it) }.sorted()
+            if (homeEntries.isNotEmpty()) {
+                val addons = homeEntries.mapNotNull { entry ->
+                    readZipText(zipPath, entry)?.let { parseAddonXml(entry, it) }
+                }
+                return@runCatching if (addons.isEmpty()) {
+                    null
+                } else {
+                    KodiPackage("home", homeEntries.first().substringBeforeLast('/'), addons)
+                }
+            }
             val manifest = entries.firstOrNull { it.substringAfterLast('/') == "addons.xml" }
                 ?: entries.firstOrNull { it.substringAfterLast('/') == "addon.xml" }
-                ?: return null
+                ?: return@runCatching null
+            val text = readZipText(zipPath, manifest) ?: return@runCatching null
             val kind = if (manifest.substringAfterLast('/') == "addons.xml") "repository" else "addon"
-            // Relê só o manifesto (segunda passada — ZipInputStream é sequencial).
-            val text = ZipInputStream(File(zipPath).inputStream()).use { z ->
-                generateSequence { z.nextEntry }
-                    .firstOrNull { it.name == manifest }
-                    ?.let { z.readBytes().decodeToString() }
-            } ?: return null
             val addons = if (kind == "repository") parseAddonsManifest(manifest, text)
             else listOfNotNull(parseAddonXml(manifest, text))
             if (addons.isEmpty()) null else KodiPackage(kind, manifest, addons)
-            }
         }.getOrNull()
     }
+
+    /** Lê UM texto do ZIP (segunda passada — ZipInputStream é sequencial). */
+    private fun readZipText(zipPath: String, entryPath: String): String? = runCatching {
+        ZipInputStream(File(zipPath).inputStream()).use { z ->
+            generateSequence { z.nextEntry }
+                .firstOrNull { it.name == entryPath }
+                ?.let { z.readBytes().decodeToString() }
+        }
+    }.getOrNull()
 
     /**
      * Instala um pacote KODI: extrai os arquivos (Zip Slip bloqueado) e gera um
@@ -154,6 +185,18 @@ class RepoPackages(private val context: Context) {
         val stamp = zipPath.hashCode().toUInt()
         val extractRoot = File(installDir, "kodi_$stamp").apply { deleteRecursively(); mkdirs() }
         extractZipSafely(zipPath, extractRoot)
+        if (pkg.kind == "home") {
+            // Backup/estrutura KODI: varre os arquivos extraídos e monta o índice
+            // com a hierarquia EXATA + add-ons instalados (metadados reais).
+            val scan = KodiScanner.scan(KodiScanner.FileVfs, extractRoot.absolutePath, "Kodi")
+            val homeName = scan.homePath?.substringAfterLast('/')
+                ?: pkg.addons.firstOrNull()?.name
+                ?: "Backup Kodi"
+            val index = KodiScanner.buildIndex(scan, "Backup $homeName")
+            val target = File(installDir, "kodi_index_$stamp.json")
+            target.writeText(Http.json.encodeToString(OnePlayIndexDto.serializer(), index))
+            return@withContext "file://${target.absolutePath}" to (index.name ?: "Backup Kodi")
+        }
         val index = OnePlayIndexDto(
             name = pkg.addons.firstOrNull()?.name?.takeIf { it.isNotBlank() } ?: "Pacote Kodi",
             addons = pkg.addons.map { a ->
@@ -173,6 +216,14 @@ class RepoPackages(private val context: Context) {
         val target = File(installDir, "kodi_index_$stamp.json")
         target.writeText(Http.json.encodeToString(OnePlayIndexDto.serializer(), index))
         "file://${target.absolutePath}" to index.name!!
+    }
+
+    /** Grava um índice gerado em runtime e devolve a URL local `file://`. */
+    fun writeIndex(index: OnePlayIndexDto, baseName: String): String {
+        val base = baseName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(48).ifBlank { "local" }
+        val target = File(installDir, "local_${base}_${index.hashCode().toUInt()}.json")
+        target.writeText(Http.json.encodeToString(OnePlayIndexDto.serializer(), index))
+        return "file://${target.absolutePath}"
     }
 
     /** Extração segura de TODO o pacote (Zip Slip/Path Traversal bloqueados). */

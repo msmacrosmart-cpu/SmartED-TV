@@ -9,7 +9,11 @@ no código (spec §8 — "documentar incompatibilidades").
 | Capacidade | Estado | Onde |
 | --- | --- | --- |
 | Índice de repositório em JSON (formato próprio) | ✅ instalação, navegação e sincronização | `RepoPackages`, `IptvContentRepository` |
-| Instalação de pacote ZIP por URL | ✅ download + validação (deve conter `.json`) | `RepoPackages.download` |
+| Instalação de pacote ZIP por URL | ✅ download + validação (`.json`, `addon.xml`, `addons.xml` ou backup de estrutura) | `RepoPackages.download` |
+| Instalação de pacote ZIP **local** (`file://`/`content://`/caminho) | ✅ cópia para o cache + mesmo fluxo de instalação | `RepoPackages.download` |
+| Varredura recursiva de árvore Kodi (backup `files/.kodi/…`) | ✅ hierarquia EXATA do disco, sem pastas fixas; detecta home via `addons/<id>/addon.xml` | `KodiScanner` |
+| Pasta local (SAF `content://`) → repositório | ✅ indexa a árvore toda + importa playlists como fontes M3U | `IptvSystem.importLocalTree` |
+| Formatos indexados/reconhecidos na árvore | ✅ `.m3u .m3u8 .ts .mp4 .mkv .avi .mov .m4v .mp3 .aac .json .xml .zip` (+ `.pls .xspf .asx .wpl .nfo .strm .db …`) — mídia com URL de reprodução local | `KodiScanner.INDEXED` |
 | Navegação do conteúdo do ZIP (Gestor de Arquivos) | ✅ lista real de pastas/arquivos | `RepoPackages.entries` |
 | Instalação de sub-índices com escolha de tipo | ✅ Vídeo/PVR/Rádio/Programas/… gravados no índice | `RepoBrowserDialog` |
 | Reconhecimento de `addon.xml` | ✅ **somente metadados**: id, nome, versão, tipo (extension point), dependências | `RepoPackages.parseAddonXml` |
@@ -26,8 +30,8 @@ no código (spec §8 — "documentar incompatibilidades").
 | **Runtime de add-ons Kodi (Python)** | O app **não executa código de fontes desconhecidas** (spec §7). `addon.xml` é lido apenas como metadados; nenhum script/plugin é carregado. |
 | **API/skin/ serviçs Kodi completos** | Sem camada de compatibilidade por adaptadores ainda — não presumimos compatibilidade automática (spec §5). |
 | **Pacotes TAR, GZ, 7Z, RAR** | Sem biblioteca disponível no projeto; apenas ZIP (spec §3 — "conforme bibliotecas disponíveis"). |
-| **Playlists PLS, XSPF, ASX, WPL** | Parser apenas de M3U/M3U8 por enquanto. |
-| **Metadados NFO/STRM/XML de pastas** | Ainda não interpretados. |
+| **Parser de playlists PLS, XSPF, ASX, WPL** | Os arquivos são INDEXADOS na árvore (visíveis), mas a importação para Canais é apenas M3U/M3U8 por enquanto. |
+| **Interpretação de metadados NFO/STRM** | Arquivos INDEXADOS (visíveis na árvore); metadados ainda não interpretados. |
 | **DRM** | Nunca contornado (spec §7). |
 | **Gerenciador de dependências automático** | Dependências de `addon.xml` são EXIBIDAS, nunca baixadas/executadas automaticamente. |
 | **Credenciais em logs** | Proibido por política; senhas nunca são impressas. |
@@ -42,6 +46,6 @@ no código (spec §8 — "documentar incompatibilidades").
 ## Próximos incrementos (spec §2 e §6)
 
 - Descoberta de fontes por manifestos além do JSON atual.
-- Identificação de formatos de arquivo (extensões de vídeo/áudio).
+- Parser de PLS/XSPF e leitura de NFO (hoje: apenas indexação visual).
 - Navegador com busca, ordenação, favoritos e histórico.
 - Adaptadores de compatibilidade por capacidade real (em vez de presumir API Kodi).

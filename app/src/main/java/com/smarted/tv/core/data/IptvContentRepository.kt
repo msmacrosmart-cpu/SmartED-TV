@@ -189,13 +189,24 @@ class IptvContentRepository(
         }
         indexAttemptedFor = url
         cachedIndex = if (url.startsWith("file://")) {
-            // Índice instalado pelo navegador de ZIPs (Configurações) — arquivo local.
+            // Índice instalado pelo navegador de ZIPs (arquivo local) OU uma
+            // PASTA local: varredura recursiva da hierarquia real (KodiScanner).
             runCatching {
                 val path = url.removePrefix("file://")
-                val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    java.io.File(path).readText()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val f = java.io.File(path)
+                    if (f.isDirectory) {
+                        val scan = com.smarted.tv.data.repo.KodiScanner.scan(
+                            com.smarted.tv.data.repo.KodiScanner.FileVfs,
+                            path,
+                            f.name.ifBlank { "Pasta" },
+                        )
+                        if (scan.entryCount == 0) null
+                        else com.smarted.tv.data.repo.KodiScanner.buildIndex(scan)
+                    } else {
+                        Http.json.decodeFromString(OnePlayIndexDto.serializer(), f.readText())
+                    }
                 }
-                Http.json.decodeFromString(OnePlayIndexDto.serializer(), text)
             }.getOrNull()
         } else {
             runCatching {
@@ -322,6 +333,7 @@ class IptvContentRepository(
         "repository", "repositories" -> "Add-ons de Repositório"
         "pvr" -> "PVR"
         "pictures" -> "Add-ons de Imagens"
+        "other" -> "Outros"
         else -> type.replaceFirstChar { it.uppercaseChar() }
     }
 
