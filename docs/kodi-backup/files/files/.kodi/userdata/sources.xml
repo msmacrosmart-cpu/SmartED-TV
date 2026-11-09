@@ -1,0 +1,30 @@
+<sources>
+    <programs>
+        <default pathversion="1"></default>
+    </programs>
+    <video>
+        <default pathversion="1"></default>
+    </video>
+    <music>
+        <default pathversion="1"></default>
+    </music>
+    <pictures>
+        <default pathversion="1"></default>
+    </pictures>
+    <files>
+        <default pathversion="1"></default>
+        <source>
+            <name>VIKINGS</name>
+            <path pathversion="1">https://vikingskoditeam.github.io/</path>
+            <allowsharing>true</allowsharing>
+        </source>
+        <source>
+            <name>repository.openwizard</name>
+            <path pathversion="1">https://ak4-openproject.github.io/repository.openwizard/</path>
+            <allowsharing>true</allowsharing>
+        </source>
+    </files>
+    <games>
+        <default pathversion="1"></default>
+    </games>
+</sources>
