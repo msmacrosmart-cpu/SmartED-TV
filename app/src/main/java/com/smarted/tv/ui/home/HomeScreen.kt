@@ -186,10 +186,12 @@ private fun KodiMenuDialog(
                 )
                 kodiMenuOptions.forEach { opt ->
                     GlassClickable(
-                        onClick = when {
-                            opt.launchKodi -> onLaunchKodi()
-                            opt.dest != null -> onPick(opt.dest)
-                            else -> onUnsupported(opt.label)
+                        onClick = {
+                            when {
+                                opt.launchKodi -> onLaunchKodi()
+                                opt.dest != null -> onPick(opt.dest)
+                                else -> onUnsupported(opt.label)
+                            }
                         },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
