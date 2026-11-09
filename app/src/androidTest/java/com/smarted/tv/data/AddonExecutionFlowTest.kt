@@ -98,13 +98,13 @@ class AddonExecutionFlowTest {
         // Regra 3: as três categorias do plugin mapeadas nas abas nativas.
         val channels = store.channels(source!!.id, null, null, 50, 0, false)
         assertTrue("Canais: canais ao vivo importados", channels.isNotEmpty())
-        assertEquals("grupo mapeado da categoria", "Canais", channels.first().group)
+        assertEquals("grupo mapeado da categoria", "Canais", channels.first().groupName)
         val vodCount = store.vodCount(source.id)
         assertTrue("Filmes+Séries no catálogo (got=$vodCount)", vodCount >= 2)
 
         // Regra 4: URL de reprodução pronta — é o que o player interno recebe
         // ao clicar no item final.
-        val playUrl = channels.first().url
+        val playUrl = channels.first().streamUrl
         assertTrue("URL ao vivo do player: $playUrl", playUrl.contains("/live/user1/pass1/101.m3u8"))
         val movie = store.vodPage(
             kind = com.smarted.tv.core.model.Tab.MOVIES,
@@ -117,7 +117,7 @@ class AddonExecutionFlowTest {
             favoritesOnly = false,
         ).firstOrNull { it.name.contains("Filme Teste") }
         assertNotNull("filme mapeado", movie)
-        assertTrue("URL do filme: ${movie!!.url}", movie.url.contains("/movie/user1/pass1/201.mp4"))
+        assertTrue("URL do filme: ${movie!!.streamUrl}", movie.streamUrl.contains("/movie/user1/pass1/201.mp4"))
 
         // Limpeza: não deixar fonte de teste no banco do emulador.
         store.deleteSourceCascade(source.id)
