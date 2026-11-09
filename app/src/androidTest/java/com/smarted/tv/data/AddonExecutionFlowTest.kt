@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.smarted.tv.core.data.AppGraph
 import com.smarted.tv.core.model.SourceKind
+import com.smarted.tv.data.db.IptvStore
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
