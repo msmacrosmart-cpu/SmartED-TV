@@ -175,10 +175,18 @@ class IptvContentRepository(
     /** Índice JSON do repositório dono ([repoUrl]) — cache de melhor esforço. */
     private var indexAttemptedFor: String? = null
     private var cachedIndex: OnePlayIndexDto? = null
+    private var indexFailedAt: Long = 0L
 
     private suspend fun indexFor(repoUrl: String?): OnePlayIndexDto? {
         val url = repoUrl?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL
-        if (indexAttemptedFor == url) return cachedIndex
+        // Suporte em cache; FALHA não é definitiva: tenta de novo após 15 s —
+        // um timeout transitório não pode deixar a árvore presa no fallback local.
+        if (indexAttemptedFor == url && cachedIndex != null) return cachedIndex
+        if (indexAttemptedFor == url && indexFailedAt != 0L &&
+            System.currentTimeMillis() - indexFailedAt < 15_000L
+        ) {
+            return null
+        }
         indexAttemptedFor = url
         cachedIndex = if (url.startsWith("file://")) {
             // Índice instalado pelo navegador de ZIPs (Configurações) — arquivo local.
@@ -194,6 +202,7 @@ class IptvContentRepository(
                 withTimeoutOrNull(10_000L) { OnePlayTreeClient.load(url) }
             }.getOrNull()
         }
+        indexFailedAt = if (cachedIndex == null) System.currentTimeMillis() else 0L
         return cachedIndex
     }
 
@@ -275,10 +284,10 @@ class IptvContentRepository(
     private suspend fun repositorySections(repo: RepositoryNode): List<RepositoryNode> {
         val addons = repositoryAddons(repo)
         val groups = addons.groupBy { (it.addonType ?: "other").lowercase() }
-        val groupNodes = groups.keys.sortedBy { addonGroupOrder(it) }.map { type ->
+        val groupNodes = groups.entries.sortedBy { addonGroupOrder(it.key) }.map { (type, members) ->
             RepositoryNode(
                 id = "adongroup|$type|${repo.id}",
-                name = addonGroupLabel(type),
+                name = "${addonGroupLabel(type)} (${members.size})",
                 kind = RepositoryNode.Kind.CATEGORY,
                 repoUrl = repo.url?.takeIf { it.isNotBlank() } ?: OnePlayBootstrap.INDEX_URL,
             )
@@ -361,11 +370,17 @@ class IptvContentRepository(
         val declared = index?.addons.orEmpty()
         if (declared.isNotEmpty()) {
             return declared.mapIndexed { idx, addon ->
+                val meta = listOf(
+                    addon.author?.takeIf { it.isNotBlank() },
+                    addon.version?.takeIf { it.isNotBlank() }?.let { "v$it" },
+                ).filterNotNull().joinToString(" - ").ifBlank { null }
                 RepositoryNode(
                     id = "addon|$idx|${repo.id}",
                     name = addon.name?.takeIf { it.isNotBlank() } ?: "${repo.name} Add-on",
                     kind = RepositoryNode.Kind.ADDON,
                     addonType = addon.type,
+                    addonMeta = meta,
+                    addonDescription = addon.description?.takeIf { it.isNotBlank() },
                     repoUrl = url,
                 )
             }

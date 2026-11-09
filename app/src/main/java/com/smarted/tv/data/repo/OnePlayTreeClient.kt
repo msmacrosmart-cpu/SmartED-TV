@@ -34,6 +34,10 @@ data class OnePlayAddonDto(
     val name: String? = null,
     /** Tipo universal: "video" | "programs" | "radio" | "live" | ... (livre, exatamente como no JSON). */
     val type: String? = null,
+    /** Autor, versão e descrição — exibidos quando presentes (sem dados fictícios). */
+    val author: String? = null,
+    val version: String? = null,
+    val description: String? = null,
     val tree: OnePlayNodeDto? = null,
 )
 

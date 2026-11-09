@@ -33,6 +33,10 @@ data class RepositoryNode(
     val headers: Map<String, String> = emptyMap(),
     val favKey: String = "",
     val addonType: String? = null,
+    /** Metadados exibidos na linha do add-on ("autor - v1.2") quando o índice declara. */
+    val addonMeta: String? = null,
+    /** Descrição do add-on (referência Kodi) quando o índice declara. */
+    val addonDescription: String? = null,
     /** Id do nó ADDON dono deste menu (âncora para servir os filhos recursivos do JSON). */
     val addonId: String = "",
     val repoUrl: String = "",

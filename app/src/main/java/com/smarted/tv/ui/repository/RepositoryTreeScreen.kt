@@ -118,7 +118,7 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
                             RepositoryNode.Kind.REPOSITORY -> RepoRow(node) {
                                 vm.navigateInto(node)
                             }
-                            RepositoryNode.Kind.ADDON -> NavRow(node.name, addonIcon(node)) {
+                            RepositoryNode.Kind.ADDON -> AddonRow(node) {
                                 vm.navigateInto(node)
                             }
                             RepositoryNode.Kind.CATEGORY -> CategoryRow(node) {
@@ -154,6 +154,61 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
 @Composable
 private fun NavRow(title: String, icon: ImageVector, onClick: () -> Unit) =
     TreeRow(title, icon, onClick)
+
+/**
+ * Linha de add-on estilo Kodi (referência): nome + autor/versão e descrição
+ * quando o índice declara — sem dados fictícios, o que não existe não aparece.
+ */
+@Composable
+private fun AddonRow(node: RepositoryNode, onClick: () -> Unit) {
+    val d = LocalDimens.current
+    GlassClickable(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().heightIn(min = d.rowHeight),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = addonIcon(node), contentDescription = null,
+                Modifier.size(22.dp), tint = Smoke.TextPrimary,
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    node.name, fontSize = d.textBody, fontWeight = FontWeight.SemiBold,
+                    color = Smoke.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                if (!node.addonMeta.isNullOrBlank()) {
+                    Text(
+                        node.addonMeta, fontSize = d.textCaption,
+                        color = Smoke.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (!node.addonDescription.isNullOrBlank()) {
+                    Text(
+                        node.addonDescription, fontSize = d.textCaption,
+                        color = Smoke.TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Ícone do grupo por tipo oficial de add-on (referência Kodi — nunca genérico). */
+private fun groupIcon(type: String): ImageVector = when (type) {
+    "video" -> Icons.Rounded.Movie
+    "programs", "program", "tools", "script" -> Icons.Rounded.Build
+    "music", "audio", "radio" -> Icons.Rounded.LibraryMusic
+    "skins", "skin", "interface" -> Icons.Rounded.Palette
+    "services", "service" -> Icons.Rounded.Settings
+    "metadata" -> Icons.Rounded.Info
+    "subtitles" -> Icons.Rounded.Subtitles
+    "repository", "repositories" -> Icons.Rounded.Cloud
+    "pvr" -> Icons.Rounded.LiveTv
+    "pictures" -> Icons.Rounded.Image
+    else -> Icons.Rounded.Extension
+}
 
 /** Nível 1: repositório cadastrado (OnePlay, etc.). */
 @Composable
@@ -227,11 +282,16 @@ private fun RepositoryNode.mediaKindLabel() = when (mediaKind) {
 private fun CategoryRow(node: RepositoryNode, onClick: () -> Unit) =
     TreeRow(
         node.name,
-        when (node.tab) {
-            Tab.CHANNELS -> Icons.Rounded.LiveTv
-            Tab.MOVIES -> Icons.Rounded.Movie
-            Tab.SERIES -> Icons.Rounded.Theaters
-            null -> Icons.Rounded.Extension
+        when {
+            // Grupo de tipo oficial (adongroup|video|...): ícone do tipo, como no Kodi.
+            node.id.startsWith("adongroup|") ->
+                groupIcon(node.id.substringAfter("adongroup|").substringBefore("|"))
+            else -> when (node.tab) {
+                Tab.CHANNELS -> Icons.Rounded.LiveTv
+                Tab.MOVIES -> Icons.Rounded.Movie
+                Tab.SERIES -> Icons.Rounded.Theaters
+                null -> Icons.Rounded.Extension
+            }
         },
         onClick,
     )
