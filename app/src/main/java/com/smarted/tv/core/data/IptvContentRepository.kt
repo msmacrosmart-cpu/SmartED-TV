@@ -205,13 +205,13 @@ class IptvContentRepository(
                         else com.smarted.tv.data.repo.KodiScanner.buildIndex(scan)
                     } else {
                         Http.json.decodeFromString(OnePlayIndexDto.serializer(), f.readText())
-                    }
+                    }?.let { com.smarted.tv.data.repo.RepoPackages.migrateLegacyIndex(it, url) }
                 }
             }.getOrNull()
         } else {
             runCatching {
                 withTimeoutOrNull(10_000L) { OnePlayTreeClient.load(url) }
-            }.getOrNull()
+            }.getOrNull()?.let { com.smarted.tv.data.repo.RepoPackages.migrateLegacyIndex(it, url) }
         }
         indexFailedAt = if (cachedIndex == null) System.currentTimeMillis() else 0L
         return cachedIndex
@@ -393,6 +393,11 @@ class IptvContentRepository(
                     addonType = addon.type,
                     addonMeta = meta,
                     addonDescription = addon.description?.takeIf { it.isNotBlank() },
+                    addonCapability = addon.capability
+                        ?: addon.description?.takeIf { d ->
+                            com.smarted.tv.data.repo.RepoPackages.isXtreamHint(d)
+                        }?.let { "xtream" },
+                    addonEntrypoint = addon.entrypoint,
                     repoUrl = url,
                 )
             }
@@ -417,6 +422,40 @@ class IptvContentRepository(
                 repoUrl = url,
             ),
         )
+    }
+
+    /** Execução do add-on: menu JSON quando existe; senão capacidade real. */
+    override suspend fun addonExecution(node: RepositoryNode): String {
+        if (node.addonCapability == "xtream") return "xtream"
+        val idx = node.id.substringAfter("addon|", "").substringBefore("|").toIntOrNull()
+        val index = indexFor(node.repoUrl)
+        val addon = idx?.let { index?.addons?.getOrNull(it) }
+        if (addon?.tree != null) return "menu"
+        if (addon?.capability == "xtream") return "xtream"
+        val text = listOfNotNull(addon?.description, addon?.name).joinToString(" ")
+        return if (com.smarted.tv.data.repo.RepoPackages.isXtreamHint(text)) "xtream" else "details"
+    }
+
+    /** Conecta o add-on ao painel Xtream NATIVO (probe de credenciais real). */
+    override suspend fun connectAddonXtream(name: String, url: String, user: String, pass: String): String {
+        val source = withContext(Dispatchers.IO) {
+            graph.sources.addXtream(
+                name.ifBlank { "Add-on" },
+                url.trim(),
+                user.trim(),
+                pass.trim(),
+                "",
+            )
+        }
+        return "Add-on conectado (${source.name}) — categorias em Canais/Filmes/Séries."
+    }
+
+    override suspend fun existingXtreamName(): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            store.listSources().firstOrNull {
+                it.kind == com.smarted.tv.core.model.SourceKind.XTREAM && it.enabled
+            }?.name
+        }.getOrNull()
     }
 
     /**

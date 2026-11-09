@@ -39,6 +39,10 @@ data class OnePlayAddonDto(
     val version: String? = null,
     val description: String? = null,
     val tree: OnePlayNodeDto? = null,
+    /** Capacidade REAL detectada estaticamente (ex.: "xtream") — nunca executa código. */
+    val capability: String? = null,
+    /** Script principal (entrypoint, `library` do addon.xml) — exibido como metadado. */
+    val entrypoint: String? = null,
 )
 
 @Serializable

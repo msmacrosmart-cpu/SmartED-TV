@@ -38,6 +38,8 @@ class RepoPackages(private val context: Context) {
         val author: String?,
         val description: String?,
         val dependencies: List<String>,
+        /** Script principal declarado no addon.xml (`library`) — entrypoint. */
+        val library: String? = null,
     )
 
     /** Pacote Kodi detectado no ZIP: add-on avulso ou manifesto de repositório. */
@@ -197,11 +199,28 @@ class RepoPackages(private val context: Context) {
             target.writeText(Http.json.encodeToString(OnePlayIndexDto.serializer(), index))
             return@withContext "file://${target.absolutePath}" to (index.name ?: "Backup Kodi")
         }
+        // Leitura ESTÁTICA do entrypoint para classificar a capacidade real
+        // (sem executar nada); a árvore de arquivos vai para `files` — o clique
+        // do add-on NÃO abre explorador de código.
+        val addonDirFor = { id: String ->
+            File(extractRoot, id).takeIf { it.isDirectory } ?: extractRoot
+        }
         val index = OnePlayIndexDto(
             name = pkg.addons.firstOrNull()?.name?.takeIf { it.isNotBlank() } ?: "Pacote Kodi",
             addons = pkg.addons.map { a ->
                 val deps = if (a.dependencies.isEmpty()) null
                 else "Depende de: ${a.dependencies.joinToString()}"
+                val addonDir = addonDirFor(a.id)
+                val names = addonDir.listFiles()?.mapNotNull { it.name } ?: emptyList()
+                val capability = if (a.description?.let { d -> isXtreamHint(d) } == true) {
+                    "xtream"
+                } else {
+                    detectCapability(
+                        { n -> File(addonDir, n).takeIf { f -> f.length() in 1..200_000L }?.readText() },
+                        a.library,
+                        names,
+                    )
+                }
                 OnePlayAddonDto(
                     name = a.name,
                     type = a.type,
@@ -209,9 +228,12 @@ class RepoPackages(private val context: Context) {
                     version = a.version,
                     description = listOfNotNull(a.description, deps)
                         .joinToString(" · ").ifBlank { null },
-                    tree = fileTreeFor(extractRoot, a.id),
+                    tree = null,
+                    capability = capability,
+                    entrypoint = a.library,
                 )
             },
+            files = fileTreeFor(extractRoot, extractRoot.name),
         )
         val target = File(installDir, "kodi_index_$stamp.json")
         target.writeText(Http.json.encodeToString(OnePlayIndexDto.serializer(), index))
@@ -369,6 +391,15 @@ class RepoPackages(private val context: Context) {
                     .firstOrNull()
             val description = firstTagText(clean, "summary")
                 ?: firstTagText(clean, "description")
+            // Entrypoint: `library` da extensão pluginsource (fallback: 1ª ext).
+            val pluginExt = Regex(
+                "<extension\\s[^>]*point\\s*=\\s*\"[^\"]*pluginsource[^\"]*\"[^>]*>",
+                RegexOption.IGNORE_CASE,
+            ).find(clean)?.value
+                ?: Regex("<extension\\s[^>]*>", RegexOption.IGNORE_CASE).find(clean)?.value
+            val library = pluginExt?.let {
+                Regex("library\\s*=\\s*\"([^\"]*)\"").find(it)?.groupValues?.get(1)
+            }?.ifBlank { null }
             return KodiAddon(
                 entryPath = entryPath,
                 id = id.ifBlank { name },
@@ -378,6 +409,7 @@ class RepoPackages(private val context: Context) {
                 author = author,
                 description = description?.let { sanitizeKodiName(it) }?.ifBlank { null },
                 dependencies = dependencies,
+                library = library,
             )
         }
 
@@ -408,6 +440,35 @@ class RepoPackages(private val context: Context) {
             else -> null
         }
 
+        /**
+         * Capacidade REAL do add-on detectada ESTATICAMENTE (leitura de texto
+         * apenas — NUNCA executa código do add-on, spec §7). "xtream" = o
+         * plugin fala com painéis Xtream Codes (player_api/get.php/…).
+         */
+        private val XTREAM_HINT_RE = Regex(
+            "(?i)player_api\\.php|get\\.php\\?|xtream\\s*codes|action=get_(live|vod|series)|type=m3u_plus",
+        )
+
+        fun isXtreamHint(text: String): Boolean = XTREAM_HINT_RE.containsMatchIn(text)
+
+        /**
+         * Lê entrypoint + fontes .py do topo (top-level, limitadas) procurando
+         * marcadores de capacidade. [read] devolve o texto ou null.
+         */
+        fun detectCapability(
+            read: (String) -> String?,
+            entrypoint: String?,
+            topLevelNames: List<String>,
+        ): String? {
+            val hint = listOfNotNull(entrypoint) +
+                topLevelNames.filter { it.endsWith(".py", true) }.take(12)
+            for (name in hint) {
+                val text = read(name) ?: continue
+                if (isXtreamHint(text)) return "xtream"
+            }
+            return null
+        }
+
         /** Ponto de extensão Kodi → tipo oficial do agrupamento (spec §5). */
         fun typeFromExtensionPoint(point: String): String? {
             val p = point.lowercase()
@@ -426,6 +487,90 @@ class RepoPackages(private val context: Context) {
                 p.contains("picture") -> "pictures"
                 else -> null
             }
+        }
+
+        // ── Migração de índices ANTIGOS (árvore de arquivos no add-on) ──────
+
+        /** Contém um nó chamado "addon.xml" (assinatura de árvore de ARQUIVOS). */
+        fun looksLikeFileTree(node: OnePlayNodeDto, depth: Int = 0): Boolean {
+            if (depth > 5) return false
+            if (node.name?.substringAfterLast('/') == "addon.xml") return true
+            return node.children.orEmpty().any { looksLikeFileTree(it, depth + 1) }
+        }
+
+        /**
+         * Índices instalados por versões anteriores guardavam a árvore de
+         * arquivos em `addons[i].tree` — causava explorador de código no clique
+         * do add-on. Migra: move a árvore para `files` (Gestor de Arquivos),
+         * zera `tree` e enriquece capacidade/entrypoint lendo a extração
+         * irmã `kodi_<stamp>` (quando existir) — leitura estática, sem execução.
+         */
+        fun migrateLegacyIndex(index: OnePlayIndexDto, indexPath: String): OnePlayIndexDto {
+            val addons = index.addons.orEmpty()
+            if (addons.isEmpty()) return index
+            val hasFileTrees = addons.any { it.tree != null && looksLikeFileTree(it.tree) }
+            val needsCapability = addons.any {
+                it.capability == null && (it.description?.let { d -> isXtreamHint(d) } == true)
+            }
+            if (!hasFileTrees && !needsCapability) {
+                // Ainda assim: dica de metadado SEMPRE vale (resumo "Xtream Codes…").
+                var changed = false
+                val withHint = addons.map { a ->
+                    if (a.capability == null && a.description?.let { d -> isXtreamHint(d) } == true) {
+                        changed = true
+                        a.copy(capability = "xtream")
+                    } else {
+                        a
+                    }
+                }
+                return if (changed) index.copy(addons = withHint) else index
+            }
+            // Extração irmã: …/repo_installs/kodi_index_<stamp>.json → …/kodi_<stamp>/
+            val extractDir = runCatching {
+                if (!indexPath.startsWith("file://")) null
+                else {
+                    val f = java.io.File(indexPath.removePrefix("file://"))
+                    val stamp = f.name.removePrefix("kodi_index_").removeSuffix(".json")
+                    if (stamp == f.name) null else java.io.File(f.parentFile, "kodi_$stamp")
+                }
+            }.getOrNull()?.takeIf { it.isDirectory }
+
+            val migrated = addons.map { a ->
+                var addon = a
+                if (addon.tree != null && looksLikeFileTree(addon.tree)) {
+                    addon = addon.copy(tree = null)
+                }
+                if (addon.capability == null) {
+                    val meta = addon.description?.let { d -> isXtreamHint(d) } == true
+                    val fromFiles = extractDir?.let { dir ->
+                        val addonDir = java.io.File(dir, addon.id).takeIf { it.isDirectory } ?: dir
+                        val top = addonDir.listFiles() ?: emptyArray()
+                        // Topo + 1 nível (extração legada agrupa em <plugin.id>/).
+                        val names = buildList {
+                            top.filter { it.isFile }.mapTo(this) { it.name }
+                            top.filter { it.isDirectory }.take(8).forEach { sub ->
+                                sub.listFiles()?.filter { it.isFile }?.take(24)
+                                    ?.mapTo(this) { "${sub.name}/${it.name}" }
+                            }
+                        }
+                        detectCapability(
+                            { n -> java.io.File(addonDir, n).takeIf { f -> f.length() in 1..200_000L }?.readText() },
+                            null,
+                            names,
+                        )
+                    }
+                    val cap = when {
+                        meta -> "xtream"
+                        fromFiles != null -> fromFiles
+                        else -> null
+                    }
+                    if (cap != null) addon = addon.copy(capability = cap)
+                }
+                addon
+            }
+            val files = index.files
+                ?: addons.firstNotNullOfOrNull { a -> a.tree?.takeIf { looksLikeFileTree(it) } }
+            return index.copy(addons = migrated, files = files)
         }
     }
 }

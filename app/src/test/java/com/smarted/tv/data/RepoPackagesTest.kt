@@ -93,6 +93,7 @@ class RepoPackagesTest {
         assertEquals("0.0.3", info.version)
         assertEquals(5, info.dependencies.size)
         assertTrue(info.description.orEmpty().contains("OnePlay VIP"))
+        assertEquals("app.py", info.library)
     }
 
     @Test

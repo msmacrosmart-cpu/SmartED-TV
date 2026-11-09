@@ -41,13 +41,19 @@ import com.smarted.tv.ui.theme.Smoke
  * em Canais/Filmes/Séries.
  */
 @Composable
-fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
+fun RepositoryTreeScreen(
+    onPlay: (PlaybackRequest) -> Unit,
+    onNavigate: (com.smarted.tv.ui.nav.Dest) -> Unit = {},
+) {
     val vm: RepositoryTreeViewModel = viewModel(
         factory = vmFactory { RepositoryTreeViewModel(AppGraph.content) },
     )
     val ui by vm.ui.collectAsState()
     val message by vm.message.collectAsState()
     val pending by vm.pending.collectAsState()
+    val xtreamExec by vm.xtreamExec.collectAsState()
+    val detailsExec by vm.detailsExec.collectAsState()
+    val connecting by vm.connecting.collectAsState()
     val d = LocalDimens.current
     val ctx = LocalContext.current
     val path = ui.path
@@ -119,7 +125,9 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
                                 vm.navigateInto(node)
                             }
                             RepositoryNode.Kind.ADDON -> AddonRow(node) {
-                                vm.navigateInto(node)
+                                // Execução do add-on (menu/capacidade) — nunca
+                                // explorador de arquivos de código.
+                                vm.openAddon(node)
                             }
                             RepositoryNode.Kind.CATEGORY -> CategoryRow(node) {
                                 vm.navigateInto(node)
@@ -147,8 +155,133 @@ fun RepositoryTreeScreen(onPlay: (PlaybackRequest) -> Unit) {
         )
     }
 
+    // Execução Xtream nativa: credenciais (ou atalho p/ fonte já conectada) →
+    // as categorias caem nas abas nativas Canais/Filmes/Séries.
+    xtreamExec?.let { node ->
+        AddonXtreamDialog(
+            node = node,
+            connecting = connecting,
+            onUseExisting = { vm.useExistingXtream { onNavigate(com.smarted.tv.ui.nav.Dest.CHANNELS) } },
+            onConnect = { url, user, pass ->
+                vm.connectXtream(url, user, pass) {
+                    onNavigate(com.smarted.tv.ui.nav.Dest.CHANNELS)
+                }
+            },
+            onDismiss = { vm.dismissXtream() },
+        )
+    }
+
+    // Sem menu e sem capacidade mapeável: metadados honestos (entrypoint etc.).
+    detailsExec?.let { node ->
+        AddonDetailsDialog(node = node, onDismiss = { vm.dismissDetails() })
+    }
+
     // Dentro da árvore, Voltar sobe um nível; na raiz, o MainShell devolve ao Início.
     BackHandler(enabled = path.size > 1) { vm.goBack() }
+}
+
+/** Execução do add-on Xtream: painel de credenciais (cliente NATIVO do app). */
+@Composable
+private fun AddonXtreamDialog(
+    node: RepositoryNode,
+    connecting: Boolean,
+    onUseExisting: () -> Unit,
+    onConnect: (url: String, user: String, pass: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val d = LocalDimens.current
+    var url by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    val existing by produceState(initialValue = false) {
+        value = AppGraph.content.existingXtreamName() != null
+    }
+    val valid = url.isNotBlank() && user.isNotBlank() && pass.isNotBlank() && !connecting
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlassPanel(Modifier.fillMaxWidth().widthIn(max = 640.dp), padding = 16.dp) {
+            Column(
+                Modifier.fillMaxWidth().padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Executar ${node.name}",
+                    fontSize = d.textTitle, fontWeight = FontWeight.Bold,
+                    color = Smoke.TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "Add-on Xtream Codes — o SmartED-TV usa o cliente NATIVO " +
+                        "(mesmas categorias do add-on nas abas Canais/Filmes/Séries). " +
+                        "O script Python do Kodi não é executado.",
+                    fontSize = d.textCaption, color = Smoke.TextSecondary,
+                )
+                if (existing) {
+                    GlassButton("Abrir categorias já importadas", Icons.Rounded.PlayArrow, onUseExisting)
+                }
+                com.smarted.tv.ui.components.GlassTextField(
+                    url, { url = it }, "Servidor (http://host:porta)",
+                    leadingIcon = null,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Next,
+                )
+                com.smarted.tv.ui.components.GlassTextField(
+                    user, { user = it }, "Usuário",
+                    leadingIcon = null,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Next,
+                )
+                com.smarted.tv.ui.components.GlassTextField(
+                    pass, { pass = it }, "Senha", password = true,
+                    leadingIcon = null,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassButton(
+                        if (connecting) "Conectando…" else "Conectar e abrir",
+                        Icons.Rounded.Check,
+                        onClick = { if (valid) onConnect(url.trim(), user.trim(), pass.trim()) },
+                    )
+                    GlassButton("Cancelar", Icons.Rounded.Close, onDismiss)
+                }
+            }
+        }
+    }
+}
+
+/** Detalhes honestos do add-on sem menu/capacidade (sem listagem de código). */
+@Composable
+private fun AddonDetailsDialog(node: RepositoryNode, onDismiss: () -> Unit) {
+    val d = LocalDimens.current
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlassPanel(Modifier.fillMaxWidth().widthIn(max = 640.dp), padding = 16.dp) {
+            Column(
+                Modifier.fillMaxWidth().padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    node.name, fontSize = d.textTitle, fontWeight = FontWeight.Bold,
+                    color = Smoke.TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                node.addonMeta?.let {
+                    Text(it, fontSize = d.textBody, color = Smoke.TextSecondary)
+                }
+                node.addonEntrypoint?.let {
+                    Text(
+                        "Entrypoint: $it",
+                        fontSize = d.textCaption, color = Smoke.TextTertiary,
+                    )
+                }
+                node.addonDescription?.let {
+                    Text(it, fontSize = d.textBody, color = Smoke.TextSecondary)
+                }
+                Text(
+                    "Este add-on não declara menu nem capacidade compatível com o " +
+                        "cliente nativo. O runtime Python do Kodi não é executado " +
+                        "(docs/KODI_COMPAT.md) — os arquivos ficam no Gestor de " +
+                        "Arquivos do repositório.",
+                    fontSize = d.textCaption, color = Smoke.TextTertiary,
+                )
+                GlassButton("Fechar", Icons.Rounded.Close, onDismiss)
+            }
+        }
+    }
 }
 
 @Composable

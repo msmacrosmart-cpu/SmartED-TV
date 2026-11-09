@@ -69,6 +69,61 @@ class RepositoryTreeViewModel(
             emptyList()
         }
 
+    // ── Execução de add-on: menu JSON, cliente Xtream nativo ou detalhes ──
+
+    private val _xtreamExec = MutableStateFlow<RepositoryNode?>(null)
+    val xtreamExec = _xtreamExec.asStateFlow()
+
+    private val _detailsExec = MutableStateFlow<RepositoryNode?>(null)
+    val detailsExec = _detailsExec.asStateFlow()
+
+    private val _connecting = MutableStateFlow(false)
+    val connecting = _connecting.asStateFlow()
+
+    /**
+     * Clique no add-on: menu declarado no índice → navega; capacidade Xtream
+     * REAL (detectada estaticamente) → execução via cliente NATIVO; caso
+     * contrário → detalhes honestos (sem explorador de arquivos de código).
+     */
+    fun openAddon(node: RepositoryNode) {
+        viewModelScope.launch {
+            when (runCatching { repo.addonExecution(node) }.getOrDefault("details")) {
+                "menu" -> navigateInto(node)
+                "xtream" -> _xtreamExec.value = node
+                else -> _detailsExec.value = node
+            }
+        }
+    }
+
+    fun dismissXtream() { _xtreamExec.value = null }
+    fun dismissDetails() { _detailsExec.value = null }
+
+    /** Conecta o add-on ao painel Xtream nativo; sucesso → [onConnected] (abas). */
+    fun connectXtream(url: String, user: String, pass: String, onConnected: () -> Unit) {
+        val node = _xtreamExec.value ?: return
+        if (_connecting.value) return
+        _connecting.value = true
+        viewModelScope.launch {
+            runCatching { repo.connectAddonXtream(node.name, url, user, pass) }
+                .onSuccess { msg ->
+                    _xtreamExec.value = null
+                    _message.value = msg
+                    onConnected()
+                }
+                .onFailure {
+                    _message.value = it.message ?: "Falha ao conectar o add-on (credenciais/servidor)."
+                }
+            _connecting.value = false
+        }
+    }
+
+    /** Fonte Xtream já conectada → categorias já importadas direto nas abas. */
+    fun useExistingXtream(onConnected: () -> Unit) {
+        _xtreamExec.value = null
+        _message.value = "Abrindo Canais/Filmes/Séries já importados."
+        onConnected()
+    }
+
     fun navigateInto(node: RepositoryNode) {
         _ui.update { it.copy(path = it.path + node, children = emptyList(), loaded = false) }
         viewModelScope.launch {

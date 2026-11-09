@@ -42,6 +42,27 @@ interface ContentRepository {
      */
     suspend fun repositoryChildren(node: RepositoryNode): List<RepositoryNode> = emptyList()
 
+    /**
+     * Como o clique em um ADDON deve ser tratado:
+     *  - "menu"    — o índice declara menu JSON (o app segue a navegação real);
+     *  - "xtream"  — capacidade REAL detectada (leitura estática do entrypoint/
+     *                metadados): executar via cliente Xtream NATIVO (abas Canais/
+     *                Filmes/Séries) — sem rodar Python do Kodi;
+     *  - "details" — sem menu e sem capacidade mapeável: só metadados honestos
+     *                (NUNCA explorador de arquivos de código).
+     */
+    suspend fun addonExecution(node: RepositoryNode): String = when {
+        node.addonCapability == "xtream" -> "xtream"
+        else -> "menu"
+    }
+
+    /** Conecta o add-on a um painel Xtream (nativo) e sincroniza as categorias. */
+    suspend fun connectAddonXtream(name: String, url: String, user: String, pass: String): String =
+        error("Execução de add-on não suportada nesta fonte.")
+
+    /** Nome de uma fonte Xtream já conectada (atalho "abrir categorias já importadas"). */
+    suspend fun existingXtreamName(): String? = null
+
     /** Incrementa a cada escrita/sincronização — os ViewModels recarregam. */
     val revision: StateFlow<Int> get() = NEVER
     val busy: StateFlow<Boolean> get() = NEVERB

@@ -37,6 +37,10 @@ data class RepositoryNode(
     val addonMeta: String? = null,
     /** Descrição do add-on (referência Kodi) quando o índice declara. */
     val addonDescription: String? = null,
+    /** Capacidade REAL detectada (ex.: "xtream") — dirige a execução do add-on. */
+    val addonCapability: String? = null,
+    /** Entrypoint declarado no addon.xml (`library`) — exibido nos detalhes. */
+    val addonEntrypoint: String? = null,
     /** Id do nó ADDON dono deste menu (âncora para servir os filhos recursivos do JSON). */
     val addonId: String = "",
     val repoUrl: String = "",

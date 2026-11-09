@@ -1,6 +1,7 @@
 package com.smarted.tv.data
 
 import com.smarted.tv.data.repo.KodiScanner
+import com.smarted.tv.data.repo.RepoPackages
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -141,9 +142,101 @@ class KodiScannerTest {
             listOf("files"),
             index.files!!.children.orEmpty().map { it.name },
         )
-        // Cada add-on tem a subárvore real dos seus arquivos.
-        assertNotNull(oneplay.tree)
+        // Clique do add-on NÃO é explorador de arquivos: sem menu no índice.
+        assertNull(oneplay.tree)
         assertNull(index.tree)
+        assertEquals("default.py", oneplay.entrypoint)
+    }
+
+    @Test
+    fun detectsXtreamCapabilityFromRealAddonSourceWithoutExecuting() {
+        // Código REAL do plugin.video.oneplayvip (zoreu/kodirepo): o entrypoint
+        // app.py não cita a API, mas tsdownloader.py tem marcador XtreamCodes
+        // — leitura estática de texto, NUNCA execução.
+        val files = mapOf(
+            "app.py" to resource("oneplayvip_app.py"),
+            "tsdownloader.py" to resource("oneplayvip_tsdownloader.py"),
+            "variables.py" to "// sem marcadores aqui\n",
+        )
+        val cap = RepoPackages.detectCapability(
+            read = { files[it] },
+            entrypoint = "app.py",
+            topLevelNames = files.keys.toList(),
+        )
+        assertEquals("xtream", cap)
+        // Só o entrypoint (sem marcadores) → nenhuma capacidade inventada.
+        assertNull(
+            RepoPackages.detectCapability(
+                read = { if (it == "app.py") files["app.py"] else null },
+                entrypoint = "app.py",
+                topLevelNames = listOf("app.py"),
+            ),
+        )
+        // Metadado do add-on v0.3.0 (resumo real exibido na instalação).
+        assertTrue(
+            RepoPackages.isXtreamHint(
+                "Xtream Codes client with Live TV, VOD, series, background EPG and global search.",
+            ),
+        )
+        // addon.xml real declara o entrypoint app.py.
+        val info = RepoPackages.parseAddonXml(
+            "plugin.video.oneplayvip/addon.xml",
+            resource("oneplayvip_addon.xml"),
+        )
+        requireNotNull(info)
+        assertEquals("app.py", info.library)
+        assertEquals("video", info.type)
+    }
+
+    @Test
+    fun migratesLegacyFileTreeIndexToExecutionFlow() {
+        // Índice das versões antigas: arquivos DO ADDON em addons[0].tree.
+        val fileTree = com.smarted.tv.data.repo.OnePlayNodeDto(
+            name = "plugin.video.oneplayvip",
+            kind = "folder",
+            children = listOf(
+                com.smarted.tv.data.repo.OnePlayNodeDto(name = "addon.xml", kind = "folder"),
+                com.smarted.tv.data.repo.OnePlayNodeDto(name = "fanart.jpg", kind = "folder"),
+            ),
+        )
+        val legacy = com.smarted.tv.data.repo.OnePlayIndexDto(
+            name = "ONEPLAY VIP",
+            addons = listOf(
+                com.smarted.tv.data.repo.OnePlayAddonDto(
+                    name = "ONEPLAY VIP",
+                    type = "video",
+                    tree = fileTree,
+                ),
+            ),
+        )
+        // Migração SEM extração irmã: sem invenção de capacidade.
+        val plain = RepoPackages.migrateLegacyIndex(legacy, "file:///tmp/sem-extracao/kodi_index_1.json")
+        assertNull(plain.addons.orEmpty().first().tree)
+        assertNotNull(plain.files)
+        assertNull(plain.addons.orEmpty().first().capability)
+
+        // Com extração irmã kodi_<stamp> contendo fonte com marcador REAL.
+        val dir = tmp.newFolder("repo_installs")
+        val ext = File(dir, "kodi_777")
+        ext.mkdirs()
+        File(ext, "tsdownloader.py").writeText(resource("oneplayvip_tsdownloader.py"))
+        val idxFile = File(dir, "kodi_index_777.json").apply { writeText("{}") }
+        val viaFiles = RepoPackages.migrateLegacyIndex(legacy, "file://${idxFile.absolutePath}")
+        val migrated = viaFiles.addons.orEmpty().first()
+        assertNull(migrated.tree)
+        assertNotNull(viaFiles.files)
+        assertEquals("xtream", migrated.capability)
+
+        // Resumo "Xtream Codes…" (v0.3.0) → capacidade sem depender dos arquivos.
+        val withSummary = legacy.copy(
+            addons = listOf(
+                legacy.addons.orEmpty().first().copy(
+                    description = "Xtream Codes client with Live TV, VOD, series.",
+                ),
+            ),
+        )
+        val viaSummary = RepoPackages.migrateLegacyIndex(withSummary, "file:///outra/kodi_index_9.json")
+        assertEquals("xtream", viaSummary.addons.orEmpty().first().capability)
     }
 
     @Test

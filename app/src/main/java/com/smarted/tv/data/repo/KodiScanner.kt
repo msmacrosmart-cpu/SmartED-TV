@@ -43,7 +43,8 @@ object KodiScanner {
         /** Diretório "home" Kodi detectado (…/.kodi) — `null` em pasta comum. */
         val homePath: String?,
         val addons: List<RepoPackages.KodiAddon>,
-        val addonTrees: Map<String, OnePlayNodeDto>,
+        /** Capacidade estática por add-on id (ex.: "xtream") — leitura, não execução. */
+        val capabilities: Map<String, String>,
         val root: OnePlayNodeDto,
         val playlists: List<PlaylistRef>,
         val mediaCount: Int,
@@ -137,7 +138,7 @@ object KodiScanner {
 
         // ── Add-ons instalados (metadados reais do addon.xml de cada pasta) ──
         val addons = mutableListOf<RepoPackages.KodiAddon>()
-        val addonTrees = mutableMapOf<String, OnePlayNodeDto>()
+        val capabilities = mutableMapOf<String, String>()
         val homeDir = home
         if (homeDir != null) {
             vfs.list("$homeDir/addons")
@@ -148,7 +149,19 @@ object KodiScanner {
                     val text = vfs.readText("$addonPath/addon.xml") ?: return@forEach
                     val info = RepoPackages.parseAddonXml("$addonPath/addon.xml", text) ?: return@forEach
                     addons += info
-                    addonTrees[info.id] = walk(addonPath, child.name, 0)
+                    // Capacidade estática: metadado OU entrypoint/.py de topo.
+                    val meta = info.description?.let { d -> RepoPackages.isXtreamHint(d) } == true
+                    val cap = if (meta) {
+                        "xtream"
+                    } else {
+                        val topNames = vfs.list(addonPath).filter { !it.isDir }.map { it.name }
+                        RepoPackages.detectCapability(
+                            { n -> vfs.readText("$addonPath/$n") },
+                            info.library,
+                            topNames,
+                        )
+                    }
+                    if (cap != null) capabilities[info.id] = cap
                 }
         }
 
@@ -157,7 +170,7 @@ object KodiScanner {
             rootName = rootName,
             homePath = home,
             addons = addons,
-            addonTrees = addonTrees,
+            capabilities = capabilities,
             root = root,
             playlists = playlists,
             mediaCount = media,
@@ -185,7 +198,11 @@ object KodiScanner {
                 author = info.author,
                 version = info.version,
                 description = listOfNotNull(info.description, deps).joinToString(" · ").ifBlank { null },
-                tree = scan.addonTrees[info.id],
+                // Clique do add-on = EXECUÇÃO (capacidade) — nunca explorador
+                // de arquivos; a hierarquia fica em `files` (Gestor de Arquivos).
+                tree = null,
+                capability = scan.capabilities[info.id],
+                entrypoint = info.library,
             )
         }
         return OnePlayIndexDto(
