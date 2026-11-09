@@ -1,0 +1,81 @@
+# Reconhecimento da hierarquia Kodi real: baixa files.zip (release do
+# IPTV-Native — inacessível do sandbox por egress restrito), extrai a árvore
+# COMPLETA de diretórios e os manifestos pequenos, e committa em
+# docs/kodi-backup/ para leitura via git. Disparado por .github/kodi-tree-trigger.
+name: Kodi tree (recon)
+
+on:
+  push:
+    paths:
+      - ".github/kodi-tree-trigger"
+      - ".github/workflows/kodi-tree.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar e extrair files.zip
+        run: |
+          set -euo pipefail
+          gh release download -R msmacrosmart-cpu/IPTV-Native v1.0.0 -p files.zip
+          ls -la files.zip
+          mkdir -p /tmp/kodi
+          unzip -q files.zip -d /tmp/kodi
+          echo "── topo:"
+          find /tmp/kodi -maxdepth 2 -type d | head -40
+
+      - name: Gerar árvore e manifestos
+        run: |
+          set -euo pipefail
+          cd /tmp/kodi
+          mkdir -p "$GITHUB_WORKSPACE/docs/kodi-backup"
+          # Árvore completa (tipo, tamanho, caminho) — fonte da hierarquia exata.
+          find . -printf '%y %10s %p\n' | LC_ALL=C sort -k3 > "$GITHUB_WORKSPACE/docs/kodi-backup/tree.txt"
+          wc -l "$GITHUB_WORKSPACE/docs/kodi-backup/tree.txt"
+          # Manifestos e arquivos estruturais pequenos (conteúdo real, sem binários).
+          DEST="$GITHUB_WORKSPACE/docs/kodi-backup/files"
+          mkdir -p "$DEST"
+          while IFS= read -r f; do
+            rel="${f#./}"
+            mkdir -p "$DEST/$(dirname "$rel")"
+            cp "$f" "$DEST/$rel"
+          done < <(find . -type f -size -600k \( \
+              -name 'addon.xml' -o -name 'addons.xml' -o -name 'sources.xml' -o \
+              -name 'passwords.xml' -o -name 'mediasources.xml' -o -name '*.strm' -o \
+              -path '*/playlists/*' -o \
+              \( -maxdepth 2 -name '*.xml' \) \) \
+              ! -path '*/addon_data/*' 2>/dev/null | head -400)
+          # Relatório por nível superior.
+          {
+            echo "# Kodi backup — estrutura extraída de files.zip (IPTV-Native v1.0.0)"
+            echo
+            echo "- Total de entradas: $(wc -l < tree.txt)"
+            echo "- Tamanho do zip: $(stat -c%s "$GITHUB_WORKSPACE/files.zip") bytes"
+            echo
+            echo "## Topo (profundidade 1-3)"
+            awk '{split($3,p,"/"); if (NF>=3) print $0}' tree.txt | grep -E "^d " | awk 'length($3) <= 60' | head -60
+            echo
+            echo "## Extensões por contagem"
+            grep '^- ' tree.txt | grep -oE '\.[A-Za-z0-9]+$' | tr 'A-Z' 'a-z' | sort | uniq -c | sort -rn | head -40
+          } > "$GITHUB_WORKSPACE/docs/kodi-backup/report.md"
+          du -sh "$GITHUB_WORKSPACE/docs/kodi-backup"
+
+      - name: Commit da estrutura
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/kodi-backup
+          if git diff --cached --quiet; then
+            echo "nada novo"
+          else
+            git commit -m "[skip ci] docs: hierarquia Kodi real extraída de files.zip (recon)"
+            git push origin HEAD:refs/heads/arena/962c30bf-smarted-tv
+          fi
