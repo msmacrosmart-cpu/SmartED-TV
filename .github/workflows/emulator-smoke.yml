@@ -48,9 +48,9 @@ jobs:
           disable-animations: true
           # Lógica em script versionado (lintável localmente) — anota falhas.
           script: |
-          set -e
-          bash .github/scripts/emulator-smoke.sh
-          bash .github/scripts/emulator-androidtest.sh
+            set -e
+            bash .github/scripts/emulator-smoke.sh
+            bash .github/scripts/emulator-androidtest.sh
 
       - uses: actions/upload-artifact@v4
         if: always()
