@@ -16,6 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable KVM (exigido pela android-emulator-runner)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -32,21 +38,32 @@ jobs:
           api-level: 30
           arch: x86_64
           disable-animations: true
+          # Diagnóstico via ::error:: (os logs do step não são acessíveis do
+          # sandbox); cada comando reporta rc + saída numa annotation.
           script: |
-            set -e
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            # buildType debug usa applicationIdSuffix ".debug"; a classe MainActivity
-            # continua em com.smarted.tv → componente explícito package/className.
-            adb shell am start -n com.smarted.tv.debug/com.smarted.tv.MainActivity
+            set -x
+            rc=0
+            out=$(adb install -r app/build/outputs/apk/debug/app-debug.apk 2>&1) || rc=$?
+            printf '%s\n' "$out"
+            case "$out" in
+              *Success*) ;;
+              *) echo "::error::adb install falhou rc=$rc :: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-700)"; exit 1 ;;
+            esac
+            rc=0
+            out=$(adb shell am start -n com.smarted.tv.debug/com.smarted.tv.MainActivity 2>&1) || rc=$?
+            printf '%s\n' "$out"
+            case "$out" in
+              *Error*|*"does not exist"*) rc=1 ;;
+            esac
+            if [ "$rc" -ne 0 ]; then echo "::error::am start falhou rc=$rc :: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-700)"; exit 1; fi
             sleep 15
             mkdir -p artifacts
-            adb exec-out screencap -p > artifacts/emulator-smoke.png
+            adb exec-out screencap -p > artifacts/emulator-smoke.png || echo "::error::screencap falhou"
             if adb logcat -d | grep -qi "FATAL EXCEPTION"; then
-              echo "=== CRASH DETECTADO ==="
-              adb logcat -d | grep -A 40 "FATAL EXCEPTION" | tail -60
+              echo "::error::CRASH detectado :: $(adb logcat -d | grep -A 40 'FATAL EXCEPTION' | tr '\n' ' ' | cut -c1-800)"
               exit 1
             fi
-            echo "App iniciou sem crash; screenshot salvo."
+            echo "OK: app iniciou sem crash; screenshot salvo."
 
       - uses: actions/upload-artifact@v4
         if: always()
