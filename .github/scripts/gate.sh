@@ -41,8 +41,9 @@ done < <(git ls-files 'app/src/test/resources/**' 'app/src/androidTest/assets/**
 import re, sys
 from pathlib import Path
 t = Path(sys.argv[1]).read_text()
-t = t.replace("://", "\x00")         # protege URLs dentro de strings
-t = re.sub(r"//.*", "", t)          # comentários de linha
+t = re.sub(r"/\*.*?\*/", "", t, flags=re.S)  # comentários de bloco/KDoc
+t = t.replace("://", "\x00")                  # protege URLs dentro de strings
+t = re.sub(r"//.*", "", t)                     # comentários de linha
 t = t.replace("\x00", "://")
 b = t.count("{") - t.count("}")
 p = t.count("(") - t.count(")")

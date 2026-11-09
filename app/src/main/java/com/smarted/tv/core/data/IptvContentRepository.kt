@@ -447,7 +447,18 @@ class IptvContentRepository(
                 "",
             )
         }
-        return "Add-on conectado (${source.name}) — categorias em Canais/Filmes/Séries."
+        // Mapeamento p/ as abas nativas: sincroniza NA HORA (o insert sozinho só
+        // esperaria o auto-update) — ao vivo→Canais, VOD→Filmes, séries→Séries,
+        // com URL de reprodução pronta para o player interno.
+        val summary = try {
+            graph.sources.refresh(source, includeEpg = true)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return "Add-on conectado (${source.name}), mas a sincronização falhou: " +
+                (e.message ?: "erro de rede") + ". Tente atualizar a fonte."
+        }
+        return "Add-on conectado (${source.name}) — $summary"
     }
 
     override suspend fun existingXtreamName(): String? = withContext(Dispatchers.IO) {
