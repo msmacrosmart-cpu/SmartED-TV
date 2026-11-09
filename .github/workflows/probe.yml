@@ -1,0 +1,80 @@
+# Sonda de diagnóstico (workflow_dispatch): inspeciona pacotes Kodi e testa
+# endpoints IPTV fornecidos via SEGREDOS (nunca em texto no repositório).
+name: Sonda de diagnóstico
+
+on:
+  workflow_dispatch:
+    inputs:
+      m3u_url:
+        description: URL M3U de teste
+        required: false
+        default: ""
+      xt_base:
+        description: Base Xtream (http://host:porta)
+        required: false
+        default: ""
+      xt_user:
+        description: Usuário Xtream
+        required: false
+        default: ""
+      xt_pass:
+        description: Senha Xtream
+        required: false
+        default: ""
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pacote Kodi (addon.zip)
+        env:
+          ADDON_URL: https://yhd.github.io/plugin.video.oneplayvip/plugin.video.oneplayvip-0.3.0.zip
+        run: |
+          set -e
+          echo "== Baixando pacote do add-on Kodi =="
+          curl -fsSL -o /tmp/addon.zip "$ADDON_URL"
+          ls -la /tmp/addon.zip
+          echo "== Conteúdo (unzip -l) =="
+          unzip -l /tmp/addon.zip || true
+          mkdir -p /tmp/ax && unzip -o -q /tmp/addon.zip -d /tmp/ax || true
+          echo "==addon.xml=="
+          (cat /tmp/ax/addon.xml 2>/dev/null || cat /tmp/ax/*/addon.xml 2>/dev/null || echo "NENHUM addon.xml na raiz")
+          echo "== URLs encontradas em .py/.xml =="
+          grep -rhoE "https?://[a-zA-Z0-9.:/_?=&%~-]+" /tmp/ax --include='*.py' --include='*.xml' --include='*.json' 2>/dev/null | sort -u | head -40 || true
+          echo "== Estrutura de diretórios (prof. 3) =="
+          find /tmp/ax -maxdepth 3 | head -60
+
+      - name: M3U (pago) — UA do app vs navegador
+        env:
+          M3U_URL: ${{ inputs.m3u_url }}
+        run: |
+          if [ -z "$M3U_URL" ]; then echo "m3u_url não fornecido — pulando."; exit 0; fi
+          echo "== M3U: UA do app =="
+          curl -sS -o /tmp/m3u_app.txt -w 'HTTP %{http_code} · %{size_download} bytes · %{content_type}\n' \
+            -A 'SmartED-TV/3.0 (Android TV; IPTV client)' -H 'Accept: */*' --max-time 40 "$M3U_URL" || true
+          echo "primeiros bytes:"; head -c 240 /tmp/m3u_app.txt 2>/dev/null; echo
+          echo "EXTINF count: $(grep -c '^#EXTINF' /tmp/m3u_app.txt 2>/dev/null || echo 0)"
+          echo "== M3U: UA de navegador =="
+          curl -sS -o /tmp/m3u_web.txt -w 'HTTP %{http_code} · %{size_download} bytes · %{content_type}\n' \
+            -A 'Mozilla/5.0 (Linux; Android TV 12; SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36' \
+            -H 'Accept: */*' --max-time 40 "$M3U_URL" || true
+          echo "primeiros bytes:"; head -c 240 /tmp/m3u_web.txt 2>/dev/null; echo
+          echo "EXTINF count: $(grep -c '^#EXTINF' /tmp/m3u_web.txt 2>/dev/null || echo 0)"
+
+      - name: Xtream (pago) — UA do app vs navegador
+        env:
+          XT_BASE: ${{ inputs.xt_base }}
+          XT_USER: ${{ inputs.xt_user }}
+          XT_PASS: ${{ inputs.xt_pass }}
+        run: |
+          if [ -z "$XT_BASE" ]; then echo "xt_base não fornecido — pulando."; exit 0; fi
+          for label in app web; do
+            if [ "$label" = app ]; then UA='SmartED-TV/3.0 (Android TV; IPTV client)';
+            else UA='Mozilla/5.0 (Linux; Android TV 12) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'; fi
+            echo "== player_api auth · UA $label =="
+            curl -sS -A "$UA" -w '\nHTTP %{http_code}\n' --max-time 40 \
+              "$XT_BASE/player_api.php?username=$XT_USER&password=$XT_PASS" | head -c 500; echo
+            echo "== get_live_categories · UA $label =="
+            curl -sS -A "$UA" -w '\nHTTP %{http_code}\n' --max-time 40 \
+              "$XT_BASE/player_api.php?username=$XT_USER&password=$XT_PASS&action=get_live_categories" | head -c 300; echo
+          done
