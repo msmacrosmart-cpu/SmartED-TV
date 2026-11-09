@@ -79,7 +79,8 @@ class AddonExecutionFlowTest {
     }
 
     @Test
-    fun connectAddonMapsCategoriesIntoNativeTabsWithPlayUrls() = runBlocking {
+    fun connectAddonMapsCategoriesIntoNativeTabsWithPlayUrls() {
+        runBlocking<Unit> {
         val repo = AppGraph.content
         val base = server.url("/").toString()
 
@@ -119,5 +120,6 @@ class AddonExecutionFlowTest {
 
         // Limpeza: não deixar fonte de teste no banco do emulador.
         store.deleteSourceCascade(source.id)
+        }
     }
 }
