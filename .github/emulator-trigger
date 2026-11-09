@@ -13,3 +13,5 @@ smoke-v6-fixed 2026-11-09T03:20:00Z
 # fix androidTest assets + ignore stale
 
 # menu kodi
+
+# fix logo syntax
