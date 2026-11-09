@@ -42,28 +42,30 @@ jobs:
           # Manifestos e arquivos estruturais pequenos (conteúdo real, sem binários).
           DEST="$GITHUB_WORKSPACE/docs/kodi-backup/files"
           mkdir -p "$DEST"
-          while IFS= read -r f; do
-            rel="${f#./}"
-            mkdir -p "$DEST/$(dirname "$rel")"
-            cp "$f" "$DEST/$rel"
-          done < <(find . -type f -size -600k \( \
+          find . -maxdepth 12 -type f -size -600k \( \
               -name 'addon.xml' -o -name 'addons.xml' -o -name 'sources.xml' -o \
               -name 'passwords.xml' -o -name 'mediasources.xml' -o -name '*.strm' -o \
-              -path '*/playlists/*' -o \
-              \( -maxdepth 2 -name '*.xml' \) \) \
-              ! -path '*/addon_data/*' 2>/dev/null | head -400)
-          # Relatório por nível superior.
+              -path '*/playlists/*' -o -name '*.xml' \) \
+              ! -path '*/addon_data/*' -print0 2>/dev/null \
+            | { head -c 2000000 -z || true; } \
+            | while IFS= read -r -d '' f; do
+                rel="${f#./}"
+                mkdir -p "$DEST/$(dirname "$rel")"
+                cp "$f" "$DEST/$rel"
+              done
+          # Relatório por nível superior (caminhos ABSOLUTOS — o cwd é /tmp/kodi).
+          TREE="$GITHUB_WORKSPACE/docs/kodi-backup/tree.txt"
           {
             echo "# Kodi backup — estrutura extraída de files.zip (IPTV-Native v1.0.0)"
             echo
-            echo "- Total de entradas: $(wc -l < tree.txt)"
-            echo "- Tamanho do zip: $(stat -c%s "$GITHUB_WORKSPACE/files.zip") bytes"
+            echo "- Total de entradas: $(wc -l < "$TREE" || echo 0)"
+            echo "- Tamanho do zip: $(stat -c%s "$GITHUB_WORKSPACE/files.zip" 2>/dev/null || echo '?') bytes"
             echo
-            echo "## Topo (profundidade 1-3)"
-            awk '{split($3,p,"/"); if (NF>=3) print $0}' tree.txt | grep -E "^d " | awk 'length($3) <= 60' | head -60
+            echo "## Diretórios (topo)"
+            grep -E "^d " "$TREE" | awk 'length($3) <= 72' | head -80 || true
             echo
             echo "## Extensões por contagem"
-            grep '^- ' tree.txt | grep -oE '\.[A-Za-z0-9]+$' | tr 'A-Z' 'a-z' | sort | uniq -c | sort -rn | head -40
+            grep '^f ' "$TREE" | grep -oE '\.[A-Za-z0-9]+$' | tr 'A-Z' 'a-z' | sort | uniq -c | sort -rn | head -40 || true
           } > "$GITHUB_WORKSPACE/docs/kodi-backup/report.md"
           du -sh "$GITHUB_WORKSPACE/docs/kodi-backup"
 
