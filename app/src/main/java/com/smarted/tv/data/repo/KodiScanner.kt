@@ -208,7 +208,7 @@ object KodiScanner {
     object FileVfs : Vfs {
         override fun list(path: String): List<Entry> {
             val files = File(path).listFiles() ?: return emptyList()
-            return files.mapNotNull { f -> f.name?.let { Entry(it, it.isDirectory()) } }
+            return files.mapNotNull { f -> f.name?.let { Entry(it, f.isDirectory()) } }
         }
 
         override fun readText(path: String): String? {

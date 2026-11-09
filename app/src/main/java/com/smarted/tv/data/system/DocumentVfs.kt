@@ -27,7 +27,7 @@ internal class DocumentVfs(
                 val name = dirPath.substringAfterLast('/')
                 childrenOf(parentPath).firstOrNull { it.name == name } ?: return@getOrPut emptyList()
             }
-            dir.listFiles() ?: emptyList()
+            dir.listFiles()?.toList() ?: emptyList()
         }
 
     private fun resolve(path: String): DocumentFile? {
