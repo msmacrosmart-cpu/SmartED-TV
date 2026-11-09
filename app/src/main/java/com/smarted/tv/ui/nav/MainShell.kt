@@ -133,6 +133,7 @@ private fun SideRail(current: Dest, onNavigate: (Dest) -> Unit, modifier: Modifi
             RailItem(Dest.CHANNELS, current == Dest.CHANNELS) { onNavigate(Dest.CHANNELS) }
             RailItem(Dest.MOVIES, current == Dest.MOVIES) { onNavigate(Dest.MOVIES) }
             RailItem(Dest.SERIES, current == Dest.SERIES) { onNavigate(Dest.SERIES) }
+            RailItem(Dest.REPOSITORY, current == Dest.REPOSITORY) { onNavigate(Dest.REPOSITORY) }
             RailItem(Dest.SETTINGS, current == Dest.SETTINGS) { onNavigate(Dest.SETTINGS) }
         }
     }

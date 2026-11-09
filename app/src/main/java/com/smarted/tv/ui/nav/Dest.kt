@@ -14,6 +14,6 @@ enum class Dest(val route: String, val label: String, val icon: ImageVector) {
     CHANNELS("channels", "Canais", Icons.Rounded.LiveTv),
     MOVIES("movies", "Filmes", Icons.Rounded.Movie),
     SERIES("series", "Séries", Icons.Rounded.Theaters),
-    REPOSITORY("repositorio", "Repositório", Icons.Rounded.Storage),
+    REPOSITORY("repositorio", "Navegar", Icons.Rounded.Storage),
     SETTINGS("settings", "Config.", Icons.Rounded.Settings),
 }

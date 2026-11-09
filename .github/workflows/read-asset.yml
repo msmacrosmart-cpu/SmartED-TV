@@ -4,6 +4,9 @@ name: Read asset (IPTV-Native)
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/read-asset-trigger"
 
 permissions:
   contents: read

@@ -49,3 +49,21 @@ no código (spec §8 — "documentar incompatibilidades").
 - Parser de PLS/XSPF e leitura de NFO (hoje: apenas indexação visual).
 - Navegador com busca, ordenação, favoritos e histórico.
 - Adaptadores de compatibilidade por capacidade real (em vez de presumir API Kodi).
+
+## Menu hambúrguer (opções do Kodi) — SmartED-TV
+
+O botão de menu ao lado da logo abre as opções do sistema Kodi com os ícones
+oficiais do skin Estuary (`xbmc/xbmc addons/skin.estuary/media`):
+
+| Opção | Comportamento |
+| --- | --- |
+| Filmes / Séries / TV ao vivo / Favoritos | Navega para as abas nativas (dados reais) |
+| Add-ons / Gestor de arquivos | Aba **Navegar** (repositórios, árvore real, add-ons) |
+| Configurações | Aba Configurações |
+| Música, Imagens, Jogos, Clima | **Não implementado** — diálogo honesto (sem dados fictícios) |
+
+Reprodução fiel do Kodi (player Python, skins, JSON-RPC completo) não é
+possível sem executar código de terceiros — spec §7 (nunca executar código
+desconhecido). A alternativa avaliada é emular o Kodi original dentro do app
+(reprodutor Android embutido na aba Navegar), se a reprodução direta das
+opções não for suficiente.

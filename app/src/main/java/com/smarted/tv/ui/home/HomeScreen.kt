@@ -1,6 +1,8 @@
 package com.smarted.tv.ui.home
 
 import androidx.compose.animation.Crossfade
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,7 +10,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -19,11 +23,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.smarted.tv.R
 import com.smarted.tv.core.data.AppGraph
 import com.smarted.tv.core.model.DeviceMode
 import com.smarted.tv.core.model.PlaybackRequest
@@ -49,6 +57,8 @@ fun HomeScreen(
     val ui by vm.ui.collectAsState()
     val d = LocalDimens.current
 
+    var kodiMenu by remember { mutableStateOf(false) }
+    var unsupported by remember { mutableStateOf<String?>(null) }
     var heroIndex by remember { mutableIntStateOf(0) }
     val featuredSize = ui.featured.size
     LaunchedEffect(featuredSize) {
@@ -72,11 +82,24 @@ fun HomeScreen(
             item { PosterRow("Mais bem avaliadas · Séries", ui.topSeries, onOpenTitle) }
         }
 
-        Text(
-            "SmartED-TV", fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
-            modifier = Modifier.align(Alignment.TopStart).padding(start = d.screenH, top = d.screenV)
-                .glass(RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 8.dp),
-        )
+        Row(
+            Modifier.align(Alignment.TopStart).padding(start = d.screenH, top = d.screenV),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "SmartED-TV", fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
+                modifier = .glass(RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            // Menu hambúrguer (estilo Kodi) — todas as opções do sistema.
+            GlassClickable(onClick = { kodiMenu = true }, modifier = Modifier.size(46.dp)) { focused ->
+                Icon(
+                    Icons.Rounded.Menu, "Menu do Kodi",
+                    Modifier.align(Alignment.Center).size(26.dp),
+                    tint = if (focused) Smoke.TextPrimary else Smoke.TextSecondary,
+                )
+            }
+        }
         Row(
             Modifier.align(Alignment.TopEnd).padding(top = d.screenV, end = d.screenH),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -87,6 +110,100 @@ fun HomeScreen(
                 TopAction(Dest.SETTINGS.icon, "Configurações") { onNavigate(Dest.SETTINGS) }
             }
             ClockHeader()
+        }
+
+        if (kodiMenu) {
+            KodiMenuDialog(
+                onPick = { dest -> kodiMenu = false; onNavigate(dest) },
+                onUnsupported = { label -> kodiMenu = false; unsupported = label },
+                onDismiss = { kodiMenu = false },
+            )
+        }
+        unsupported?.let { label ->
+            KodiUnsupportedDialog(label) { unsupported = null }
+        }
+    }
+}
+
+/** Item do menu principal estilo Kodi — ícone oficial do skin Estuary. */
+private class KodiOption(@DrawableRes val icon: Int, val label: String, val dest: Dest?)
+
+/** Opções do Kodi: as reais navegam; as não implementadas avisam (KODI_COMPAT). */
+private val kodiMenuOptions = listOf(
+    KodiOption(R.drawable.kodi_movies, "Filmes", Dest.MOVIES),
+    KodiOption(R.drawable.kodi_series, "Séries", Dest.SERIES),
+    KodiOption(R.drawable.kodi_tv, "TV ao vivo", Dest.CHANNELS),
+    KodiOption(R.drawable.kodi_favs, "Favoritos", Dest.CHANNELS),
+    KodiOption(R.drawable.kodi_addons, "Add-ons", Dest.REPOSITORY),
+    KodiOption(R.drawable.kodi_files, "Gestor de arquivos", Dest.REPOSITORY),
+    KodiOption(R.drawable.kodi_settings, "Configurações", Dest.SETTINGS),
+    KodiOption(R.drawable.kodi_music, "Música", null),
+    KodiOption(R.drawable.kodi_pictures, "Imagens", null),
+    KodiOption(R.drawable.kodi_games, "Jogos", null),
+    KodiOption(R.drawable.kodi_weather, "Clima", null),
+)
+
+/** Menu hambúrguer ao lado da logo — réplica das opções do Kodi. */
+@Composable
+private fun KodiMenuDialog(
+    onPick: (Dest) -> Unit,
+    onUnsupported: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val d = LocalDimens.current
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlassPanel(Modifier.fillMaxWidth().widthIn(max = 560.dp), padding = 16.dp) {
+            Column(
+                Modifier.fillMaxWidth().padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    "Menu Kodi", fontSize = d.textTitle, fontWeight = FontWeight.Bold,
+                    color = Smoke.TextPrimary,
+                )
+                kodiMenuOptions.forEach { opt ->
+                    GlassClickable(
+                        onClick = { opt.dest?.let(onPick) ?: onUnsupported(opt.label) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    ) { focused ->
+                        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                            Image(painterResource(opt.icon), opt.label, Modifier.size(26.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                opt.label, fontSize = d.textBody,
+                                color = if (focused) Smoke.TextPrimary else Smoke.TextSecondary,
+                                fontWeight = if (focused) FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                GlassButton("Fechar", Icons.Rounded.Close, onDismiss)
+            }
+        }
+    }
+}
+
+/** Aviso honesto de opção do Kodi sem implementação equivalente. */
+@Composable
+private fun KodiUnsupportedDialog(label: String, onDismiss: () -> Unit) {
+    val d = LocalDimens.current
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlassPanel(Modifier.fillMaxWidth().widthIn(max = 560.dp), padding = 16.dp) {
+            Column(
+                Modifier.fillMaxWidth().padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(label, fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary)
+                Text(
+                    "$label é uma opção do Kodi ainda não implementada neste player. " +
+                        "As incompatibilidades estão documentadas em docs/KODI_COMPAT.md.",
+                    fontSize = d.textBody, color = Smoke.TextSecondary,
+                )
+                GlassButton("Fechar", Icons.Rounded.Close, onDismiss)
+            }
         }
     }
 }
