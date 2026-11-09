@@ -26,9 +26,13 @@ class KodiInstallExecutionTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
 
+    /** Assets do add-on vivem no APK de TESTE — não no app alvo. */
+    private val testContext: Context
+        get() = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context
+
     private fun realZip(): File = File(context.cacheDir, "oneplayvip.zip").apply {
         if (!exists()) {
-            context.assets.open("oneplayvip.zip").use { input ->
+            testContext.assets.open("oneplayvip.zip").use { input ->
                 outputStream().use { input.copyTo(it) }
             }
         }
