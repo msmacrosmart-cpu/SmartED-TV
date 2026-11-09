@@ -1,0 +1,29 @@
+# Leitor de assets pequenos do IPTV-Native (sandbox não alcança o host de
+# assets) — baixa no runner e publica o CONTEÚDO como annotations/notices.
+name: Read asset (IPTV-Native)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Baixa e publica LER.APENAS.KODI.zip
+        run: |
+          set -euo pipefail
+          gh release download -R msmacrosmart-cpu/IPTV-Native v1.0.0 -p 'LER.APENAS.KODI.zip' --clobber
+          ls -la LER.APENAS.KODI.zip
+          file LER.APENAS.KODI.zip || true
+          echo "::notice::conteúdo bruto: $(head -c 400 LER.APENAS.KODI.zip | tr '\n' ' ' | tr -d '\r')"
+          if unzip -l LER.APENAS.KODI.zip 2>/dev/null; then
+            mkdir -p /tmp/ler && unzip -o -q LER.APENAS.KODI.zip -d /tmp/ler || true
+            find /tmp/ler -type f | while IFS= read -r f; do
+              sz=$(stat -c %s "$f")
+              echo "::notice::arquivo: ${f#/tmp/ler/} (${sz}B): $(head -c 700 "$f" | tr '\n' ' ' | tr -d '\r')"
+            done
+          fi
