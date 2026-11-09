@@ -89,7 +89,7 @@ fun HomeScreen(
         ) {
             Text(
                 "SmartED-TV", fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
-                modifier = .glass(RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.glass(RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 8.dp),
             )
             // Menu hambúrguer (estilo Kodi) — todas as opções do sistema.
             GlassClickable(onClick = { kodiMenu = true }, modifier = Modifier.size(46.dp)) { focused ->
