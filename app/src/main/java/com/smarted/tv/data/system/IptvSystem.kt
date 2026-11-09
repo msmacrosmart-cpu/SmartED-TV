@@ -65,7 +65,14 @@ class IptvSystem(private val graph: com.smarted.tv.AppGraph, ctx: Context) {
     fun zipEntries(zipPath: String) = repoPackages.entries(zipPath)
     fun zipCandidates(zipPath: String) = repoPackages.candidates(zipPath)
     fun zipKodiAddons(zipPath: String) = repoPackages.kodiAddons(zipPath)
+    fun zipKodiPackage(zipPath: String) = repoPackages.kodiPackage(zipPath)
     suspend fun zipDownload(url: String): String = repoPackages.download(url)
+    suspend fun zipInstallKodi(zipPath: String): String {
+        val (localUrl, name) = repoPackages.installKodi(zipPath)
+        graph.sources.addLocalRepository(name, localUrl)
+        reloadSources()
+        return name
+    }
 
     /** Instala um índice do pacote e o registra como repositório (file://). */
     suspend fun zipInstall(zipPath: String, entryPath: String, types: Map<String, String>): String {

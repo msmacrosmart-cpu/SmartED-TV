@@ -31,6 +31,9 @@ object Http {
     }
 
     const val USER_AGENT = "SmartED-TV/3.0 (Android TV; IPTV client)"
+    /** Painéis IPTV pagos costumam exigir UA de navegador — fallback automático. */
+    const val BROWSER_USER_AGENT =
+        "Mozilla/5.0 (Linux; Android TV 12; SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
     suspend fun getText(url: String, headers: Map<String, String> = emptyMap()): String =
         withContext(Dispatchers.IO) { decodeBytes(getBytes(url, headers), url) }

@@ -277,7 +277,7 @@ private fun RepoBrowserDialog(
 ) {
     val d = LocalDimens.current
     var candidates by remember { mutableStateOf<List<RepoPackages.Candidate>>(emptyList()) }
-    var kodiAddons by remember { mutableStateOf<List<RepoPackages.KodiAddon>>(emptyList()) }
+    var kodiPkg by remember { mutableStateOf<RepoPackages.KodiPackage?>(null) }
     var entries by remember { mutableStateOf<List<RepoPackages.Entry>>(emptyList()) }
     var chosen by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var busy by remember { mutableStateOf(false) }
@@ -286,7 +286,7 @@ private fun RepoBrowserDialog(
     val scope = rememberCoroutineScope()
     LaunchedEffect(zipPath) {
         candidates = vm.zipCandidates(zipPath)
-        kodiAddons = vm.zipKodiAddons(zipPath)
+        kodiPkg = vm.zipKodiPackage(zipPath)
         entries = vm.zipEntries(zipPath)
     }
     // Categorias oficiais Kodi (spec §5): vídeo, programas, música, interface,
@@ -392,27 +392,56 @@ private fun RepoBrowserDialog(
                         }
                     }
                 }
-                if (kodiAddons.isNotEmpty()) {
-                    Text(
-                        "Add-ons Kodi detectados (addon.xml)",
-                        fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
-                    )
-                    kodiAddons.forEach { ka ->
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                // Pacote Kodi real (addon.xml avulso ou addons.xml de repositório):
+                // instala via adaptador — metadados reais + arquivos extraídos.
+                kodiPkg?.let { pkg ->
+                    GlassPanel(padding = 12.dp, fill = Color.White.copy(alpha = 0.05f)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                "${ka.name} · ${ka.id} · v${ka.version.ifBlank { "?" }}",
-                                color = Smoke.TextPrimary,
+                                if (pkg.kind == "repository") {
+                                    "Repositório Kodi · ${pkg.addons.size} add-on(s)"
+                                } else {
+                                    "Add-on Kodi"
+                                },
+                                fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
                             )
                             Text(
-                                "Tipo: ${ka.type ?: "desconhecido"} · " +
-                                    "Dependências: ${
-                                        ka.dependencies.joinToString().ifBlank { "nenhuma" }
-                                    }",
+                                pkg.manifestPath,
                                 fontSize = d.textBody, color = Smoke.TextTertiary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
-                            Hint(
-                                "Compatibilidade: somente metadados — o runtime Kodi " +
-                                    "(Python) não é executado (docs/KODI_COMPAT.md).",
+                            pkg.addons.take(6).forEach { a ->
+                                Text(
+                                    "${a.name} · ${a.type ?: "tipo desconhecido"}" +
+                                        " · v${a.version.ifBlank { "?" }}" +
+                                        (a.author?.let { " · $it" } ?: ""),
+                                    fontSize = d.textBody, color = Smoke.TextSecondary,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (pkg.addons.size > 6) Hint("… +${pkg.addons.size - 6} add-ons")
+                            GlassButton(
+                                if (busy) "Instalando…" else "Instalar pacote Kodi",
+                                Icons.Rounded.Check,
+                                onClick = {
+                                    if (!busy) {
+                                        busy = true
+                                        error = null
+                                        scope.launch {
+                                            runCatching { vm.zipInstallKodi(zipPath) }
+                                                .onSuccess {
+                                                    busy = false
+                                                    status = "Instalado: $it"
+                                                    onInstalled(it)
+                                                }
+                                                .onFailure {
+                                                    busy = false
+                                                    error = it.message
+                                                        ?: "Falha ao instalar o pacote Kodi."
+                                                }
+                                        }
+                                    }
+                                },
                             )
                         }
                     }

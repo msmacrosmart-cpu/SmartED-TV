@@ -63,7 +63,7 @@ class SourceImporters(private val store: IptvStore) {
     // ------------------------------------------------------------------ M3U
 
     suspend fun importM3u(source: ListSource, epgWindowHours: Int, refreshEpg: Boolean): ImportOutcome {
-        val text = fetchAny(source.url, mapOf("Accept" to "audio/x-mpegurl, application/vnd.apple.mpegurl, text/plain"))
+        val text = fetchPlaylistText(source.url)
         if (!Http.looksLikePlaylist(source.url, text)) {
             error("O conteúdo baixado não parece uma playlist M3U. Verifique o link.")
         }
@@ -102,6 +102,20 @@ class SourceImporters(private val store: IptvStore) {
             warnings += outcome.warnings
         }
         return ImportOutcome(live.size, movies.size, series.size, epgChannels, epgProgrammes, epgUnmatched, warnings)
+    }
+
+    /**
+     * Baixa a playlist com fallback de User-Agent: painéis pagos (get.php)
+     * recusam o UA do app e devolvem HTML/403 — aí tentamos UA de navegador.
+     */
+    private suspend fun fetchPlaylistText(url: String): String {
+        val accept = mapOf("Accept" to "audio/x-mpegurl, application/vnd.apple.mpegurl, text/plain")
+        val primary = runCatching { fetchAny(url, accept) }.getOrNull()
+        if (primary != null && Http.looksLikePlaylist(url, primary)) return primary
+        val fallback = runCatching {
+            fetchAny(url, accept + mapOf("User-Agent" to Http.BROWSER_USER_AGENT))
+        }.getOrNull()
+        return fallback ?: primary ?: error("Não foi possível baixar a playlist (HTTP sem sucesso).")
     }
 
     private fun vodFromPlaylistEntry(favKey: String, extKey: String, name: String, group: String, logo: String?, url: String) =
@@ -360,7 +374,10 @@ class XtreamClient(private val source: ListSource) {
      * (HTTP 200 com corpo HTML). Lança IOException com mensagem clara em caso de falha.
      */
     private suspend fun fetchJsonPanel(url: String): kotlinx.serialization.json.JsonElement {
-        val text = Http.readJsonText(url) // já rejeita HTML/vazio/binário
+        // Painéis pagos podem recusar o UA do app: tenta padrão e, se vier
+        // HTML/vazio/erro, repete com UA de navegador antes de falhar.
+        val primary = runCatching { Http.readJsonText(url) }.getOrNull()
+        val text = primary ?: Http.readJsonText(url, mapOf("User-Agent" to Http.BROWSER_USER_AGENT))
         return kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
             .parseToJsonElement(text)
     }

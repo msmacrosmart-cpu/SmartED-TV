@@ -1,0 +1,54 @@
+# Smoke test de EMULADOR (separado do build de publicação — não bloqueia):
+# instala o APK, inicia o MainActivity, verifica crash e salva screenshot.
+# Gatilho: editar .github/emulator-trigger (paths filter abaixo).
+name: Emulador (smoke)
+
+on:
+  push:
+    paths:
+      - ".github/emulator-trigger"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Compilar APK de debug
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --console=plain
+
+      - name: Instalar, iniciar e verificar no emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          disable-animations: true
+          script: |
+            set -e
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n com.smarted.tv/.MainActivity
+            sleep 15
+            mkdir -p artifacts
+            adb exec-out screencap -p > artifacts/emulator-smoke.png
+            if adb logcat -d | grep -qi "FATAL EXCEPTION"; then
+              echo "=== CRASH DETECTADO ==="
+              adb logcat -d | grep -A 40 "FATAL EXCEPTION" | tail -60
+              exit 1
+            fi
+            echo "App iniciou sem crash; screenshot salvo."
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-smoke
+          path: artifacts/
+          if-no-files-found: ignore
