@@ -92,12 +92,30 @@ fun RepositoryTreeScreen(
             }
         }
         Spacer(Modifier.height(14.dp))
-        Text(
-            text = current.name,
-            fontSize = d.textTitle,
-            fontWeight = FontWeight.Bold,
-            color = Smoke.TextPrimary,
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = current.name,
+                fontSize = d.textTitle,
+                fontWeight = FontWeight.Bold,
+                color = Smoke.TextPrimary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(10.dp))
+            // Prompt 07: reprodutor de app Android — Kodi original em tela cheia.
+            GlassButton("Kodi · tela cheia", Icons.Rounded.Fullscreen, {
+                if (!com.smarted.tv.ui.kodi.KodiLauncher.launchFullscreen(ctx)) {
+                    Toast.makeText(
+                        ctx,
+                        "Kodi não instalado — instale o app oficial do Kodi (org.xbmc.kodi).",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            })
+        }
         Spacer(Modifier.height(10.dp))
 
         Box(Modifier.weight(1f).fillMaxSize().glass()) {

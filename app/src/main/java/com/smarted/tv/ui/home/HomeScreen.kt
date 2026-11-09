@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +42,7 @@ import com.smarted.tv.core.util.asDuration
 import com.smarted.tv.core.util.asRating
 import com.smarted.tv.ui.common.vmFactory
 import com.smarted.tv.ui.components.*
+import com.smarted.tv.ui.kodi.KodiLauncher
 import com.smarted.tv.ui.nav.Dest
 import com.smarted.tv.ui.theme.LocalDeviceMode
 import com.smarted.tv.ui.theme.LocalDimens
@@ -57,8 +59,9 @@ fun HomeScreen(
     val ui by vm.ui.collectAsState()
     val d = LocalDimens.current
 
+    val ctx = LocalContext.current
     var kodiMenu by remember { mutableStateOf(false) }
-    var unsupported by remember { mutableStateOf<String?>(null) }
+    var kodiNotice by remember { mutableStateOf<Pair<String, String>?>(null) }
     var heroIndex by remember { mutableIntStateOf(0) }
     val featuredSize = ui.featured.size
     LaunchedEffect(featuredSize) {
@@ -115,21 +118,40 @@ fun HomeScreen(
         if (kodiMenu) {
             KodiMenuDialog(
                 onPick = { dest -> kodiMenu = false; onNavigate(dest) },
-                onUnsupported = { label -> kodiMenu = false; unsupported = label },
+                onLaunchKodi = {
+                    kodiMenu = false
+                    if (!KodiLauncher.launchFullscreen(ctx)) {
+                        kodiNotice = "Kodi não instalado" to
+                            "O app original do Kodi (org.xbmc.kodi) não está instalado neste " +
+                            "aparelho. Instale o Kodi oficial e volte ao Menu Kodi — ele abre em tela cheia."
+                    }
+                },
+                onUnsupported = { label ->
+                    kodiMenu = false
+                    kodiNotice = label to ("$label é uma opção do Kodi ainda não implementada " +
+                        "neste player. As incompatibilidades estão documentadas em docs/KODI_COMPAT.md.")
+                },
                 onDismiss = { kodiMenu = false },
             )
         }
-        unsupported?.let { label ->
-            KodiUnsupportedDialog(label) { unsupported = null }
+        kodiNotice?.let { (title, body) ->
+            KodiNoticeDialog(title, body) { kodiNotice = null }
         }
     }
 }
 
 /** Item do menu principal estilo Kodi — ícone oficial do skin Estuary. */
-private class KodiOption(@DrawableRes val icon: Int, val label: String, val dest: Dest?)
+private class KodiOption(
+    @DrawableRes val icon: Int,
+    val label: String,
+    val dest: Dest?,
+    /** Prompt 07: lança o app ORIGINAL do Kodi em tela cheia. */
+    val launchKodi: Boolean = false,
+)
 
-/** Opções do Kodi: as reais navegam; as não implementadas avisam (KODI_COMPAT). */
+/** Opções do Kodi: Kodi real (tela cheia), as reais navegam, as demais avisam. */
 private val kodiMenuOptions = listOf(
+    KodiOption(R.drawable.kodi_app, "Kodi · tela cheia", null, launchKodi = true),
     KodiOption(R.drawable.kodi_movies, "Filmes", Dest.MOVIES),
     KodiOption(R.drawable.kodi_series, "Séries", Dest.SERIES),
     KodiOption(R.drawable.kodi_tv, "TV ao vivo", Dest.CHANNELS),
@@ -147,6 +169,7 @@ private val kodiMenuOptions = listOf(
 @Composable
 private fun KodiMenuDialog(
     onPick: (Dest) -> Unit,
+    onLaunchKodi: () -> Unit,
     onUnsupported: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -163,7 +186,11 @@ private fun KodiMenuDialog(
                 )
                 kodiMenuOptions.forEach { opt ->
                     GlassClickable(
-                        onClick = { opt.dest?.let(onPick) ?: onUnsupported(opt.label) },
+                        onClick = when {
+                            opt.launchKodi -> onLaunchKodi()
+                            opt.dest != null -> onPick(opt.dest)
+                            else -> onUnsupported(opt.label)
+                        },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     ) { focused ->
@@ -186,9 +213,9 @@ private fun KodiMenuDialog(
     }
 }
 
-/** Aviso honesto de opção do Kodi sem implementação equivalente. */
+/** Aviso honesto: opção não implementada OU Kodi não instalado. */
 @Composable
-private fun KodiUnsupportedDialog(label: String, onDismiss: () -> Unit) {
+private fun KodiNoticeDialog(title: String, body: String, onDismiss: () -> Unit) {
     val d = LocalDimens.current
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         GlassPanel(Modifier.fillMaxWidth().widthIn(max = 560.dp), padding = 16.dp) {
@@ -196,12 +223,8 @@ private fun KodiUnsupportedDialog(label: String, onDismiss: () -> Unit) {
                 Modifier.fillMaxWidth().padding(4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(label, fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary)
-                Text(
-                    "$label é uma opção do Kodi ainda não implementada neste player. " +
-                        "As incompatibilidades estão documentadas em docs/KODI_COMPAT.md.",
-                    fontSize = d.textBody, color = Smoke.TextSecondary,
-                )
+                Text(title, fontSize = d.textTitle, fontWeight = FontWeight.Bold, color = Smoke.TextPrimary)
+                Text(body, fontSize = d.textBody, color = Smoke.TextSecondary)
                 GlassButton("Fechar", Icons.Rounded.Close, onDismiss)
             }
         }

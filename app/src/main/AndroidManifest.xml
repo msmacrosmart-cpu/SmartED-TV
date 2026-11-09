@@ -6,6 +6,11 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <queries>
         <package android:name="org.xbmc.kodi" />
+        <package android:name="org.xbmc.kodi.debug" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
     </queries>
     <application android:name=".SmartEdApplication" android:allowBackup="false"
         android:banner="@drawable/app_banner" android:icon="@mipmap/ic_launcher"

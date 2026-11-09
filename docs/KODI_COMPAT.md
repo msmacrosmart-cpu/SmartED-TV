@@ -67,3 +67,20 @@ possível sem executar código de terceiros — spec §7 (nunca executar código
 desconhecido). A alternativa avaliada é emular o Kodi original dentro do app
 (reprodutor Android embutido na aba Navegar), se a reprodução direta das
 opções não for suficiente.
+
+## Prompt 07 — Kodi original em tela cheia (ativado)
+
+O **Menu Kodi** (hambúrguer ao lado da logo) e a **barra Navegar** ganharam a
+entrada **“Kodi · tela cheia”**: ela lança o app ORIGINAL do Kodi instalado no
+aparelho (`org.xbmc.kodi` / `org.xbmc.kodi.debug`, fallback por rótulo no
+launcher de TV), em tela cheia, retomando a task se já estiver aberto.
+
+- **Por que lançar e não embutir?** O sandbox de processos do Android não
+  permite incorporar a UI de outro app dentro do nosso; lançar em tela cheia é
+  o caminho nativo e o que o usuário pediu (Kodi ocupa a tela inteira).
+- **Otimização:** resolução barata do pacote, `FLAG_ACTIVITY_NEW_TASK` +
+  `RESET_TASK_IF_NEEDED` (retoma, não reinicia), clique → start imediato sem
+  trabalho prévio pesado; a UI que lança está sem player ativo (decoder
+  liberado).
+- **Kodi ausente:** diálogo honesto (nada é simulado). Visibilidade de pacotes
+  declarada em `<queries>` no Manifest.
