@@ -9,3 +9,5 @@ smoke-v6-fixed 2026-11-09T03:20:00Z
 # fix addon.id compile
 
 # fix androidTest
+
+# fix androidTest assets + ignore stale
