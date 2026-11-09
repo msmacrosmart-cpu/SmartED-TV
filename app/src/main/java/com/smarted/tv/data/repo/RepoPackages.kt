@@ -543,7 +543,9 @@ class RepoPackages(private val context: Context) {
                 if (addon.capability == null) {
                     val meta = addon.description?.let { d -> isXtreamHint(d) } == true
                     val fromFiles = extractDir?.let { dir ->
-                        val addonDir = java.io.File(dir, addon.id).takeIf { it.isDirectory } ?: dir
+                        // DTO legado não tem id: o topo da extração é o
+                        // próprio addon (ou <plugin.id>/ — descido abaixo).
+                        val addonDir = dir
                         val top = addonDir.listFiles() ?: emptyArray()
                         // Topo + 1 nível (extração legada agrupa em <plugin.id>/).
                         val names = buildList {

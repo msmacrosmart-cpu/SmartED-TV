@@ -38,7 +38,12 @@ jobs:
       - name: Compilar APK de debug
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --console=plain
+          set -o pipefail
+          ./gradlew :app:assembleDebug --no-daemon --console=plain 2>&1 | tee /tmp/build.log || {
+            grep -E "^e: |error:|FAILURE:|Execution failed|Could not " /tmp/build.log \
+              | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
 
       - name: Instalar, iniciar e verificar no emulador
         uses: reactivecircus/android-emulator-runner@v2
