@@ -35,7 +35,9 @@ jobs:
           script: |
             set -e
             adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -n com.smarted.tv/.MainActivity
+            # buildType debug usa applicationIdSuffix ".debug"; a classe MainActivity
+            # continua em com.smarted.tv → componente explícito package/className.
+            adb shell am start -n com.smarted.tv.debug/com.smarted.tv.MainActivity
             sleep 15
             mkdir -p artifacts
             adb exec-out screencap -p > artifacts/emulator-smoke.png
