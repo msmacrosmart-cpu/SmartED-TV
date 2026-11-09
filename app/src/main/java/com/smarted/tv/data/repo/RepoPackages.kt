@@ -20,6 +20,20 @@ class RepoPackages(private val context: Context) {
     /** Entrada do Gestor de Arquivos: pasta ou arquivo dentro do pacote. */
     data class Entry(val path: String, val isDirectory: Boolean)
 
+    /**
+     * Add-on Kodi detectado via `addon.xml` — SOMENTE metadados (id, nome,
+     * versão, tipo, dependências). O runtime Kodi/Python não é executado:
+     * ver docs/KODI_COMPAT.md.
+     */
+    data class KodiAddon(
+        val entryPath: String,
+        val id: String,
+        val name: String,
+        val version: String,
+        val type: String?,
+        val dependencies: List<String>,
+    )
+
     /** Add-on encontrado num índice do ZIP: tipo declarado (null = usuário escolhe). */
     data class AddonInfo(val name: String, val declaredType: String?)
 
@@ -41,6 +55,7 @@ class RepoPackages(private val context: Context) {
         val name = trimmed.substringAfterLast('/').substringBefore('?')
             .ifBlank { "repositorio.zip" }
             .let { if (it.endsWith(".zip", true)) it else "$it.zip" }
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
         val file = File(packageDir, name)
         file.writeBytes(bytes)
         require(candidates(file.absolutePath).isNotEmpty()) {
@@ -98,6 +113,7 @@ class RepoPackages(private val context: Context) {
         entryPath: String,
         chosenTypes: Map<String, String>,
     ): Pair<String, String> = withContext(Dispatchers.IO) {
+        require(isSafeEntryPath(entryPath)) { "Caminho inválido no pacote (Zip Slip bloqueado)." }
         val dto = readEntry(zipPath, entryPath) ?: error("Índice não encontrado no pacote.")
         val fixed = dto.copy(
             addons = dto.addons?.map { addon ->
@@ -116,6 +132,23 @@ class RepoPackages(private val context: Context) {
         "file://${target.absolutePath}" to (fixed.name ?: base)
     }
 
+    /**
+     * Detecta `addon.xml` no pacote e extrai os metadados (spec §5). Nenhum
+     * código do add-on é carregado ou executado — apenas leitura de XML.
+     */
+    fun kodiAddons(zipPath: String): List<KodiAddon> = runCatching {
+        ZipInputStream(File(zipPath).inputStream()).use { zip ->
+            generateSequence { zip.nextEntry }
+                .filter { !it.isDirectory && it.name.substringAfterLast('/') == "addon.xml" }
+                .take(50)
+                .mapNotNull { entry ->
+                    runCatching { parseAddonXml(entry.name, zip.readBytes().decodeToString()) }
+                        .getOrNull()
+                }
+                .toList()
+        }
+    }.getOrNull().orEmpty()
+
     private fun readEntry(zipPath: String, entryPath: String): OnePlayIndexDto? = runCatching {
         ZipInputStream(File(zipPath).inputStream()).use { zip ->
             generateSequence { zip.nextEntry }
@@ -127,4 +160,76 @@ class RepoPackages(private val context: Context) {
                 }
         }
     }.getOrNull()
+
+    companion object {
+        /**
+         * Guarda Zip Slip / Path Traversal (spec §7): caminho relativo sem
+         * segmentos `..`/`.`, sem início absoluto e sem barra invertida.
+         */
+        fun isSafeEntryPath(path: String): Boolean {
+            if (path.isBlank() || path.contains('\u0000')) return false
+            if (path.startsWith("/") || path.contains('\\')) return false
+            return path.split('/').none { it == ".." || it == "." }
+        }
+
+        /**
+         * Metadados de um `addon.xml` por leitura de texto (regex) — puro JVM,
+         * sem XmlPullParser (stub em unit tests) e sem execução de código.
+         */
+        fun parseAddonXml(entryPath: String, xml: String): KodiAddon? {
+            val clean = xml.replace(Regex("<\\?xml[^>]*\\?>"), "")
+            val addonTag = Regex("<addon\\s([^>]*)>", RegexOption.IGNORE_CASE)
+                .find(clean)?.groupValues?.get(1) ?: return null
+            fun attr(key: String): String =
+                Regex("$key\\s*=\\s*\"([^\"]*)\"").find(addonTag)?.groupValues?.get(1)
+                    ?: Regex("$key\\s*=\\s*'([^']*)'").find(addonTag)?.groupValues?.get(1)
+                    ?: ""
+            val id = attr("id")
+            val name = attr("name")
+            val version = attr("version")
+            if (id.isBlank() && name.isBlank()) return null
+            val requires = Regex(
+                "<requires>(.*?)</requires>",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+            ).find(clean)?.groupValues?.get(1).orEmpty()
+            val dependencies = Regex(
+                "<import\\s[^>]*addon\\s*=\\s*\"([^\"]*)\"",
+                RegexOption.IGNORE_CASE,
+            ).findAll(requires).map { it.groupValues[1] }.toList()
+            val type = Regex(
+                "<extension\\s[^>]*point\\s*=\\s*\"([^\"]*)\"",
+                RegexOption.IGNORE_CASE,
+            ).findAll(clean)
+                .mapNotNull { typeFromExtensionPoint(it.groupValues[1]) }
+                .firstOrNull()
+            return KodiAddon(
+                entryPath = entryPath,
+                id = id.ifBlank { name },
+                name = name.ifBlank { id },
+                version = version,
+                type = type,
+                dependencies = dependencies,
+            )
+        }
+
+        /** Ponto de extensão Kodi → tipo oficial do agrupamento (spec §5). */
+        fun typeFromExtensionPoint(point: String): String? {
+            val p = point.lowercase()
+            return when {
+                // metadata/legendas antes de video: pontos como
+                // kodi.metadata.scraper.video são Metadados, não Vídeo.
+                p.contains("metadata") -> "metadata"
+                p.contains("subtitle") -> "subtitles"
+                p.contains("video") -> "video"
+                p.contains("program") || p.contains("script") -> "programs"
+                p.contains("music") || p.contains("audio") -> "music"
+                p.contains("pvr") -> "pvr"
+                p.contains("service") -> "services"
+                p.contains("skin") || p.contains("interface") -> "skins"
+                p.contains("repository") -> "repository"
+                p.contains("picture") -> "pictures"
+                else -> null
+            }
+        }
+    }
 }

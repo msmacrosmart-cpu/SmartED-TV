@@ -286,22 +286,32 @@ class IptvContentRepository(
         return groupNodes + repositoryFileFolders(repo)
     }
 
-    /** Ordem oficial dos grupos de add-ons (idêntico ao Kodi). */
+    /** Ordem oficial dos grupos de add-ons (spec §5 — idêntico ao Kodi). */
     private fun addonGroupOrder(type: String): Int = when (type) {
         "video" -> 0
-        "programs", "program", "tools" -> 1
-        "pvr" -> 2
-        "music", "audio", "radio" -> 3
-        "pictures" -> 4
-        else -> 9
+        "programs", "program", "tools", "script" -> 1
+        "music", "audio", "radio" -> 2
+        "skins", "skin", "interface" -> 3
+        "services", "service" -> 4
+        "metadata" -> 5
+        "subtitles" -> 6
+        "repository", "repositories" -> 7
+        "pvr" -> 8
+        "pictures" -> 9
+        else -> 10
     }
 
-    /** Rótulo oficial do grupo (Kodi); tipo desconhecido exibe o próprio tipo. */
+    /** Rótulo oficial do grupo (spec §5); tipo desconhecido exibe o próprio tipo. */
     private fun addonGroupLabel(type: String): String = when (type) {
         "video" -> "Add-ons de Vídeo"
-        "programs", "program", "tools" -> "Add-ons de Programas/Ferramentas"
-        "pvr" -> "PVR"
+        "programs", "program", "tools", "script" -> "Add-ons de Programas/Ferramentas"
         "music", "audio", "radio" -> "Add-ons de Áudio/Rádio"
+        "skins", "skin", "interface" -> "Add-ons de Interface"
+        "services", "service" -> "Add-ons de Serviços"
+        "metadata" -> "Add-ons de Metadados"
+        "subtitles" -> "Add-ons de Legendas"
+        "repository", "repositories" -> "Add-ons de Repositório"
+        "pvr" -> "PVR"
         "pictures" -> "Add-ons de Imagens"
         else -> type.replaceFirstChar { it.uppercaseChar() }
     }

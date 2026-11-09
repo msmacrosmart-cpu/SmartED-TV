@@ -277,6 +277,7 @@ private fun RepoBrowserDialog(
 ) {
     val d = LocalDimens.current
     var candidates by remember { mutableStateOf<List<RepoPackages.Candidate>>(emptyList()) }
+    var kodiAddons by remember { mutableStateOf<List<RepoPackages.KodiAddon>>(emptyList()) }
     var entries by remember { mutableStateOf<List<RepoPackages.Entry>>(emptyList()) }
     var chosen by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var busy by remember { mutableStateOf(false) }
@@ -285,11 +286,16 @@ private fun RepoBrowserDialog(
     val scope = rememberCoroutineScope()
     LaunchedEffect(zipPath) {
         candidates = vm.zipCandidates(zipPath)
+        kodiAddons = vm.zipKodiAddons(zipPath)
         entries = vm.zipEntries(zipPath)
     }
+    // Categorias oficiais Kodi (spec §5): vídeo, programas, música, interface,
+    // serviços, metadados, legendas, repositório + PVR/rádio/imagens.
     val typeOptions = listOf(
-        "video" to "Vídeo", "pvr" to "PVR", "radio" to "Rádio",
-        "programs" to "Programas", "pictures" to "Imagens",
+        "video" to "Vídeo", "programs" to "Programas", "music" to "Música",
+        "skins" to "Interface", "services" to "Serviços", "metadata" to "Metadados",
+        "subtitles" to "Legendas", "repository" to "Repositório",
+        "pvr" to "PVR", "radio" to "Rádio", "pictures" to "Imagens",
     )
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         GlassPanel(
@@ -383,6 +389,31 @@ private fun RepoBrowserDialog(
                                 }
                             },
                         )
+                        }
+                    }
+                }
+                if (kodiAddons.isNotEmpty()) {
+                    Text(
+                        "Add-ons Kodi detectados (addon.xml)",
+                        fontWeight = FontWeight.Bold, color = Smoke.TextPrimary,
+                    )
+                    kodiAddons.forEach { ka ->
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "${ka.name} · ${ka.id} · v${ka.version.ifBlank { "?" }}",
+                                color = Smoke.TextPrimary,
+                            )
+                            Text(
+                                "Tipo: ${ka.type ?: "desconhecido"} · " +
+                                    "Dependências: ${
+                                        ka.dependencies.joinToString().ifBlank { "nenhuma" }
+                                    }",
+                                fontSize = d.textBody, color = Smoke.TextTertiary,
+                            )
+                            Hint(
+                                "Compatibilidade: somente metadados — o runtime Kodi " +
+                                    "(Python) não é executado (docs/KODI_COMPAT.md).",
+                            )
                         }
                     }
                 }

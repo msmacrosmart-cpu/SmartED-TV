@@ -22,6 +22,7 @@ class SettingsViewModel(private val system: IptvSystem) : ViewModel() {
     fun zipPackages() = system.zipPackages()
     fun zipEntries(zipPath: String) = system.zipEntries(zipPath)
     fun zipCandidates(zipPath: String) = system.zipCandidates(zipPath)
+    fun zipKodiAddons(zipPath: String) = system.zipKodiAddons(zipPath)
     suspend fun zipDownload(url: String) = system.zipDownload(url)
     suspend fun zipInstall(zipPath: String, entryPath: String, types: Map<String, String>) =
         system.zipInstall(zipPath, entryPath, types)
